@@ -138,7 +138,13 @@ class DestinationQueryTest {
 
     @Test
     fun `search is case insensitive and incremental`() {
-        listOf("b", "br", "BRU", "brussels").forEach { q ->
+        // "Berlin" also contains a "b", so the one-character query legitimately matches two
+        // and they come back in name order. The earlier expectation of a single hit here was
+        // simply wrong about the fixture.
+        assertEquals(listOf("z", "b"), ids(DestinationQuery.apply(all, query = "b")))
+
+        // From the second character on, only Brussels survives — and case makes no difference.
+        listOf("br", "BR", "Bru", "BRUSSELS", "brussels").forEach { q ->
             assertEquals("query '$q'", listOf("b"), ids(DestinationQuery.apply(all, query = q)))
         }
     }

@@ -90,10 +90,18 @@ object Geo {
         return LatLon(phi2 * RAD, LatLon.wrapLongitude(lambda2 * RAD))
     }
 
-    /** Wrap any angle into `[0, 360)`. */
+    /**
+     * Wrap any angle into `[0, 360)`.
+     *
+     * The `+ 0.0` is not redundant. `-0.0 % 360.0` is `-0.0`, and `-0.0 < 0` is false under
+     * IEEE 754, so a heading of exactly 0 would otherwise leak negative zero out of the API.
+     * That bites twice: `Double.equals(-0.0, 0.0)` is false (different bit patterns), and
+     * `"%.1f".format(-0.0)` renders "-0.0", so the diagnostics panel would show "-0.0°".
+     * Adding positive zero collapses both zeros to `+0.0` and changes nothing else.
+     */
     fun normalizeDegrees(deg: Double): Double {
         val d = deg % 360.0
-        return if (d < 0) d + 360.0 else d
+        return if (d < 0) d + 360.0 else d + 0.0
     }
 
     /**

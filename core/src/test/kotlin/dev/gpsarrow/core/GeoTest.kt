@@ -92,17 +92,24 @@ class GeoTest {
     @Test
     fun `response is independent of the delivery rate`() {
         val tau = 0.08
-        fun after(seconds: Double, hz: Int): Double {
+        // Steps are passed explicitly. The previous version derived them as
+        // (seconds * hz).toInt(), which truncated 0.16 * 10 to a single step — so it compared
+        // 0.16 s of filtering against 0.10 s and failed on a difference it had created itself.
+        fun after(totalSeconds: Double, steps: Int): Double {
             val s = CircularSmoother()
-            val dt = 1.0 / hz
+            val dt = totalSeconds / steps
             s.update(0.0, 0.0, tau)
             var out = 0.0
-            repeat((seconds * hz).toInt()) { out = s.update(90.0, dt, tau) }
+            repeat(steps) { out = s.update(90.0, dt, tau) }
             return out
         }
-        // 50 Hz and 10 Hz must land in the same place after the same elapsed time. A
-        // per-sample alpha would leave the 10 Hz case five times further behind.
-        assertEquals(after(0.16, 50), after(0.16, 10), 2.0)
+        // With alpha = 1 - exp(-dt/tau) the residual after n steps is exactly exp(-T/tau),
+        // independent of how T was subdivided, so equal elapsed time gives an equal angle to
+        // within floating-point noise. A fixed per-sample alpha would not.
+        val fast = after(0.2, 10)   // 50 Hz
+        val slow = after(0.2, 2)    // 10 Hz
+        assertEquals(fast, slow, 1e-9)
+        assertTrue("should have moved most of the way, was $fast", fast > 80.0)
     }
 
     @Test

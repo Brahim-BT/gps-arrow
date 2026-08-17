@@ -7,20 +7,24 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +32,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,11 +67,15 @@ fun DestinationsScreen(
     onToggleFavourite: (Destination) -> Unit,
     onDelete: (Destination) -> Unit,
     onAdd: () -> Unit,
-    onBack: () -> Unit,
+    /** Hoisted: a search survives a trip to the arrow tab and back. */
+    query: String,
+    onQueryChange: (String) -> Unit,
+    favouritesOnly: Boolean,
+    onFavouritesOnlyChange: (Boolean) -> Unit,
+    /** Freshly saved point: scrolled to and tinted briefly so the user sees where it landed. */
+    highlightId: String? = null,
     modifier: Modifier = Modifier,
 ) {
-    var query by remember { mutableStateOf("") }
-    var favouritesOnly by remember { mutableStateOf(false) }
     var sortMenuOpen by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<Destination?>(null) }
 
@@ -97,21 +106,20 @@ fun DestinationsScreen(
         )
     }
 
-    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+    Box(modifier = modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onBack) { Text("Back") }
             Text("Destinations", style = MaterialTheme.typography.headlineMedium)
-            TextButton(onClick = onAdd) { Text("Add") }
         }
 
         if (destinations.isNotEmpty()) {
             OutlinedTextField(
                 value = query,
-                onValueChange = { query = it },
+                onValueChange = onQueryChange,
                 label = { Text("Search") },
                 placeholder = { Text("Name or note") },
                 singleLine = true,
@@ -160,7 +168,7 @@ fun DestinationsScreen(
 
                 FilterChip(
                     selected = favouritesOnly,
-                    onClick = { favouritesOnly = !favouritesOnly },
+                    onClick = { onFavouritesOnlyChange(!favouritesOnly) },
                     label = { Text("Starred") },
                 )
             }
@@ -195,26 +203,47 @@ fun DestinationsScreen(
                     "No saved point matches \"$query\"."
                 },
                 actionLabel = "Clear search",
-                onAction = { query = ""; favouritesOnly = false },
+                onAction = { onQueryChange(""); onFavouritesOnlyChange(false) },
             )
 
-            else -> LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(top = 8.dp),
-            ) {
-                items(visible, key = { it.id }) { destination ->
-                    DestinationRow(
-                        destination = destination,
-                        currentPosition = currentPosition,
-                        selected = destination.id == selectedId,
-                        units = units,
-                        onSelect = { onSelect(destination) },
-                        onEdit = { onEdit(destination) },
-                        onToggleFavourite = { onToggleFavourite(destination) },
-                        onDelete = { pendingDelete = destination },
-                    )
+            else -> {
+                val listState = rememberLazyListState()
+                // Sorting can drop a new point anywhere in the list, so scroll it into view.
+                LaunchedEffect(highlightId, visible.size) {
+                    val index = visible.indexOfFirst { it.id == highlightId }
+                    if (index >= 0) listState.animateScrollToItem(index)
+                }
+                LazyColumn(
+                    state = listState,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(top = 8.dp),
+                    contentPadding = PaddingValues(bottom = 88.dp),
+                ) {
+                    items(visible, key = { it.id }) { destination ->
+                        DestinationRow(
+                            destination = destination,
+                            currentPosition = currentPosition,
+                            selected = destination.id == selectedId,
+                            highlighted = destination.id == highlightId,
+                            units = units,
+                            onSelect = { onSelect(destination) },
+                            onEdit = { onEdit(destination) },
+                            onToggleFavourite = { onToggleFavourite(destination) },
+                            onDelete = { pendingDelete = destination },
+                        )
+                    }
                 }
             }
+        }
+    }
+
+        FloatingActionButton(
+            onClick = onAdd,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(20.dp),
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = "Add a destination")
         }
     }
 }
@@ -224,6 +253,7 @@ private fun DestinationRow(
     destination: Destination,
     currentPosition: LatLon?,
     selected: Boolean,
+    highlighted: Boolean,
     units: DistanceUnits,
     onSelect: () -> Unit,
     onEdit: () -> Unit,
@@ -236,6 +266,13 @@ private fun DestinationRow(
             // Tapping the row stays "navigate to this" — the primary action. Editing gets its
             // own affordance rather than stealing the tap for a detail screen.
             .clickable(onClick = onSelect),
+        colors = if (highlighted) {
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
+            )
+        } else {
+            CardDefaults.cardColors()
+        },
     ) {
         Row(
             modifier = Modifier.padding(start = 14.dp, top = 10.dp, bottom = 10.dp),
@@ -269,15 +306,15 @@ private fun DestinationRow(
 
             IconButton(onClick = onToggleFavourite, modifier = Modifier.size(44.dp)) {
                 Icon(
-                    imageVector = if (destination.isFavourite) Icons.Filled.Star
-                    else Icons.Outlined.StarBorder,
+                    imageVector = Icons.Filled.Star,
                     contentDescription = if (destination.isFavourite) {
                         "Unstar ${destination.name}"
                     } else {
                         "Star ${destination.name}"
                     },
+                    // Same glyph, distinguished by tint: keeps us on material-icons-core only.
                     tint = if (destination.isFavourite) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
                 )
             }
             IconButton(onClick = onEdit, modifier = Modifier.size(44.dp)) {

@@ -3,6 +3,8 @@ package dev.gpsarrow.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -17,10 +19,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
@@ -42,22 +41,21 @@ import dev.gpsarrow.core.PlusCode
  */
 @Composable
 fun AddDestinationScreen(
+    /** Hoisted so tab switches don't discard a half-typed coordinate. */
+    draft: CoordinateDraft,
+    onDraftChange: (CoordinateDraft) -> Unit,
     currentPosition: LatLon?,
     onSave: (name: String, position: LatLon, source: String) -> Unit,
-    onBack: () -> Unit,
-    initialText: String = "",
+    /** null when shown as a tab (nothing to go back to); non-null in edit mode. */
+    onBack: (() -> Unit)? = null,
     /** Non-null puts the screen in edit mode: same fields, same parser, different verb. */
     editing: Destination? = null,
     modifier: Modifier = Modifier,
 ) {
-    var name by remember(editing?.id) { mutableStateOf(editing?.name ?: "") }
-    var latText by remember(editing?.id) {
-        mutableStateOf(editing?.let { "%.6f".format(it.position.lat) } ?: "")
-    }
-    var lonText by remember(editing?.id) {
-        mutableStateOf(editing?.let { "%.6f".format(it.position.lon) } ?: "")
-    }
-    var pastedFormat by remember(editing?.id) { mutableStateOf<String?>(null) }
+    val name = draft.name
+    val latText = draft.latText
+    val lonText = draft.lonText
+    val pastedFormat = draft.readAs
 
     /**
      * Try to read [text] as a COMPLETE coordinate. Returns null for anything that is just one
@@ -69,19 +67,18 @@ fun AddDestinationScreen(
         return DestinationParser.parse(text, currentPosition) as? ParseResult.Success
     }
 
+    /** Returns true when [text] was a whole coordinate and both fields were filled from it. */
     fun applyPaste(text: String): Boolean {
         val parsed = asFullCoordinate(text) ?: return false
-        latText = "%.6f".format(parsed.position.lat)
-        lonText = "%.6f".format(parsed.position.lon)
-        pastedFormat = parsed.format.name.lowercase().replace('_', ' ')
-        if (name.isBlank()) parsed.label?.let { name = it }
+        onDraftChange(
+            draft.copy(
+                latText = "%.6f".format(parsed.position.lat),
+                lonText = "%.6f".format(parsed.position.lon),
+                readAs = parsed.format.name.lowercase().replace('_', ' '),
+                name = if (draft.name.isBlank()) parsed.label ?: draft.name else draft.name,
+            ),
+        )
         return true
-    }
-
-    // A shared geo: link or SEND intent arrives here already parsed into both fields.
-    // Never applied in edit mode — it would silently overwrite the point being edited.
-    remember(initialText, editing?.id) {
-        if (editing == null && initialText.isNotBlank()) applyPaste(initialText) else false
     }
 
     val lat = latText.trim().replace(',', '.').toDoubleOrNull()
@@ -116,17 +113,21 @@ fun AddDestinationScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onBack) { Text("Back") }
+            if (onBack != null) {
+                TextButton(onClick = onBack) { Text("Back") }
+            } else {
+                Spacer(Modifier.width(1.dp))
+            }
             Text(
                 if (editing == null) "Add a point" else "Edit point",
                 style = MaterialTheme.typography.headlineMedium,
             )
-            TextButton(onClick = {}, enabled = false) { Text("") }
+            Spacer(Modifier.width(1.dp))
         }
 
         OutlinedTextField(
             value = name,
-            onValueChange = { name = it },
+            onValueChange = { onDraftChange(draft.copy(name = it)) },
             label = { Text("Name") },
             placeholder = { Text("Trailhead") },
             singleLine = true,
@@ -135,7 +136,9 @@ fun AddDestinationScreen(
 
         OutlinedTextField(
             value = latText,
-            onValueChange = { if (!applyPaste(it)) { latText = it; pastedFormat = null } },
+            onValueChange = {
+                if (!applyPaste(it)) onDraftChange(draft.copy(latText = it, readAs = null))
+            },
             label = { Text("Latitude") },
             placeholder = { Text("48.8584    (N positive, S negative)") },
             supportingText = {
@@ -149,7 +152,9 @@ fun AddDestinationScreen(
 
         OutlinedTextField(
             value = lonText,
-            onValueChange = { if (!applyPaste(it)) { lonText = it; pastedFormat = null } },
+            onValueChange = {
+                if (!applyPaste(it)) onDraftChange(draft.copy(lonText = it, readAs = null))
+            },
             label = { Text("Longitude") },
             placeholder = { Text("2.2945    (E positive, W negative)") },
             supportingText = { Text(lonError ?: "Between -180 and 180") },
