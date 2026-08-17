@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Saved destinations are small and worth keeping across devices. -->
+    <include domain="file" path="destinations.json" />
+    <!-- Map regions are gigabytes and re-downloadable; never back them up. -->
+    <exclude domain="external" path="regions" />
+</full-backup-content>

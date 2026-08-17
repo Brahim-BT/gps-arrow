@@ -1,0 +1,43 @@
+# ---- Gradle ----
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.properties
+# gradle-wrapper.jar is intentionally NOT ignored. It isn't in this repo yet; if you
+# generate it (locally or from the CI reports artifact), committing it is correct and
+# is what every Android project does.
+
+# ---- Android / local machine ----
+local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+captures/
+.externalNativeBuild/
+.cxx/
+output.json
+release/
+
+# ---- Signing material: never commit these ----
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+
+# ---- Android Studio / IntelliJ ----
+*.iml
+.idea/*
+!.idea/codeStyles/
+!.idea/inspectionProfiles/
+*.hprof
+
+# ---- macOS / editors ----
+.DS_Store
+*.swp
+*~
+.vscode/
+
+# ---- Misc ----
+*.log
+!.github/**

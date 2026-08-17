@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GPS Arrow</string>
+    <string name="navigate_here">Navigate here</string>
+    <string name="navigating">Navigating</string>
+    <string name="stop">Stop</string>
+    <string name="channel_navigation">Navigation</string>
+    <string name="channel_navigation_description">Shows distance and bearing while navigating.</string>
+</resources>

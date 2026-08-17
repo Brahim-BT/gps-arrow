@@ -1,0 +1,156 @@
+name: Build debug APK
+
+# Push builds on every commit; workflow_dispatch adds a "Run workflow" button on the
+# Actions tab so you can rebuild from the browser without making a commit.
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: assembleDebug
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # gradle-wrapper.jar is NOT in this repo, so `./gradlew` would fail on its first line.
+      # Installing Gradle here and invoking `gradle` directly is the wrapper-less path.
+      # setup-gradle also handles dependency and build caching automatically.
+      - name: Set up Gradle 8.14.3
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.14.3'
+
+      # The hosted runner ships an Android SDK, but don't assume platform 36 is in it.
+      # Licences are pre-accepted on the runner image; the `yes |` is belt and braces.
+      - name: Install Android SDK platform 36
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+
+      # Generates gradle-wrapper.jar. Not needed by the steps below (they call `gradle`),
+      # but it gets uploaded with the reports so you can drop it into your local checkout
+      # and have a working ./gradlew without installing Gradle on your Mac.
+      - name: Generate gradle-wrapper.jar
+        id: wrapper
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          gradle wrapper --gradle-version 8.14.3 --console=plain 2>&1 | tee -a build.log
+
+      # continue-on-error on both build steps is deliberate: a test failure must not stop
+      # the APK being built and uploaded, and a compile failure must not stop the log and
+      # reports being uploaded. --continue makes Gradle report every failure rather than
+      # stopping at the first, which is what you want from a first compile.
+      - name: Unit tests (:core:test)
+        id: tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          gradle :core:test --console=plain --stacktrace --continue 2>&1 | tee -a build.log
+
+      - name: Build debug APK
+        id: apk
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          gradle assembleDebug --console=plain --stacktrace --continue 2>&1 | tee -a build.log
+
+      # Puts the errors on the run's summary page so you don't have to open the raw log.
+      # Kotlin prefixes compile errors with "e: " — that's what makes this extraction work.
+      - name: Summarise result
+        if: always()
+        run: |
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          {
+            echo "## Result"
+            echo ""
+            if [ -f "$APK" ]; then
+              echo "**APK built** — \`$(du -h "$APK" | cut -f1)\`, download it from the Artifacts section below."
+            else
+              echo "**No APK produced.** The build failed — errors are below and in the \`build-reports\` artifact."
+            fi
+            echo ""
+            echo "| step | outcome |"
+            echo "| --- | --- |"
+            echo "| generate wrapper | ${{ steps.wrapper.outcome }} |"
+            echo "| :core:test | ${{ steps.tests.outcome }} |"
+            echo "| assembleDebug | ${{ steps.apk.outcome }} |"
+            echo ""
+
+            if grep -q '^e: ' build.log 2>/dev/null; then
+              COUNT=$(grep -c '^e: ' build.log)
+              echo "## Kotlin compile errors ($COUNT)"
+              echo ""
+              echo '```'
+              grep '^e: ' build.log \
+                | sed "s|file://$GITHUB_WORKSPACE/||" \
+                | head -150
+              echo '```'
+              echo ""
+            fi
+
+            if grep -q 'FAILED$' build.log 2>/dev/null; then
+              echo "## Failed tasks"
+              echo ""
+              echo '```'
+              grep 'FAILED$' build.log | sort -u | head -40
+              echo '```'
+              echo ""
+            fi
+
+            if grep -q 'What went wrong' build.log 2>/dev/null; then
+              echo "## Gradle diagnostics"
+              echo ""
+              echo '```'
+              sed -n '/What went wrong/,/^\* Try:/p' build.log | head -80
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload APK
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gpsarrow-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
+          retention-days: 30
+          # Tip: add `archive: false` here to download a bare .apk instead of a .zip.
+          # Left off by default because the zipped path is the well-trodden one.
+
+      - name: Upload logs and reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-reports
+          path: |
+            build.log
+            gradle/wrapper/gradle-wrapper.jar
+            **/build/reports/**
+            **/build/test-results/**
+          if-no-files-found: warn
+          retention-days: 30
+
+      # Runs last, so everything above has already been uploaded. This is what makes the
+      # run show a red X when there's no APK, rather than a misleading green tick.
+      - name: Fail the run if no APK was produced
+        if: always()
+        run: |
+          if [ ! -f app/build/outputs/apk/debug/app-debug.apk ]; then
+            echo "::error::No APK was produced. See the run summary for the compile errors."
+            exit 1
+          fi
+          echo "APK OK: $(ls -l app/build/outputs/apk/debug/app-debug.apk)"
