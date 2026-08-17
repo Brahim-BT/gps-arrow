@@ -7,6 +7,8 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.gpsarrow.core.Destination
+import dev.gpsarrow.core.DestinationSort
+import dev.gpsarrow.core.FixQuality
 import dev.gpsarrow.core.Fix
 import dev.gpsarrow.core.Geo
 import dev.gpsarrow.core.HeadingArbiter
@@ -228,6 +230,63 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectDestination(destination: Destination?) {
         _state.value = _state.value.copy(destination = destination)
+        // Stamping here is what makes "recently used" mean anything.
+        destination?.let { viewModelScope.launch { store.markUsed(it.id) } }
+    }
+
+    fun updateDestination(id: String, name: String, position: LatLon, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            val updated = store.update(id, name, position)
+            // Keep the live navigation target in step with the edit.
+            if (updated != null && _state.value.destination?.id == id) {
+                _state.value = _state.value.copy(destination = updated)
+            }
+            onDone()
+        }
+    }
+
+    fun toggleFavourite(destination: Destination) {
+        viewModelScope.launch { store.setFavourite(destination.id, !destination.isFavourite) }
+    }
+
+    /** Deletes and hands the caller the removed value so it can offer undo. */
+    fun deleteDestination(destination: Destination, onDeleted: (Destination) -> Unit = {}) {
+        viewModelScope.launch {
+            if (_state.value.destination?.id == destination.id) selectDestination(null)
+            store.delete(destination.id)
+            onDeleted(destination)
+        }
+    }
+
+    fun restoreDestination(destination: Destination) {
+        viewModelScope.launch { store.restore(destination) }
+    }
+
+    // ---------------------------------------------------------------- list preferences
+
+    private val prefs = appContext.getSharedPreferences("gpsarrow.prefs", Context.MODE_PRIVATE)
+
+    private val _sort = MutableStateFlow(
+        DestinationSort.fromName(prefs.getString(KEY_SORT, null)),
+    )
+    val sort: StateFlow<DestinationSort> = _sort.asStateFlow()
+
+    fun setSort(value: DestinationSort) {
+        _sort.value = value
+        prefs.edit().putString(KEY_SORT, value.name).apply()
+    }
+
+    /**
+     * Origin for distance sorting and the per-row distances.
+     *
+     * Deliberately still returns a stale fix rather than null: a distance from ten minutes ago
+     * is far more useful than no distance at all, as long as the UI labels it. Only a complete
+     * absence of any fix disables the distance orders.
+     */
+    fun distanceOrigin(): LatLon? = _state.value.fix?.position
+
+    fun originIsStale(): Boolean = _state.value.quality.let {
+        it == FixQuality.STALE || it == FixQuality.NONE
     }
 
     fun saveCurrentPosition(name: String, onDone: (Destination?) -> Unit = {}) {
@@ -299,13 +358,6 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { onDone(store.add(name, position, source = source)) }
     }
 
-    fun deleteDestination(id: String) {
-        viewModelScope.launch {
-            if (_state.value.destination?.id == id) selectDestination(null)
-            store.delete(id)
-        }
-    }
-
     // ---------------------------------------------------------------- map tiering (v1 hook)
 
     /**
@@ -318,6 +370,7 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val TAG = "NavigationViewModel"
+        const val KEY_SORT = "destinations.sort"
     }
 }
 

@@ -62,9 +62,52 @@ class DestinationStore(context: Context) {
         write(_destinations.value)
     }
 
+    /** Full edit: name, position and note in one write. Keeps id and createdAt. */
+    suspend fun update(
+        id: String,
+        name: String,
+        position: LatLon,
+        note: String? = null,
+    ): Destination? = withContext(Dispatchers.IO) {
+        var updated: Destination? = null
+        _destinations.value = _destinations.value.map {
+            if (it.id != id) {
+                it
+            } else {
+                it.copy(name = name.ifBlank { it.name }, position = position, note = note)
+                    .also { edited -> updated = edited }
+            }
+        }
+        write(_destinations.value)
+        updated
+    }
+
+    suspend fun setFavourite(id: String, favourite: Boolean) = withContext(Dispatchers.IO) {
+        _destinations.value = _destinations.value.map {
+            if (it.id == id) it.copy(isFavourite = favourite) else it
+        }
+        write(_destinations.value)
+    }
+
+    /** Stamped whenever a destination becomes the navigation target. Drives "recently used". */
+    suspend fun markUsed(id: String) = withContext(Dispatchers.IO) {
+        _destinations.value = _destinations.value.map {
+            if (it.id == id) it.copy(lastUsedAtMillis = System.currentTimeMillis()) else it
+        }
+        write(_destinations.value)
+    }
+
     suspend fun delete(id: String) = withContext(Dispatchers.IO) {
         _destinations.value = _destinations.value.filterNot { it.id == id }
         write(_destinations.value)
+    }
+
+    /** Puts a deleted destination back, id and all, so undo restores rather than re-creates. */
+    suspend fun restore(destination: Destination) = withContext(Dispatchers.IO) {
+        if (_destinations.value.none { it.id == destination.id }) {
+            _destinations.value = _destinations.value + destination
+            write(_destinations.value)
+        }
     }
 
     fun byId(id: String?): Destination? = _destinations.value.firstOrNull { it.id == id }
@@ -85,6 +128,9 @@ class DestinationStore(context: Context) {
                         note = o.optString("note").takeIf { it.isNotBlank() },
                         createdAtMillis = o.optLong("createdAt", 0L),
                         source = o.optString("source", "manual"),
+                        isFavourite = o.optBoolean("favourite", false),
+                        // Absent in files written by older versions; null means "never used".
+                        lastUsedAtMillis = o.optLong("lastUsed", 0L).takeIf { it > 0L },
                     ),
                 )
             }
@@ -103,6 +149,8 @@ class DestinationStore(context: Context) {
                     d.note?.let { put("note", it) }
                     put("createdAt", d.createdAtMillis)
                     put("source", d.source)
+                    if (d.isFavourite) put("favourite", true)
+                    d.lastUsedAtMillis?.let { put("lastUsed", it) }
                 },
             )
         }

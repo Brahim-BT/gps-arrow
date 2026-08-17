@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import dev.gpsarrow.core.Destination
 import dev.gpsarrow.core.DestinationParser
 import dev.gpsarrow.core.Format
 import dev.gpsarrow.core.LatLon
@@ -45,12 +46,18 @@ fun AddDestinationScreen(
     onSave: (name: String, position: LatLon, source: String) -> Unit,
     onBack: () -> Unit,
     initialText: String = "",
+    /** Non-null puts the screen in edit mode: same fields, same parser, different verb. */
+    editing: Destination? = null,
     modifier: Modifier = Modifier,
 ) {
-    var name by remember { mutableStateOf("") }
-    var latText by remember { mutableStateOf("") }
-    var lonText by remember { mutableStateOf("") }
-    var pastedFormat by remember { mutableStateOf<String?>(null) }
+    var name by remember(editing?.id) { mutableStateOf(editing?.name ?: "") }
+    var latText by remember(editing?.id) {
+        mutableStateOf(editing?.let { "%.6f".format(it.position.lat) } ?: "")
+    }
+    var lonText by remember(editing?.id) {
+        mutableStateOf(editing?.let { "%.6f".format(it.position.lon) } ?: "")
+    }
+    var pastedFormat by remember(editing?.id) { mutableStateOf<String?>(null) }
 
     /**
      * Try to read [text] as a COMPLETE coordinate. Returns null for anything that is just one
@@ -72,7 +79,10 @@ fun AddDestinationScreen(
     }
 
     // A shared geo: link or SEND intent arrives here already parsed into both fields.
-    remember(initialText) { if (initialText.isNotBlank()) applyPaste(initialText) else false }
+    // Never applied in edit mode — it would silently overwrite the point being edited.
+    remember(initialText, editing?.id) {
+        if (editing == null && initialText.isNotBlank()) applyPaste(initialText) else false
+    }
 
     val lat = latText.trim().replace(',', '.').toDoubleOrNull()
     val lon = lonText.trim().replace(',', '.').toDoubleOrNull()
@@ -107,7 +117,10 @@ fun AddDestinationScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             TextButton(onClick = onBack) { Text("Back") }
-            Text("Add a point", style = MaterialTheme.typography.headlineMedium)
+            Text(
+                if (editing == null) "Add a point" else "Edit point",
+                style = MaterialTheme.typography.headlineMedium,
+            )
             TextButton(onClick = {}, enabled = false) { Text("") }
         }
 
@@ -168,10 +181,10 @@ fun AddDestinationScreen(
             enabled = position != null,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Save point")
+            Text(if (editing == null) "Save point" else "Save changes")
         }
 
-        FormatExamples()
+        if (editing == null) FormatExamples()
     }
 }
 

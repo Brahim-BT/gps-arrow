@@ -170,4 +170,8 @@ data class Destination(
     val createdAtMillis: Long = 0L,
     /** How it was created, for display: "pasted", "current position", "pin", "imported". */
     val source: String = "manual",
+    /** Starred. One boolean, and it makes a thirty-point list usable. */
+    val isFavourite: Boolean = false,
+    /** Last time this was selected as the navigation target; null if never used. */
+    val lastUsedAtMillis: Long? = null,
 )
