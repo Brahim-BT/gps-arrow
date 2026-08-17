@@ -74,6 +74,47 @@ class GeoTest {
         assertTrue("smoothed to $out", out > 350.0 || out < 10.0)
     }
 
+    // Device report: turning on the spot moved the needle slowly, then it stopped short of the
+    // true bearing. These pin down the two properties that symptom violates.
+
+    @Test
+    fun `time based smoothing converges and does not stall short of the target`() {
+        val s = CircularSmoother()
+        val dt = 1.0 / 50.0
+        val tau = 0.08
+        s.update(0.0, 0.0, tau)
+        var out = 0.0
+        // One second of samples is more than 12 time constants; it must effectively arrive.
+        repeat(50) { out = s.update(90.0, dt, tau) }
+        assertEquals(90.0, out, 0.5)
+    }
+
+    @Test
+    fun `response is independent of the delivery rate`() {
+        val tau = 0.08
+        fun after(seconds: Double, hz: Int): Double {
+            val s = CircularSmoother()
+            val dt = 1.0 / hz
+            s.update(0.0, 0.0, tau)
+            var out = 0.0
+            repeat((seconds * hz).toInt()) { out = s.update(90.0, dt, tau) }
+            return out
+        }
+        // 50 Hz and 10 Hz must land in the same place after the same elapsed time. A
+        // per-sample alpha would leave the 10 Hz case five times further behind.
+        assertEquals(after(0.16, 50), after(0.16, 10), 2.0)
+    }
+
+    @Test
+    fun `smoothing reaches most of the way within one time constant`() {
+        val s = CircularSmoother()
+        val tau = 0.08
+        s.update(0.0, 0.0, tau)
+        var out = 0.0
+        repeat(4) { out = s.update(90.0, tau / 4, tau) }
+        assertTrue("after one tau the needle should be past halfway, was $out", out > 45.0)
+    }
+
     @Test
     fun `distance formatting degrades precision sensibly`() {
         assertEquals("120 m", Format.distance(123.0))

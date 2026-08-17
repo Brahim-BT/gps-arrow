@@ -227,10 +227,21 @@ class WmmTest {
 
     @Test
     fun `decimal year conversion`() {
+        // Convention: 1 January is exactly year.0, so the fraction is (dayOfYear - 1) / daysInYear.
         assertEquals(2026.0, Wmm.decimalYearOf(2026, 1, 1), 1e-9)
-        assertEquals(2026.629, Wmm.decimalYearOf(2026, 8, 17), 0.002)
+
+        // 17 August 2026 is day 229 (31+28+31+30+31+30+31 = 212, +17).
+        // Written as an expression rather than a decimal literal so it can't drift again:
+        // the previous expectation here was a hand-rounded 2026.629, which is simply wrong
+        // for this convention (the correct value is 2026.6247).
+        assertEquals(2026.0 + 228.0 / 365.0, Wmm.decimalYearOf(2026, 8, 17), 1e-9)
+
         // 2024 was a leap year: 1 March is day 61 of 366.
         assertEquals(2024.0 + 60.0 / 366.0, Wmm.decimalYearOf(2024, 3, 1), 1e-9)
+
+        // End points pin the convention down from both sides.
+        assertEquals(2026.0 + 364.0 / 365.0, Wmm.decimalYearOf(2026, 12, 31), 1e-9)
+        assertEquals(2024.0 + 365.0 / 366.0, Wmm.decimalYearOf(2024, 12, 31), 1e-9)
     }
 
     @Test
@@ -422,6 +433,50 @@ class NavigationStateTest {
         assertEquals(FixQuality.POOR, good.copy(fix = good.fix!!.copy(accuracyMeters = 55f)).quality)
         assertEquals(FixQuality.STALE, good.copy(fixAgeMillis = 30_000).quality)
         assertEquals(FixQuality.NONE, NavigationState().quality)
+    }
+
+    // The first device test found the needle frozen indoors: the UI gated the whole arrow on
+    // `fix != null`, so with no satellites there was no compass at all. These pin the rule that
+    // a heading alone is enough to draw a moving needle.
+
+    @Test
+    fun `compass still points north with no fix and no destination`() {
+        val s = NavigationState(headingDeg = 90.0)
+        assertEquals(ArrowMode.NORTH, s.arrowMode)
+        // Phone faces east, so north is 90 degrees to the left of the screen's up direction.
+        assertEquals(270.0, s.arrowDeg!!, 1e-9)
+    }
+
+    @Test
+    fun `needle tracks the phone while waiting for a fix`() {
+        val angles = listOf(0.0, 45.0, 180.0, 359.0)
+        val seen = angles.map { NavigationState(headingDeg = it).arrowDeg!! }
+        assertEquals(listOf(0.0, 315.0, 180.0, 1.0), seen)
+        assertEquals(angles.size, seen.distinct().size)
+    }
+
+    @Test
+    fun `a destination with no fix still shows the compass rather than nothing`() {
+        val s = NavigationState(destination = destination, headingDeg = 12.0)
+        assertEquals(ArrowMode.NORTH, s.arrowMode)
+        assertTrue(s.arrowDeg != null)
+    }
+
+    @Test
+    fun `mode becomes TARGET once a fix arrives`() {
+        val s = NavigationState(
+            fix = Fix(LatLon(48.85, 2.2945), 5f, null, null, null, 0L),
+            destination = destination,
+            headingDeg = 0.0,
+        )
+        assertEquals(ArrowMode.TARGET, s.arrowMode)
+        assertEquals(0.0, s.arrowDeg!!, 0.5)
+    }
+
+    @Test
+    fun `no heading and no fix is the only case with no needle`() {
+        assertEquals(ArrowMode.NONE, NavigationState().arrowMode)
+        assertEquals(null, NavigationState().arrowDeg)
     }
 
     @Test

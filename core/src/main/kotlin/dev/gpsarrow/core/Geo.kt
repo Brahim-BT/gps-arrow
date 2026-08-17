@@ -4,6 +4,7 @@ import kotlin.math.abs
 import kotlin.math.asin
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import kotlin.math.sin
@@ -122,15 +123,37 @@ class CircularSmoother(private val alpha: Double = 0.15) {
         sx = 0.0; sy = 0.0; seeded = false
     }
 
-    fun update(degrees: Double): Double {
+    fun update(degrees: Double): Double = updateWith(degrees, alpha)
+
+    /**
+     * Frame-rate independent variant: the weight is derived from how much time actually
+     * elapsed, so the response feels the same whether the sensor delivers at 50 Hz or 10 Hz.
+     *
+     * A fixed per-sample alpha silently becomes a much slower filter on a device that delivers
+     * fewer samples than you assumed, which looks exactly like a stuck needle.
+     *
+     * @param timeConstantSeconds time to cover ~63% of a step change.
+     */
+    fun update(degrees: Double, dtSeconds: Double, timeConstantSeconds: Double): Double {
+        val a = when {
+            timeConstantSeconds <= 0.0 -> 1.0
+            dtSeconds <= 0.0 -> alpha
+            // Clamp dt so a long pause (screen off, app backgrounded) snaps rather than
+            // producing a wild single-step jump computed from a huge elapsed time.
+            else -> 1.0 - exp(-dtSeconds.coerceAtMost(0.5) / timeConstantSeconds)
+        }
+        return updateWith(degrees, a.coerceIn(0.0, 1.0))
+    }
+
+    private fun updateWith(degrees: Double, a: Double): Double {
         val r = degrees * Math.PI / 180.0
         val x = cos(r)
         val y = sin(r)
         if (!seeded) {
             sx = x; sy = y; seeded = true
         } else {
-            sx += alpha * (x - sx)
-            sy += alpha * (y - sy)
+            sx += a * (x - sx)
+            sy += a * (y - sy)
         }
         return Geo.normalizeDegrees(atan2(sy, sx) * 180.0 / Math.PI)
     }

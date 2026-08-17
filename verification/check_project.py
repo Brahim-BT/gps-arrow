@@ -152,6 +152,10 @@ if unused:
 for src in list(walk(".kt")) + list(walk(".kts")):
     text = open(src, encoding="utf-8").read()
     stripped = re.sub(r'""".*?"""', '""', text, flags=re.S)
+    # Char literals BEFORE string literals. Kotlin's `'"'` (a char holding a double quote)
+    # would otherwise be read as the start of a string, swallowing everything up to the next
+    # quote and desynchronising the whole file. That produced a phantom brace imbalance.
+    stripped = re.sub(r"'(?:\\u[0-9a-fA-F]{4}|\\.|[^'\\])'", "'x'", stripped)
     stripped = re.sub(r'"(?:\\.|[^"\\])*"', '""', stripped)
     stripped = re.sub(r"//[^\n]*", "", stripped)
     stripped = re.sub(r"/\*.*?\*/", "", stripped, flags=re.S)

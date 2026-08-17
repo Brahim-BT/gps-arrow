@@ -16,6 +16,7 @@ import dev.gpsarrow.core.Geo
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.conflate
 
 /**
  * Device heading from the rotation-vector sensor.
@@ -35,12 +36,34 @@ class HeadingEngine(private val context: Context) {
         /** false once the magnetometer reports LOW accuracy — surface this, never hide it. */
         val reliable: Boolean,
         val hasCompass: Boolean,
+        /** Which sensor path produced this, for the diagnostics panel. */
+        val sensorName: String = "rotation vector",
+        /** Unsmoothed value, so diagnostics can show whether the filter is the laggy part. */
+        val rawMagneticDeg: Double = magneticDeg,
+        /** Measured delivery rate. If this is far below 50 Hz, the filter is not the problem. */
+        val sampleRateHz: Double = 0.0,
     )
+
+    /** What the device actually offers, surfaced in diagnostics. */
+    fun availableSensors(): String {
+        val sm = sensorManager ?: return "no SensorManager"
+        return listOfNotNull(
+            "rotation-vector".takeIf { sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR) != null },
+            "accelerometer".takeIf { sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) != null },
+            "magnetometer".takeIf { sm.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD) != null },
+            "gyroscope".takeIf { sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE) != null },
+        ).joinToString(", ").ifEmpty { "none" }
+    }
 
     private val sensorManager: SensorManager? =
         ContextCompat.getSystemService(context, SensorManager::class.java)
 
-    fun hasCompass(): Boolean = sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR) != null
+    fun hasCompass(): Boolean {
+        val sm = sensorManager ?: return false
+        if (sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR) != null) return true
+        return sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) != null &&
+            sm.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD) != null
+    }
 
     /**
      * @param displayRotation `Display.rotation` — without remapping, the arrow is 90 degrees
@@ -49,21 +72,36 @@ class HeadingEngine(private val context: Context) {
      */
     fun readings(
         displayRotation: () -> Int,
-        alpha: Double = 0.15,
+        timeConstantSeconds: Double = SMOOTHING_TIME_CONSTANT_S,
     ): Flow<Reading> = callbackFlow {
         val sm = sensorManager
-        val sensor = sm?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
-        if (sm == null || sensor == null) {
-            trySend(Reading(0.0, reliable = false, hasCompass = false))
+        val rotationVector = sm?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+        val accelerometer = sm?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        val magnetometer = sm?.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+
+        // Prefer the fused rotation vector. Fall back to raw accelerometer + magnetometer,
+        // which every device with a compass has even when it lacks a gyroscope and therefore
+        // reports no TYPE_ROTATION_VECTOR. Noisier, but a working needle beats none.
+        val useRawPair = rotationVector == null && accelerometer != null && magnetometer != null
+        if (sm == null || (rotationVector == null && !useRawPair)) {
+            trySend(Reading(0.0, reliable = false, hasCompass = false, sensorName = "none"))
             awaitClose { }
             return@callbackFlow
         }
 
-        val smoother = CircularSmoother(alpha)
+        val smoother = CircularSmoother()
+        var lastTimestampNanos = 0L
+        var measuredHz = 0.0
         val rotationMatrix = FloatArray(9)
+        val inclinationMatrix = FloatArray(9)
         val remapped = FloatArray(9)
         val orientation = FloatArray(3)
+        val gravity = FloatArray(3)
+        val geomagnetic = FloatArray(3)
+        var haveGravity = false
+        var haveGeomagnetic = false
         var reliable = true
+        val sensorName = if (useRawPair) "accelerometer + magnetometer" else "rotation vector"
 
         val listener = object : SensorEventListener {
             // Anything thrown here lands on the main thread inside the sensor dispatch and
@@ -76,8 +114,32 @@ class HeadingEngine(private val context: Context) {
             }
 
             private fun updateFrom(event: SensorEvent) {
-                if (event.sensor.type != Sensor.TYPE_ROTATION_VECTOR) return
-                SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+                when (event.sensor.type) {
+                    Sensor.TYPE_ROTATION_VECTOR ->
+                        SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+
+                    Sensor.TYPE_ACCELEROMETER -> {
+                        System.arraycopy(event.values, 0, gravity, 0, 3)
+                        haveGravity = true
+                        if (!haveGeomagnetic) return
+                        if (!SensorManager.getRotationMatrix(
+                                rotationMatrix, inclinationMatrix, gravity, geomagnetic,
+                            )
+                        ) return
+                    }
+
+                    Sensor.TYPE_MAGNETIC_FIELD -> {
+                        System.arraycopy(event.values, 0, geomagnetic, 0, 3)
+                        haveGeomagnetic = true
+                        if (!haveGravity) return
+                        if (!SensorManager.getRotationMatrix(
+                                rotationMatrix, inclinationMatrix, gravity, geomagnetic,
+                            )
+                        ) return
+                    }
+
+                    else -> return
+                }
 
                 val (axisX, axisY) = when (displayRotation()) {
                     Surface.ROTATION_90 -> SensorManager.AXIS_Y to SensorManager.AXIS_MINUS_X
@@ -89,27 +151,62 @@ class HeadingEngine(private val context: Context) {
                 SensorManager.getOrientation(remapped, orientation)
 
                 val azimuth = Geo.normalizeDegrees(Math.toDegrees(orientation[0].toDouble()))
+
+                // Smooth against real elapsed time, not sample count. event.timestamp is the
+                // sensor's own monotonic clock in nanoseconds.
+                val dt = if (lastTimestampNanos == 0L) 0.0
+                else (event.timestamp - lastTimestampNanos) / 1_000_000_000.0
+                lastTimestampNanos = event.timestamp
+                if (dt > 0.0) {
+                    val hz = 1.0 / dt
+                    measuredHz = if (measuredHz == 0.0) hz else measuredHz * 0.9 + hz * 0.1
+                }
+
                 trySend(
                     Reading(
-                        magneticDeg = smoother.update(azimuth),
+                        magneticDeg = smoother.update(azimuth, dt, timeConstantSeconds),
                         reliable = reliable,
                         hasCompass = true,
+                        sensorName = sensorName,
+                        rawMagneticDeg = azimuth,
+                        sampleRateHz = measuredHz,
                     ),
                 )
             }
 
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+                // Only the magnetometer's accuracy is meaningful here; the accelerometer
+                // reports its own and would otherwise clobber the flag.
+                if (sensor?.type == Sensor.TYPE_ACCELEROMETER) return
                 // UNRELIABLE or LOW means the magnetometer needs a figure-of-eight wave.
                 reliable = accuracy >= SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM
             }
         }
 
         // SENSOR_DELAY_GAME is ~50 Hz. FASTEST just burns battery for an arrow a human reads.
-        sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_GAME)
+        if (useRawPair) {
+            sm.registerListener(listener, accelerometer, SensorManager.SENSOR_DELAY_GAME)
+            sm.registerListener(listener, magnetometer, SensorManager.SENSOR_DELAY_GAME)
+        } else {
+            sm.registerListener(listener, rotationVector, SensorManager.SENSOR_DELAY_GAME)
+        }
         awaitClose { sm.unregisterListener(listener) }
     }
+        // CONFLATED, not the default 64-deep buffer. A stale heading has no value whatsoever —
+        // if the UI falls behind we want the newest sample, not a queue of old ones being
+        // replayed in order, which turns a momentary hitch into permanent, growing lag.
+        .conflate()
 
     companion object {
+        /**
+         * Time to cover ~63% of a step change in heading.
+         *
+         * 80 ms is fast enough that a body-turn tracks with no perceptible lag, and slow
+         * enough to hide magnetometer jitter. Because the filter is time-based, this holds
+         * whatever rate the device actually delivers.
+         */
+        const val SMOOTHING_TIME_CONSTANT_S = 0.08
+
         /**
          * Display rotation, readable from ANY context including an Application context.
          *

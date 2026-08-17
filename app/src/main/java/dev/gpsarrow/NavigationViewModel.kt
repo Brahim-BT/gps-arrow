@@ -27,6 +27,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Owns the one [NavigationState] that the arrow screen and the foreground-service notification
@@ -80,6 +83,15 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
     private var compassReliable = true
     private var locationJob: Job? = null
     private var headingJob: Job? = null
+
+    // Diagnostics only. Counters are the fastest way to tell "sensor is dead" apart from
+    // "sensor is alive but the value never reaches the UI".
+    private var rawCompassDeg: Double? = null
+    private var smoothedCompassDeg: Double? = null
+    private var compassHz: Double = 0.0
+    private var compassSensorName: String = "not started"
+    private var headingUpdateCount: Long = 0
+    private var fixUpdateCount: Long = 0
 
     init {
         viewModelScope.launch {
@@ -142,6 +154,11 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
                     headingEngine.readings(
                         displayRotation = { HeadingEngine.displayRotationOf(appContext) },
                     ).collect { reading ->
+                        headingUpdateCount++
+                        rawCompassDeg = reading.rawMagneticDeg
+                        smoothedCompassDeg = reading.magneticDeg
+                        compassHz = reading.sampleRateHz
+                        compassSensorName = reading.sensorName
                         compassReliable = reading.reliable
                         compassDeg = if (reading.hasCompass) {
                             val dec = _state.value.declinationDeg ?: 0.0
@@ -179,6 +196,7 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun applyFix(fix: Fix, acquiring: Boolean) {
+        fixUpdateCount++
         // Declination changes slowly with position; recompute per fix, it costs microseconds.
         val dec = runCatching {
             declination.declinationDegrees(fix.position, fix.altitudeMeters ?: 0.0)
@@ -221,6 +239,55 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             onDone(store.add(name, fix.position, source = "current position"))
         }
+    }
+
+    /**
+     * One tap, no form. Names the point after the time it was taken, which is what makes it
+     * findable later ("the one from 14:32"); renaming is available from the list.
+     */
+    fun quickSaveHere(onDone: (Destination?) -> Unit) {
+        val label = SimpleDateFormat("d MMM HH:mm", Locale.getDefault()).format(Date())
+        saveCurrentPosition(label, onDone)
+    }
+
+    /** Live values for the on-screen diagnostics panel. Cheap; only read when it is open. */
+    fun diagnostics(): List<Pair<String, String>> {
+        val s = _state.value
+        val fix = s.fix
+        return listOf(
+            "arrow mode" to s.arrowMode.name,
+            "arrow angle" to (s.arrowDeg?.let { "%.1f°".format(it) } ?: "—"),
+            "arbiter mode" to s.headingSource.name,
+            "heading (smoothed)" to (s.headingDeg?.let { "%.1f°".format(it) } ?: "—"),
+            "compass RAW" to (rawCompassDeg?.let { "%.1f°".format(it) } ?: "—"),
+            "compass SMOOTHED" to (smoothedCompassDeg?.let { "%.1f°".format(it) } ?: "—"),
+            "raw − smoothed" to (
+                if (rawCompassDeg != null && smoothedCompassDeg != null) {
+                    "%.1f°".format(Geo.angleDeltaDegrees(smoothedCompassDeg!!, rawCompassDeg!!))
+                } else "—"
+                ),
+            "compass sensor" to compassSensorName,
+            "sample rate" to "%.0f Hz".format(compassHz),
+            "smoothing tau" to "${(HeadingEngine.SMOOTHING_TIME_CONSTANT_S * 1000).toInt()} ms",
+            "sensors present" to headingEngine.availableSensors(),
+            "magnetometer ok" to compassReliable.toString(),
+            "declination" to (s.declinationDeg?.let { "%.2f°".format(it) } ?: "—"),
+            "declination src" to declination.sourceName,
+            "bearing to dest" to (s.bearingToDestinationDeg?.let { "%.1f°".format(it) } ?: "—"),
+            "distance" to (s.distanceMeters?.let { "%.0f m".format(it) } ?: "—"),
+            "fix" to (fix?.let { "%.5f, %.5f".format(it.position.lat, it.position.lon) } ?: "none"),
+            "fix accuracy" to (fix?.let { "±%.0f m".format(it.accuracyMeters) } ?: "—"),
+            "fix age" to "${s.fixAgeMillis / 1000} s",
+            "fix quality" to s.quality.name,
+            "provider" to (fix?.provider ?: "—"),
+            "satellites" to "${_gnss.value.satellitesUsed}/${_gnss.value.satellitesVisible}",
+            "gps enabled" to _gnss.value.gpsEnabled.toString(),
+            "location job" to (locationJob?.isActive == true).toString(),
+            "heading job" to (headingJob?.isActive == true).toString(),
+            "heading updates" to headingUpdateCount.toString(),
+            "fix updates" to fixUpdateCount.toString(),
+            "degraded" to (_degraded.value.takeIf { it.isNotEmpty() }?.joinToString("; ") ?: "none"),
+        )
     }
 
     fun saveDestination(

@@ -55,8 +55,12 @@ object DestinationParser {
         plusCode(raw, reference)?.let { return it }
         mgrs(raw)?.let { return it }
         utm(raw)?.let { return it }
-        dms(raw)?.let { return it }
+        // decimal BEFORE dms. "33.8568 S, 151.2153 E" is decimal degrees with hemisphere
+        // suffixes, but the DMS matcher treats a bare space as a degree separator, so it
+        // happily read "568 S" as 568 degrees. The decimal pattern is fully anchored and
+        // cannot mis-claim a real DMS string, so it is safe to try first.
         decimal(raw)?.let { return it }
+        dms(raw)?.let { return it }
 
         return ParseResult.Unrecognised
     }
@@ -142,8 +146,12 @@ object DestinationParser {
 
     // ---------------------------------------------------------------- MGRS / UTM
 
+    // The numeric part may itself be split by whitespace: "18S UJ 23477 06483" is the normal
+    // way people write a 1 m reference. The old pattern allowed space only BEFORE the digits,
+    // so it captured "18S UJ 23477", saw five digits, and rejected the whole thing as having
+    // an odd digit count. `(?:\s*\d){2,10}` lets whitespace appear between any two digits.
     private val MGRS_TOKEN = Regex(
-        """\b(\d{1,2}\s*[C-HJ-NP-X]\s*[A-HJ-NP-Z]{2}\s*\d{2,10})\b""",
+        """\b(\d{1,2}\s*[C-HJ-NP-X]\s*[A-HJ-NP-Z]{2}(?:\s*\d){2,10})""",
         RegexOption.IGNORE_CASE,
     )
 
@@ -182,7 +190,10 @@ object DestinationParser {
 
     private fun dms(s: String): ParseResult? {
         val normalized = s.replace('\u2212', '-').replace('\u2032', '\'').replace('\u2033', '"')
-        if (!normalized.any { it in "°NSEWnsew" }) return null
+        // Require a real angular marker, not merely a hemisphere letter. Gating on N/S/E/W
+        // alone let plain decimal degrees into this matcher, where `[°d:\s]` treats a bare
+        // space as a degree separator — so "33.8568 S, 151.2153 E" parsed as 568 degrees.
+        if (normalized.none { it in "°'\"" }) return null
 
         val matches = DMS.findAll(normalized)
             .filter { it.value.isNotBlank() && it.groupValues[2].isNotEmpty() }

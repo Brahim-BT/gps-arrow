@@ -30,6 +30,18 @@ enum class HeadingSource {
 
 enum class FixQuality { NONE, STALE, POOR, GOOD }
 
+/** What the needle is pointing at right now. */
+enum class ArrowMode {
+    /** At the saved destination. Needs both a fix and a destination. */
+    TARGET,
+
+    /** At true north. The fallback whenever a bearing can't be computed — still a useful compass. */
+    NORTH,
+
+    /** No heading source at all: no compass hardware and not moving. */
+    NONE,
+}
+
 /**
  * The single source of truth the arrow screen and the notification both render.
  */
@@ -62,6 +74,35 @@ data class NavigationState(
             val b = bearingToDestinationDeg ?: return null
             val h = headingDeg ?: return b
             return Geo.normalizeDegrees(b - h)
+        }
+
+    /**
+     * What the needle is currently able to show.
+     *
+     * The app is a compass first and a navigator second. Losing the GNSS fix — indoors, in a
+     * car park, in the first minute after launch — must not blank the needle, because a
+     * north-pointing compass is still useful and still proves the hardware works.
+     */
+    val arrowMode: ArrowMode
+        get() = when {
+            destination != null && fix != null && bearingToDestinationDeg != null -> ArrowMode.TARGET
+            headingDeg != null -> ArrowMode.NORTH
+            else -> ArrowMode.NONE
+        }
+
+    /**
+     * Rotation for the needle, in screen space.
+     *
+     * In [ArrowMode.NORTH] it points at true north (`-heading`), which is exactly what a
+     * compass needle does. In [ArrowMode.TARGET] it points at the destination.
+     */
+    val arrowDeg: Double?
+        get() = when (arrowMode) {
+            ArrowMode.TARGET -> Geo.normalizeDegrees(
+                (bearingToDestinationDeg ?: 0.0) - (headingDeg ?: 0.0),
+            )
+            ArrowMode.NORTH -> Geo.normalizeDegrees(-(headingDeg ?: 0.0))
+            ArrowMode.NONE -> null
         }
 
     val quality: FixQuality

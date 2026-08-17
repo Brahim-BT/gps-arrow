@@ -13,6 +13,26 @@ build — once you have Android Studio open, `./gradlew :core:test` is the real 
 
 Run them with `python3 <script>`; no dependencies.
 
+## Superseded — and what it missed
+
+**CI now runs the real JUnit suite. Trust that, not this.** These scripts were a stand-in for a
+compiler that wasn't available; they are kept for the algorithm provenance, not as a gate.
+
+The first real JUnit run failed three tests that `run_core_tests.py` had reported as passing.
+The transpile and the Kotlin did **not** disagree — the transpile never executed the code at all:
+
+| Kotlin test class | in `run_core_tests.py`? |
+|---|---|
+| `GeoTest`, `MgrsTest`, `PlusCodeTest`, `HeadingArbiterTest`, `NavigationStateTest` | yes |
+| `WmmTest` | **no** |
+| `DestinationParserTest` | **no** |
+
+All three failures were in the two uncovered classes. `DestinationParser` and `Wmm.decimalYearOf`
+appear nowhere in the transpile, so "34/34 assertions passed" described 5 of 7 test classes while
+being reported as if it validated the module. The lesson is not that transpiled verification is
+useless — it caught a genuine MGRS corner/centre defect — but that a pass rate is meaningless
+without a coverage denominator, and this one never stated its denominator.
+
 ## What this caught
 
 `Mgrs.fromMgrs` originally returned the south-west corner of the designated square. Because

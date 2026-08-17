@@ -6,18 +6,23 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -31,6 +36,7 @@ import dev.gpsarrow.ui.MapScreen
 import dev.gpsarrow.ui.PermissionGate
 import dev.gpsarrow.ui.rememberNotificationPermissionRequest
 import dev.gpsarrow.ui.theme.GpsArrowTheme
+import kotlinx.coroutines.launch
 
 private enum class Screen { ARROW, DESTINATIONS, ADD, MAP }
 
@@ -106,6 +112,9 @@ private fun AppRoot(
 
     var screen by remember { mutableStateOf(Screen.ARROW) }
     var pendingText by remember { mutableStateOf<String?>(null) }
+    var showDiagnostics by remember { mutableStateOf(false) }
+    val snackbarHost = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     val units = DistanceUnits.METRIC   // wire to a settings store in v0.2
 
     // A shared geo: link or pasted text jumps straight to the add screen, pre-filled.
@@ -139,6 +148,7 @@ private fun AppRoot(
         .windowInsetsPadding(WindowInsets.safeDrawing)
         .consumeWindowInsets(WindowInsets.safeDrawing)
 
+    Box(Modifier.fillMaxSize()) {
     when (screen) {
         Screen.ARROW -> ArrowScreen(
             state = state,
@@ -147,8 +157,22 @@ private fun AppRoot(
             satellitesVisible = gnss.satellitesVisible,
             degraded = degraded,
             units = units,
+            showDiagnostics = showDiagnostics,
+            diagnostics = if (showDiagnostics) viewModel.diagnostics() else emptyList(),
+            onToggleDiagnostics = { showDiagnostics = !showDiagnostics },
             onPickDestination = { screen = Screen.DESTINATIONS },
-            onSaveHere = { screen = Screen.ADD },
+            // One tap, no form. This is the panic button for "remember where I parked".
+            onSaveMyLocation = {
+                viewModel.quickSaveHere { saved ->
+                    scope.launch {
+                        snackbarHost.showSnackbar(
+                            if (saved != null) "Saved as \"${saved.name}\" — rename it from Destinations"
+                            else "No position fix yet, nothing to save",
+                        )
+                    }
+                }
+            },
+            onAddDestination = { screen = Screen.ADD },
             onOpenMap = { screen = Screen.MAP },
             modifier = modifier,
         )
@@ -178,12 +202,6 @@ private fun AppRoot(
                     screen = Screen.ARROW
                 }
             },
-            onSaveCurrent = { name ->
-                viewModel.saveCurrentPosition(name) { saved ->
-                    saved?.let { viewModel.selectDestination(it) }
-                    screen = Screen.ARROW
-                }
-            },
             onBack = {
                 pendingText = null
                 screen = Screen.ARROW
@@ -197,6 +215,14 @@ private fun AppRoot(
             onOpenRegions = { /* v1: region browser */ },
             onRemindWhenOnline = { /* v1: WorkManager job on NetworkType.UNMETERED */ },
             modifier = modifier,
+        )
+    }
+
+        SnackbarHost(
+            hostState = snackbarHost,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .windowInsetsPadding(WindowInsets.safeDrawing),
         )
     }
 }
