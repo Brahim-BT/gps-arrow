@@ -25,6 +25,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -38,6 +43,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.gpsarrow.Degradation
+import dev.gpsarrow.Diagnostic
+import dev.gpsarrow.R
 import dev.gpsarrow.core.ArrowMode
 import dev.gpsarrow.core.DistanceUnits
 import dev.gpsarrow.core.FixQuality
@@ -64,10 +72,10 @@ fun ArrowScreen(
     satellitesUsed: Int,
     satellitesVisible: Int,
     /** Subsystems that failed but did not take the app down. Empty in the normal case. */
-    degraded: List<String>,
+    degraded: List<Degradation>,
     units: DistanceUnits,
     showDiagnostics: Boolean,
-    diagnostics: List<Pair<String, String>>,
+    diagnostics: List<Diagnostic>,
     onToggleDiagnostics: () -> Unit,
     onPickDestination: () -> Unit,
     onSaveMyLocation: () -> Unit,
@@ -90,7 +98,12 @@ fun ArrowScreen(
             StatusRow(state, satellitesUsed, satellitesVisible, headingSourceLabel)
         }
 
-        degraded.forEach { reason -> Warning(reason) }
+        degraded.forEach { d ->
+            Warning(
+                if (d.arg != null) stringResource(d.messageRes, d.arg)
+                else stringResource(d.messageRes),
+            )
+        }
 
         Box(
             modifier = Modifier
@@ -113,11 +126,13 @@ fun ArrowScreen(
             // old still gets a tap, because the refusal carries the explanation; only the
             // genuinely empty case is disabled, and its own label says why.
             saveEnabled = state.fix != null,
-            saveLabel = when {
-                state.fix == null -> "Save my location (no fix yet)"
-                !state.isSaveable -> "Save my location (fix is stale)"
-                else -> "Save my location"
-            },
+            saveLabel = stringResource(
+                when {
+                    state.fix == null -> R.string.save_my_location_no_fix
+                    !state.isSaveable -> R.string.save_my_location_stale
+                    else -> R.string.save_my_location
+                },
+            ),
             onSaveMyLocation = onSaveMyLocation,
             onAddDestination = onAddDestination,
         )
@@ -168,7 +183,11 @@ private fun ActionButtons(
             modifier = Modifier.align(Alignment.CenterHorizontally),
             contentPadding = ButtonDefaults.TextButtonContentPadding,
         ) {
-            Text("Add point", maxLines = 1, style = MaterialTheme.typography.labelLarge)
+            Text(
+                text = stringResource(R.string.add_point),
+                maxLines = 1,
+                style = MaterialTheme.typography.labelLarge,
+            )
         }
     }
 }
@@ -179,6 +198,8 @@ private fun CompassFace(
     units: DistanceUnits,
     onPickDestination: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val numberLocale = rememberNumberLocale()
     val stale = state.quality == FixQuality.STALE || state.quality == FixQuality.NONE
     val uncalibrated = state.headingSource == HeadingSource.COMPASS_UNCALIBRATED
     val mode = state.arrowMode
@@ -201,17 +222,28 @@ private fun CompassFace(
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         BoxWithConstraints {
             val side = min(maxWidth.value, maxHeight.value).dp
-            Canvas(
-                modifier = Modifier
-                    .size(side * 0.85f)
-                    .aspectRatio(1f),
-            ) {
-                drawCompassRose(roseColor)
-                // Rotated directly from state — deliberately NOT animated. The previous
-                // Animatable + LaunchedEffect(target) restarted a 220 ms tween on every
-                // sensor sample (~50 Hz), so the needle never finished a movement and looked
-                // sluggish. CircularSmoother already does the smoothing, upstream.
-                rotate((state.arrowDeg ?: 0.0).toFloat()) { drawArrow(arrowColor) }
+            // THE ARROW MUST NEVER MIRROR.
+            //
+            // Compose flips a Canvas's coordinate system under an RTL layout direction, which
+            // is right for UI chrome and catastrophic here: this needle points at a geographic
+            // bearing, so mirroring it sends an Arabic-reading user the wrong way across an
+            // east-west axis while looking completely normal to a reviewer who does not read
+            // Arabic. North is north in every language. Forcing Ltr for the drawing scope
+            // pins the compass rose and the needle to real-world geometry; the text around
+            // them is outside this provider and still lays out RTL.
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                Canvas(
+                    modifier = Modifier
+                        .size(side * 0.85f)
+                        .aspectRatio(1f),
+                ) {
+                    drawCompassRose(roseColor)
+                    // Rotated directly from state — deliberately NOT animated. The previous
+                    // Animatable + LaunchedEffect(target) restarted a 220 ms tween on every
+                    // sensor sample (~50 Hz), so the needle never finished a movement and
+                    // looked sluggish. CircularSmoother already smooths, upstream.
+                    rotate((state.arrowDeg ?: 0.0).toFloat()) { drawArrow(arrowColor) }
+                }
             }
         }
 
@@ -219,7 +251,7 @@ private fun CompassFace(
             ArrowMode.TARGET -> {
                 state.distanceMeters?.let { d ->
                     Text(
-                        text = Format.distance(d, units),
+                        text = Format.distance(d, units, numberLocale).text(context),
                         style = MaterialTheme.typography.displayLarge,
                         color = if (stale) MaterialTheme.colorScheme.onSurfaceVariant
                         else MaterialTheme.colorScheme.onBackground,
@@ -227,7 +259,7 @@ private fun CompassFace(
                 }
                 state.bearingToDestinationDeg?.let { b ->
                     Text(
-                        text = Format.bearing(b),
+                        text = Format.bearing(b, numberLocale).text(context),
                         style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -250,14 +282,14 @@ private fun CompassFace(
                 // has stopped being information.
                 state.distanceMeters?.let { d ->
                     Text(
-                        text = Format.distance(d, units),
+                        text = Format.distance(d, units, numberLocale).text(context),
                         style = MaterialTheme.typography.displayLarge,
                         color = if (stale) MaterialTheme.colorScheme.onSurfaceVariant
                         else MaterialTheme.colorScheme.onBackground,
                     )
                 }
                 Text(
-                    text = "You're here",
+                    text = stringResource(R.string.arrived_title),
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -269,7 +301,7 @@ private fun CompassFace(
                     )
                 }
                 Text(
-                    text = "Closer than this fix can measure, so the needle is showing north.",
+                    text = stringResource(R.string.arrived_explanation),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -279,16 +311,17 @@ private fun CompassFace(
 
             ArrowMode.NORTH -> {
                 Text(
-                    text = state.headingDeg?.let { Format.bearing(it) } ?: "—",
+                    text = state.headingDeg?.let {
+                        Format.bearing(it, numberLocale).text(context)
+                    } ?: "—",
                     style = MaterialTheme.typography.displayLarge,
                     color = MaterialTheme.colorScheme.onBackground,
                 )
                 Text(
-                    text = if (state.destination == null) {
-                        "Pointing north — no destination chosen yet"
-                    } else {
-                        "Pointing north — waiting for a position fix"
-                    },
+                    text = stringResource(
+                        if (state.destination == null) R.string.pointing_north_no_destination
+                        else R.string.pointing_north_waiting_fix,
+                    ),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -299,8 +332,7 @@ private fun CompassFace(
                 // something to leave the user to guess at.
                 if (state.headingIsMagnetic) {
                     Text(
-                        text = "That's magnetic north. It becomes true north once there's a " +
-                            "position fix to compute the declination from.",
+                        text = stringResource(R.string.magnetic_north_notice),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -309,7 +341,7 @@ private fun CompassFace(
                 }
                 if (state.destination == null) {
                     Text(
-                        text = "Tap Destinations to pick one.",
+                        text = stringResource(R.string.tap_destinations_hint),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
@@ -325,18 +357,18 @@ private fun CompassFace(
         }
 
         if (uncalibrated) {
-            Warning("Compass unreliable — wave the phone in a figure of eight to recalibrate.")
+            Warning(stringResource(R.string.compass_unreliable))
         }
         val targeting = mode == ArrowMode.TARGET || mode == ArrowMode.ARRIVED
         if (targeting && state.quality == FixQuality.STALE) {
-            Warning("Position is out of date — searching for satellites.")
+            Warning(stringResource(R.string.position_out_of_date))
         }
     }
 }
 
 /** Everything needed to tell a dead sensor from a dead pipeline, without a USB cable. */
 @Composable
-private fun DiagnosticsPanel(rows: List<Pair<String, String>>, onClose: () -> Unit) {
+private fun DiagnosticsPanel(rows: List<Diagnostic>, onClose: () -> Unit) {
     Card(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -349,30 +381,37 @@ private fun DiagnosticsPanel(rows: List<Pair<String, String>>, onClose: () -> Un
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text("Diagnostics", style = MaterialTheme.typography.headlineMedium)
                 Text(
-                    "Close",
+                    text = stringResource(R.string.diagnostics_title),
+                    style = MaterialTheme.typography.headlineMedium,
+                )
+                Text(
+                    stringResource(R.string.diagnostics_close),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.pointerInput(Unit) { detectTapGestures { onClose() } },
                 )
             }
             Text(
-                "Long-press the status chips at any time to open or close this.",
+                stringResource(R.string.diagnostics_hint),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 6.dp),
             )
-            rows.forEach { (key, value) ->
+            rows.forEach { row ->
                 Row(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = key,
+                        text = stringResource(row.labelRes),
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        text = value,
+                        text = when {
+                            row.value.isEmpty() -> stringResource(R.string.diag_none)
+                            row.unitRes != null -> stringResource(row.unitRes, row.value)
+                            else -> row.value
+                        },
                         modifier = Modifier.weight(1.2f),
                         fontFamily = FontFamily.Monospace,
                         fontSize = 13.sp,
@@ -422,20 +461,28 @@ private fun StatusRow(
     visible: Int,
     headingSourceLabel: String,
 ) {
+    val numberLocale = rememberNumberLocale()
+    val accuracy = Format.number("%d", numberLocale, state.fix?.accuracyMeters?.toInt() ?: 0)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Chip(
             text = when (state.quality) {
-                FixQuality.GOOD -> "±${state.fix?.accuracyMeters?.toInt() ?: 0} m"
-                FixQuality.POOR -> "weak ±${state.fix?.accuracyMeters?.toInt() ?: 0} m"
-                FixQuality.STALE -> "stale fix"
-                FixQuality.NONE -> "no fix"
+                FixQuality.GOOD -> stringResource(R.string.chip_accuracy, accuracy)
+                FixQuality.POOR -> stringResource(R.string.chip_accuracy_weak, accuracy)
+                FixQuality.STALE -> stringResource(R.string.chip_stale_fix)
+                FixQuality.NONE -> stringResource(R.string.chip_no_fix)
             },
             emphasised = state.quality == FixQuality.GOOD,
         )
-        Chip(text = "$used/$visible sats")
+        Chip(
+            text = stringResource(
+                R.string.chip_satellites,
+                Format.number("%d", numberLocale, used),
+                Format.number("%d", numberLocale, visible),
+            ),
+        )
         Chip(text = headingSourceLabel)
     }
 }
@@ -481,13 +528,12 @@ private fun Warning(text: String) {
 private fun NoHeadingPrompt() {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            text = "No compass",
+            text = stringResource(R.string.no_compass_title),
             style = MaterialTheme.typography.headlineMedium,
             textAlign = TextAlign.Center,
         )
         Text(
-            text = "This device has no usable compass sensor. The arrow will work once you " +
-                "start moving, using your GPS course instead.",
+            text = stringResource(R.string.no_compass_body),
             modifier = Modifier.padding(top = 10.dp, start = 24.dp, end = 24.dp),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

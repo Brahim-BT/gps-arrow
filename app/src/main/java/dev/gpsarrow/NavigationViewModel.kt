@@ -9,15 +9,16 @@ import androidx.lifecycle.viewModelScope
 import dev.gpsarrow.core.Destination
 import dev.gpsarrow.core.DestinationSort
 import dev.gpsarrow.core.FixQuality
+import dev.gpsarrow.core.Format
 import dev.gpsarrow.core.Fix
 import dev.gpsarrow.core.Geo
 import dev.gpsarrow.core.HeadingArbiter
-import dev.gpsarrow.core.HeadingSource
 import dev.gpsarrow.core.LatLon
 import dev.gpsarrow.core.NavigationState
 import dev.gpsarrow.data.DestinationStore
 import dev.gpsarrow.location.Declination
 import dev.gpsarrow.location.DeclinationProvider
+import dev.gpsarrow.location.FrameworkDeclination
 import dev.gpsarrow.location.HeadingEngine
 import dev.gpsarrow.location.LocationEngine
 import dev.gpsarrow.maps.MapTier
@@ -41,13 +42,15 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
 
     // MUST be declared before anything that can call degrade(): Kotlin runs property
     // initialisers in declaration order, so a later-declared flow would still be null here.
-    private val _degraded = MutableStateFlow<List<String>>(emptyList())
+    private val _degraded = MutableStateFlow<List<Degradation>>(emptyList())
 
     /** Non-fatal subsystem failures, surfaced in the UI instead of taking the app down. */
-    val degraded: StateFlow<List<String>> = _degraded.asStateFlow()
+    val degraded: StateFlow<List<Degradation>> = _degraded.asStateFlow()
 
-    private fun degrade(reason: String) {
-        if (reason !in _degraded.value) _degraded.value = _degraded.value + reason
+    private fun degrade(degradation: Degradation) {
+        if (_degraded.value.none { it.messageRes == degradation.messageRes }) {
+            _degraded.value = _degraded.value + degradation
+        }
     }
 
     private val appContext: Context = app.applicationContext
@@ -61,7 +64,7 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
         runCatching { Declination.create(appContext) }
             .getOrElse {
                 Log.w(TAG, "declination unavailable; true-north correction disabled", it)
-                degrade("Using magnetic north — declination model unavailable")
+                degrade(Degradation(R.string.degraded_declination))
                 object : DeclinationProvider {
                     override val sourceName = "none"
                     override fun declinationDegrees(position: LatLon, altitudeMeters: Double) = 0.0
@@ -81,6 +84,9 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
 
     val declinationSource: String get() = declination.sourceName
 
+    /** True when the compass correction comes from the OS model rather than a bundled one. */
+    val declinationIsFramework: Boolean get() = declination is FrameworkDeclination
+
     private var compassDeg: Double? = null
     private var compassReliable = true
     private var locationJob: Job? = null
@@ -99,7 +105,7 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             runCatching { store.load() }.onFailure {
                 Log.w(TAG, "could not load saved destinations", it)
-                degrade("Saved destinations could not be read")
+                degrade(Degradation(R.string.degraded_store_read))
             }
         }
 
@@ -139,7 +145,7 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
                 }.onFailure {
                     if (it is CancellationException) throw it
                     Log.e(TAG, "location stream failed", it)
-                    degrade("No position updates — ${it.javaClass.simpleName}")
+                    degrade(Degradation(R.string.degraded_no_location, it.javaClass.simpleName))
                 }
             }
             viewModelScope.launch {
@@ -176,7 +182,7 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
                     Log.e(TAG, "compass stream failed; falling back to GPS course", it)
                     compassDeg = null
                     recomputeHeading()
-                    degrade("Compass unavailable — heading comes from GPS course while moving")
+                    degrade(Degradation(R.string.degraded_no_compass))
                 }
             }
         }
@@ -290,21 +296,16 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Why "save my location" cannot run right now, phrased for a snackbar — or null when it can.
+     * Why "save my location" cannot run right now, or null when it can.
      *
      * A saved point is permanent in a way the arrow is not, so this refuses on a stale fix
-     * rather than recording where the user was several minutes ago as where they are.
+     * rather than recording where the user was several minutes ago as where they are. Returned
+     * as a value, not a sentence: the wording is translated and lives in the UI layer.
      */
-    fun saveBlockedReason(): String? {
+    fun saveBlocked(): SaveBlock? {
         val s = _state.value
-        if (s.fix == null) {
-            return "No position fix yet — nothing to save. " +
-                "Give the satellites a moment, or step outside."
-        }
-        if (!s.isSaveable) {
-            return "That fix is ${s.fixAgeMillis / 1000} s old, so it's where you were, " +
-                "not where you are. Waiting for a fresh one."
-        }
+        if (s.fix == null) return SaveBlock.NoFix
+        if (!s.isSaveable) return SaveBlock.StaleFix(s.fixAgeMillis / 1000)
         return null
     }
 
@@ -332,51 +333,112 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * One tap, no form. Names the point after the time it was taken, which is what makes it
      * findable later ("the one from 14:32"); renaming is available from the list.
+     *
+     * The name is a stored string, so it is written in a form that does not belong to any
+     * language: `2026-08-18 14:32` rather than `18 Aug 14:32`. The previous version formatted
+     * the month name in whatever language was active at the moment of saving, which froze it
+     * there — switch the app to Arabic and last month\'s points still read "18 Aug", forever,
+     * because they are user text and nothing may rewrite them. Digits and hyphens have no such
+     * problem, they sort correctly, and they are unambiguous in all three languages.
      */
     fun quickSaveHere(onDone: (Destination?) -> Unit) {
-        val label = SimpleDateFormat("d MMM HH:mm", Locale.getDefault()).format(Date())
+        val label = SimpleDateFormat(QUICK_SAVE_NAME_PATTERN, Locale.ROOT).format(Date())
         saveCurrentPosition(label, onDone)
     }
 
-    /** Live values for the on-screen diagnostics panel. Cheap; only read when it is open. */
-    fun diagnostics(): List<Pair<String, String>> {
+    /**
+     * Live values for the on-screen diagnostics panel. Cheap; only read when it is open.
+     *
+     * Labels come back as resource ids rather than text because this ViewModel holds the
+     * Application context, whose configuration does not follow the per-app locale on API
+     * levels below 33 — only the Activity\'s does. Handing ids to the UI means the panel is in
+     * the same language as the rest of the app on every supported device.
+     */
+    fun diagnostics(locale: Locale): List<Diagnostic> {
         val s = _state.value
         val fix = s.fix
-        return listOf(
-            "arrow mode" to s.arrowMode.name,
-            "arrow angle" to (s.arrowDeg?.let { "%.1f°".format(it) } ?: "—"),
-            "arbiter mode" to s.headingSource.name,
-            "heading (smoothed)" to (s.headingDeg?.let { "%.1f°".format(it) } ?: "—"),
-            "compass RAW" to (rawCompassDeg?.let { "%.1f°".format(it) } ?: "—"),
-            "compass SMOOTHED" to (smoothedCompassDeg?.let { "%.1f°".format(it) } ?: "—"),
-            "raw − smoothed" to (
-                if (rawCompassDeg != null && smoothedCompassDeg != null) {
-                    "%.1f°".format(Geo.angleDeltaDegrees(smoothedCompassDeg!!, rawCompassDeg!!))
-                } else "—"
-                ),
-            "compass sensor" to compassSensorName,
-            "sample rate" to "%.0f Hz".format(compassHz),
-            "smoothing tau" to "${(HeadingEngine.SMOOTHING_TIME_CONSTANT_S * 1000).toInt()} ms",
-            "sensors present" to headingEngine.availableSensors(),
-            "magnetometer ok" to compassReliable.toString(),
-            "declination" to (s.declinationDeg?.let { "%.2f°".format(it) } ?: "—"),
-            "declination src" to declination.sourceName,
-            "bearing to dest" to (s.bearingToDestinationDeg?.let { "%.1f°".format(it) } ?: "—"),
-            "distance" to (s.distanceMeters?.let { "%.0f m".format(it) } ?: "—"),
-            "fix" to (fix?.let { "%.5f, %.5f".format(it.position.lat, it.position.lon) } ?: "none"),
-            "fix accuracy" to (fix?.let { "±%.0f m".format(it.accuracyMeters) } ?: "—"),
-            "fix age" to "${s.fixAgeMillis / 1000} s",
-            "fix quality" to s.quality.name,
-            "provider" to (fix?.provider ?: "—"),
-            "satellites" to "${_gnss.value.satellitesUsed}/${_gnss.value.satellitesVisible}",
-            "gps enabled" to _gnss.value.gpsEnabled.toString(),
-            "location job" to (locationJob?.isActive == true).toString(),
-            "heading job" to (headingJob?.isActive == true).toString(),
-            "heading updates" to headingUpdateCount.toString(),
-            "fix updates" to fixUpdateCount.toString(),
-            "degraded" to (_degraded.value.takeIf { it.isNotEmpty() }?.joinToString("; ") ?: "none"),
+        val dash = "—"
+        fun deg(value: Double?) = value?.let { latin("%.1f", locale, it) } ?: dash
+        fun degRow(label: Int, value: Double?) =
+            Diagnostic(label, deg(value), if (value == null) null else R.string.diag_degrees)
+        fun rows(vararg pairs: Diagnostic) = pairs.toList()
+        return rows(
+            Diagnostic(R.string.diag_arrow_mode, s.arrowMode.name),
+            degRow(R.string.diag_arrow_angle, s.arrowDeg),
+            Diagnostic(R.string.diag_arbiter_mode, s.headingSource.name),
+            degRow(R.string.diag_heading_smoothed, s.headingDeg),
+            degRow(R.string.diag_compass_raw, rawCompassDeg),
+            degRow(R.string.diag_compass_smoothed, smoothedCompassDeg),
+            degRow(
+                R.string.diag_raw_minus_smoothed,
+                rawCompassDeg?.let { raw ->
+                    smoothedCompassDeg?.let { Geo.angleDeltaDegrees(it, raw) }
+                },
+            ),
+            Diagnostic(R.string.diag_compass_sensor, compassSensorName),
+            Diagnostic(
+                R.string.diag_sample_rate,
+                latin("%.0f", locale, compassHz),
+                R.string.diag_hertz,
+            ),
+            Diagnostic(
+                R.string.diag_smoothing_tau,
+                latin("%d", locale, (HeadingEngine.SMOOTHING_TIME_CONSTANT_S * 1000).toInt()),
+                R.string.diag_millis,
+            ),
+            Diagnostic(R.string.diag_sensors_present, headingEngine.availableSensors()),
+            Diagnostic(R.string.diag_magnetometer_ok, compassReliable.toString()),
+            Diagnostic(
+                R.string.diag_declination,
+                s.declinationDeg?.let { latin("%.2f", locale, it) } ?: dash,
+                s.declinationDeg?.let { R.string.diag_degrees },
+            ),
+            Diagnostic(R.string.diag_declination_source, declination.sourceName),
+            degRow(R.string.diag_bearing_to_destination, s.bearingToDestinationDeg),
+            Diagnostic(
+                R.string.diag_distance,
+                s.distanceMeters?.let { latin("%.0f", locale, it) } ?: dash,
+                s.distanceMeters?.let { R.string.unit_metres },
+            ),
+            Diagnostic(
+                R.string.diag_fix,
+                fix?.let { "\u2066" + Format.decimal(it.position) + "\u2069" } ?: dash,
+            ),
+            Diagnostic(
+                R.string.diag_fix_accuracy,
+                fix?.let { latin("%.0f", locale, it.accuracyMeters) } ?: dash,
+                fix?.let { R.string.diag_accuracy_meters },
+            ),
+            Diagnostic(
+                R.string.diag_fix_age,
+                latin("%d", locale, s.fixAgeMillis / 1000),
+                R.string.diag_seconds,
+            ),
+            Diagnostic(R.string.diag_fix_quality, s.quality.name),
+            Diagnostic(R.string.diag_provider, fix?.provider ?: dash),
+            Diagnostic(
+                R.string.diag_satellites,
+                latin("%d", locale, _gnss.value.satellitesUsed) + "/" +
+                    latin("%d", locale, _gnss.value.satellitesVisible),
+            ),
+            Diagnostic(R.string.diag_gps_enabled, _gnss.value.gpsEnabled.toString()),
+            Diagnostic(R.string.diag_location_job, (locationJob?.isActive == true).toString()),
+            Diagnostic(R.string.diag_heading_job, (headingJob?.isActive == true).toString()),
+            Diagnostic(R.string.diag_heading_updates, latin("%d", locale, headingUpdateCount)),
+            Diagnostic(R.string.diag_fix_updates, latin("%d", locale, fixUpdateCount)),
+            // Restored: which subsystems have degraded is exactly what a support conversation
+            // needs, and the banner only shows the first of them.
+            Diagnostic(
+                R.string.diag_degraded,
+                _degraded.value.size.takeIf { it > 0 }?.let { latin("%d", locale, it) }
+                    ?: DEGRADED_NONE,
+            ),
         )
     }
+
+    /** Diagnostics numbers go through the same Latin-digit rule as everything else. */
+    private fun latin(pattern: String, locale: Locale, value: Any): String =
+        Format.number(pattern, locale, value)
 
     fun saveDestination(
         name: String,
@@ -400,31 +462,11 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         const val TAG = "NavigationViewModel"
         const val KEY_SORT = "destinations.sort"
+
+        /** Locale-neutral by design; see [quickSaveHere]. */
+        const val QUICK_SAVE_NAME_PATTERN = "yyyy-MM-dd HH:mm"
+
+        /** Rendered by the panel through R.string.diag_none; see [Diagnostic]. */
+        const val DEGRADED_NONE = ""
     }
 }
-
-/**
- * Label for the heading-source chip. A free function of the state rather than a ViewModel
- * property, so Compose actually recomposes when the source changes.
- */
-fun HeadingSource.label(): String = when (this) {
-    HeadingSource.COMPASS -> "Compass"
-    HeadingSource.GPS_COURSE -> "GPS course"
-    HeadingSource.COMPASS_UNCALIBRATED -> "Compass needs calibration"
-    HeadingSource.NONE -> "No heading"
-}
-
-/**
- * The chip label, with the caveat that the source alone can't express.
- *
- * Before the first fix there is no position, so there is no declination, so "Compass" is
- * showing magnetic north — which in Alaska is twenty degrees from the one the app claims to
- * point in. "Compass needs calibration" is left alone: it is already the louder warning of
- * the two and stacking them helps nobody.
- */
-fun NavigationState.headingChipLabel(): String =
-    if (headingIsMagnetic && headingSource == HeadingSource.COMPASS) {
-        "Compass (magnetic)"
-    } else {
-        headingSource.label()
-    }

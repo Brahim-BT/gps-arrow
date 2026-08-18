@@ -3,11 +3,21 @@
   Status-bar icons must be a solid white silhouette on transparent; Android tints them itself.
   Anything with colour or gradients renders as a white blob.
 -->
+<!--
+  autoMirrored is false, and stated explicitly rather than left to the default.
+
+  This glyph is the app's arrow. It is a geographic symbol, not a piece of UI chrome: under an
+  RTL layout Android would happily flip it, and a flipped arrow in a navigation app is wrong in
+  a way that looks perfectly normal to anyone reviewing an Arabic build. The current path
+  happens to be symmetric about its vertical axis so a flip would be invisible today — which is
+  exactly why this needs saying out loud, before someone redraws it at an angle.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24"
+    android:autoMirrored="false"
     android:tint="#FFFFFFFF">
 
     <path

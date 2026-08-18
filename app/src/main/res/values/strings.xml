@@ -1,9 +1,257 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  English source strings.
+
+  Generated from verification/strings_table.py so the three languages stay key-for-key
+  identical. Edit the table and regenerate rather than editing one file by hand: a key that
+  exists in one language and not another is exactly the bug that ships a half-translated app.
+-->
 <resources>
+
+    <!-- Product name and tabs -->
     <string name="app_name">GPS Arrow</string>
     <string name="navigate_here">Navigate here</string>
+    <string name="tab_arrow">Arrow</string>
+    <string name="tab_destinations">Destinations</string>
+    <string name="tab_map">Map</string>
+    <string name="tab_settings">Settings</string>
+
+    <!-- Arrow screen -->
+    <string name="save_my_location">Save my location</string>
+    <string name="save_my_location_no_fix">Save my location (no fix yet)</string>
+    <string name="save_my_location_stale">Save my location (fix is stale)</string>
+    <string name="add_point">Add point</string>
+    <string name="arrived_title">You’re here</string>
+    <string name="arrived_explanation">Closer than this fix can measure, so the needle is showing north.</string>
+    <string name="pointing_north_no_destination">Pointing north — no destination chosen yet</string>
+    <string name="pointing_north_waiting_fix">Pointing north — waiting for a position fix</string>
+    <string name="magnetic_north_notice">That’s magnetic north. It becomes true north once there’s a position fix to compute the declination from.</string>
+    <string name="tap_destinations_hint">Tap Destinations to pick one.</string>
+    <string name="compass_unreliable">Compass unreliable — wave the phone in a figure of eight to recalibrate.</string>
+    <string name="position_out_of_date">Position is out of date — searching for satellites.</string>
+    <string name="no_compass_title">No compass</string>
+    <string name="no_compass_body">This device has no usable compass sensor. The arrow will work once you start moving, using your GPS course instead.</string>
+
+    <!-- Status chips -->
+    <string name="chip_accuracy">±%1$s m</string>
+    <string name="chip_accuracy_weak">weak ±%1$s m</string>
+    <string name="chip_stale_fix">stale fix</string>
+    <string name="chip_no_fix">no fix</string>
+    <string name="chip_satellites">%1$s/%2$s sats</string>
+
+    <!-- Heading source -->
+    <string name="heading_compass">Compass</string>
+    <string name="heading_compass_magnetic">Compass (magnetic)</string>
+    <string name="heading_gps_course">GPS course</string>
+    <string name="heading_compass_uncalibrated">Compass needs calibration</string>
+    <string name="heading_none">No heading</string>
+
+    <!-- Units and bearings -->
+    <string name="unit_metres">%1$s m</string>
+    <string name="unit_kilometres">%1$s km</string>
+    <string name="unit_feet">%1$s ft</string>
+    <string name="unit_miles">%1$s mi</string>
+    <string name="unit_nautical_miles">%1$s NM</string>
+    <string name="distance_under">under %1$s</string>
+    <string name="bearing_format">%1$s° %2$s</string>
+
+    <!-- Destinations list -->
+    <string name="destinations_title">Destinations</string>
+    <string name="search">Search</string>
+    <string name="search_placeholder">Name or note</string>
+    <string name="sort_needs_position">needs a position fix</string>
+    <string name="filter_starred">Starred</string>
+    <string name="distances_stale_warning">Distances are from your last known position, not a live fix.</string>
+    <string name="empty_no_destinations_title">No destinations yet</string>
+    <string name="empty_no_destinations_body">Save your location from the arrow screen, or add a point from coordinates, a plus code or an MGRS reference.</string>
+    <string name="empty_add_first">Add your first one</string>
+    <string name="empty_nothing_matches_title">Nothing matches</string>
+    <string name="empty_no_starred_match">No starred point matches “%1$s”.</string>
+    <string name="empty_no_starred">You haven’t starred any points yet. Tap the star on a row to add one.</string>
+    <string name="empty_no_match">No saved point matches “%1$s”.</string>
+    <string name="clear_search">Clear search</string>
+    <string name="cd_add_destination">Add a destination</string>
+    <string name="cd_star">Star %1$s</string>
+    <string name="cd_unstar">Unstar %1$s</string>
+    <string name="cd_edit">Edit %1$s</string>
+    <string name="cd_delete">Delete %1$s</string>
+    <string name="selected_destination">▸ %1$s</string>
+    <string name="accuracy_suffix"> · ±%1$s m</string>
+    <string name="delete_dialog_title">Delete this point?</string>
+    <string name="delete_dialog_body">“%1$s” will be removed. %2$s</string>
+    <string name="delete">Delete</string>
+    <string name="keep">Keep</string>
+
+    <!-- Sort orders -->
+    <string name="sort_name_asc">Name A–Z</string>
+    <string name="sort_name_desc">Name Z–A</string>
+    <string name="sort_nearest">Nearest first</string>
+    <string name="sort_farthest">Farthest first</string>
+    <string name="sort_newest">Newest first</string>
+    <string name="sort_oldest">Oldest first</string>
+    <string name="sort_recently_used">Recently used</string>
+
+    <!-- Add and edit a point -->
+    <string name="add_point_title">Add a point</string>
+    <string name="edit_point_title">Edit point</string>
+    <string name="back">Back</string>
+    <string name="field_name">Name</string>
+    <string name="field_name_placeholder">Trailhead</string>
+    <string name="field_latitude">Latitude</string>
+    <string name="field_longitude">Longitude</string>
+    <string name="field_latitude_placeholder">48.8584    (N positive, S negative)</string>
+    <string name="field_longitude_placeholder">2.2945    (E positive, W negative)</string>
+    <string name="field_latitude_hint">Or paste a whole coordinate here — both fields will fill.</string>
+    <string name="field_longitude_hint">Between -180 and 180</string>
+    <string name="error_not_a_number">Not a number</string>
+    <string name="error_latitude_range">Must be between -90 and 90</string>
+    <string name="error_longitude_range">Must be between -180 and 180</string>
+    <string name="read_as">Read as %1$s and split into both fields.</string>
+    <string name="save_point">Save point</string>
+    <string name="save_changes">Save changes</string>
+    <string name="plus_code_label">Plus code %1$s</string>
+    <string name="mgrs_label">MGRS %1$s</string>
+    <string name="pasteable_formats">Pasteable formats</string>
+    <string name="shortened_links_warning">Shortened links (maps.app.goo.gl, bit.ly) can never work offline — only the server that made them knows where they point.</string>
+
+    <!-- Coordinate format names, as shown by “Read as …” -->
+    <string name="format_decimal">decimal degrees</string>
+    <string name="format_dms">degrees, minutes, seconds</string>
+    <string name="format_geo_uri">a geo: link</string>
+    <string name="format_plus_code">a plus code</string>
+    <string name="format_plus_code_short">a short plus code</string>
+    <string name="format_mgrs">an MGRS reference</string>
+    <string name="format_utm">a UTM reference</string>
+    <string name="format_map_url">a map link</string>
+
+    <!-- Parser problems -->
+    <string name="parse_shortened_link">%1$s links are shortened — only their server knows where they point. Open the link once while you have signal, then copy the full address or the coordinates from it.</string>
+    <string name="parse_link_without_coordinates">That link doesn’t contain coordinates, so it can’t be resolved without a connection. Open it while online and copy the coordinates.</string>
+    <string name="parse_malformed_plus_code">Malformed plus code.</string>
+    <string name="parse_short_plus_code_needs_fix">“%1$s” is a shortened plus code. It needs your current position to resolve, and there is no position fix yet.</string>
+    <string name="parse_plus_code_unresolvable">Could not resolve “%1$s”.</string>
+    <string name="parse_mgrs_odd_digit_count">MGRS needs an even number of digits.</string>
+    <string name="parse_mgrs_invalid">Not a valid MGRS reference.</string>
+    <string name="parse_utm_zone_out_of_range">UTM zone must be 1-60.</string>
+    <string name="parse_not_a_number">Not a number.</string>
+    <string name="parse_latitude_out_of_range">Latitude must be between -90 and 90.</string>
+    <string name="parse_longitude_out_of_range">Longitude must be between -180 and 180.</string>
+
+    <!-- Snackbars -->
+    <string name="saved_point">Saved “%1$s” — rename it from Destinations</string>
+    <string name="saved_point_with_accuracy">Saved “%1$s” at ±%2$s m — rename it from Destinations</string>
+    <string name="save_failed_fix_changed">The fix changed while saving — try again</string>
+    <string name="save_blocked_no_fix">No position fix yet — nothing to save. Give the satellites a moment, or step outside.</string>
+    <string name="save_blocked_stale">That fix is %1$s s old, so it’s where you were, not where you are. Waiting for a fresh one.</string>
+    <string name="deleted_point">Deleted “%1$s”</string>
+    <string name="undo">Undo</string>
+
+    <!-- Degraded-subsystem banners -->
+    <string name="degraded_declination">Using magnetic north — declination model unavailable</string>
+    <string name="degraded_store_read">Saved destinations could not be read</string>
+    <string name="degraded_no_location">No position updates — %1$s</string>
+    <string name="degraded_no_compass">Compass unavailable — heading comes from GPS course while moving</string>
+
+    <!-- Permission gate -->
+    <string name="permission_title_precise">Precise location needed</string>
+    <string name="permission_title_location">Location permission</string>
+    <string name="permission_body_approximate">You granted approximate location. An arrow pointing at a destination needs precise GPS — approximate is accurate to about a kilometre, which would point you the wrong way.</string>
+    <string name="permission_body_initial">GPS Arrow reads your position from the GPS satellites directly. Nothing is sent anywhere — this build has no internet permission at all.</string>
+    <string name="permission_grant_precise">Grant precise location</string>
+    <string name="permission_continue">Continue</string>
+    <string name="permission_open_settings">Open app settings</string>
+
+    <!-- Map tab -->
+    <string name="map_ready">Map ready: %1$s</string>
+    <string name="map_back_to_arrow">Back to the arrow</string>
+    <string name="map_none_title">No map for this area yet</string>
+    <string name="map_none_arrow_works">The arrow still works — it doesn’t need maps.</string>
+    <string name="map_none_download">To see streets here, download %1$s next time you have Wi-Fi.</string>
+    <string name="map_none_download_sized">To see streets here, download %1$s (about %2$s) next time you have Wi-Fi.</string>
+    <string name="map_none_explanation">Map regions are downloaded once while you’re online, then work offline forever after.</string>
+    <string name="map_open_region_list">Open region list</string>
+    <string name="map_remind_when_online">Remind me when I’m online</string>
+
+    <!-- Notification -->
     <string name="navigating">Navigating</string>
+    <string name="notification_text">Navigating — open for the arrow and distance</string>
     <string name="stop">Stop</string>
     <string name="channel_navigation">Navigation</string>
     <string name="channel_navigation_description">Keeps the arrow running while the screen is off.</string>
+
+    <!-- Settings and About -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_about">About</string>
+    <string name="about_version">Version</string>
+    <string name="about_declination_source">Magnetic model</string>
+    <string name="about_declination_framework">Android built-in (WMM2020)</string>
+    <string name="about_declination_note">Magnetic declination across Morocco and Mauritania differs from the current model by under 0.2°, which is smaller than the model’s own uncertainty.</string>
+    <string name="about_offline">This app never uses the internet. It has no internet permission.</string>
+    <string name="about_attribution">Magnetic model: NOAA/NGA World Magnetic Model, public domain.</string>
+
+    <!-- Language picker -->
+    <string name="language_picker_title">Choose your language</string>
+    <string name="language_picker_subtitle">You can change this later in Settings.</string>
+    <string name="language_picker_confirm">Continue</string>
+
+    <!-- Diagnostics panel -->
+    <string name="diagnostics_title">Diagnostics</string>
+    <string name="diagnostics_close">Close</string>
+    <string name="diagnostics_hint">Long-press the status chips at any time to open or close this.</string>
+    <string name="diag_arrow_mode">arrow mode</string>
+    <string name="diag_arrow_angle">arrow angle</string>
+    <string name="diag_arbiter_mode">heading source</string>
+    <string name="diag_heading_smoothed">heading (smoothed)</string>
+    <string name="diag_compass_raw">compass raw</string>
+    <string name="diag_compass_smoothed">compass smoothed</string>
+    <string name="diag_raw_minus_smoothed">raw − smoothed</string>
+    <string name="diag_compass_sensor">compass sensor</string>
+    <string name="diag_sample_rate">sample rate</string>
+    <string name="diag_smoothing_tau">smoothing constant</string>
+    <string name="diag_sensors_present">sensors present</string>
+    <string name="diag_magnetometer_ok">magnetometer ok</string>
+    <string name="diag_declination">declination</string>
+    <string name="diag_declination_source">declination source</string>
+    <string name="diag_bearing_to_destination">bearing to destination</string>
+    <string name="diag_distance">distance</string>
+    <string name="diag_fix">fix</string>
+    <string name="diag_fix_accuracy">fix accuracy</string>
+    <string name="diag_fix_age">fix age</string>
+    <string name="diag_fix_quality">fix quality</string>
+    <string name="diag_provider">provider</string>
+    <string name="diag_satellites">satellites</string>
+    <string name="diag_gps_enabled">gps enabled</string>
+    <string name="diag_location_job">location running</string>
+    <string name="diag_heading_job">compass running</string>
+    <string name="diag_heading_updates">heading updates</string>
+    <string name="diag_fix_updates">fix updates</string>
+    <string name="diag_degraded">degraded</string>
+    <string name="diag_none">none</string>
+    <string name="diag_seconds">%1$s s</string>
+    <string name="diag_millis">%1$s ms</string>
+    <string name="diag_hertz">%1$s Hz</string>
+    <string name="diag_degrees">%1$s°</string>
+    <string name="diag_accuracy_meters">±%1$s m</string>
+    <string name="diag_unavailable">—</string>
+
+    <!-- Sixteen-point compass rose, N first, clockwise. -->
+    <string-array name="compass_points">
+        <item>N</item>
+        <item>NNE</item>
+        <item>NE</item>
+        <item>ENE</item>
+        <item>E</item>
+        <item>ESE</item>
+        <item>SE</item>
+        <item>SSE</item>
+        <item>S</item>
+        <item>SSW</item>
+        <item>SW</item>
+        <item>WSW</item>
+        <item>W</item>
+        <item>WNW</item>
+        <item>NW</item>
+        <item>NNW</item>
+    </string-array>
 </resources>

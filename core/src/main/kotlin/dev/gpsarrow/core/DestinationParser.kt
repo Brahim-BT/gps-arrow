@@ -1,12 +1,36 @@
 package dev.gpsarrow.core
 
 /**
- * Everything the user can paste, turned into a position — with no network.
+ * What went wrong, as a value rather than a sentence.
  *
- * There is no geocoder in this app, so there is no "search". Every input path is a parser,
- * and the one thing that genuinely cannot work offline (shortened map share links) gets an
- * explicit, honest failure so the UI can explain it instead of silently doing nothing.
+ * The wording lives in the UI layer's string resources: these messages are read by people
+ * standing outside trying to get an app to accept a coordinate, in one of three languages, and
+ * `:core` has no business holding English prose. [ParseResult.NeedsNetwork] and
+ * [ParseResult.Invalid] carry one of these plus at most one substitution.
  */
+enum class ParseProblem {
+    /** A shortened share link. `arg` is the host. */
+    SHORTENED_LINK,
+
+    /** A map URL with no coordinates in it. */
+    LINK_WITHOUT_COORDINATES,
+
+    MALFORMED_PLUS_CODE,
+
+    /** A short plus code with no fix to resolve it against. `arg` is the code. */
+    SHORT_PLUS_CODE_NEEDS_FIX,
+
+    /** A short plus code that would not resolve. `arg` is the code. */
+    PLUS_CODE_UNRESOLVABLE,
+
+    MGRS_ODD_DIGIT_COUNT,
+    MGRS_INVALID,
+    UTM_ZONE_OUT_OF_RANGE,
+    NOT_A_NUMBER,
+    LATITUDE_OUT_OF_RANGE,
+    LONGITUDE_OUT_OF_RANGE,
+}
+
 sealed interface ParseResult {
 
     data class Success(
@@ -17,17 +41,24 @@ sealed interface ParseResult {
         val usedReference: Boolean = false,
     ) : ParseResult
 
-    /** Recognised, but genuinely impossible offline. [reason] is user-facing. */
-    data class NeedsNetwork(val reason: String) : ParseResult
+    /** Recognised, but genuinely impossible offline. */
+    data class NeedsNetwork(val problem: ParseProblem, val arg: String? = null) : ParseResult
 
     /** Recognised the shape but the values are out of range. */
-    data class Invalid(val reason: String) : ParseResult
+    data class Invalid(val problem: ParseProblem, val arg: String? = null) : ParseResult
 
     data object Unrecognised : ParseResult
 
     enum class Format { DECIMAL, DMS, GEO_URI, PLUS_CODE, PLUS_CODE_SHORT, MGRS, UTM, MAP_URL }
 }
 
+/**
+ * Everything the user can paste, turned into a position — with no network.
+ *
+ * There is no geocoder in this app, so there is no "search". Every input path is a parser,
+ * and the one thing that genuinely cannot work offline (shortened map share links) gets an
+ * explicit, honest failure so the UI can explain it instead of silently doing nothing.
+ */
 object DestinationParser {
 
     private val SHORTENERS = listOf(
@@ -62,11 +93,7 @@ object DestinationParser {
         if (raw.isEmpty()) return ParseResult.Unrecognised
 
         SHORTENERS.firstOrNull { raw.contains(it, ignoreCase = true) }?.let { host ->
-            return ParseResult.NeedsNetwork(
-                "$host links are shortened — only their server knows where they point. " +
-                    "Open the link once while you have signal, then copy the full address " +
-                    "or the coordinates from it.",
-            )
+            return ParseResult.NeedsNetwork(ParseProblem.SHORTENED_LINK, host)
         }
 
         geoUri(raw)?.let { return it }
@@ -127,10 +154,7 @@ object DestinationParser {
             val r = validate(lat, lon, ParseResult.Format.MAP_URL, null)
             if (r is ParseResult.Success) return r
         }
-        return ParseResult.NeedsNetwork(
-            "That link doesn't contain coordinates, so it can't be resolved without a connection. " +
-                "Open it while online and copy the coordinates.",
-        )
+        return ParseResult.NeedsNetwork(ParseProblem.LINK_WITHOUT_COORDINATES)
     }
 
     // ---------------------------------------------------------------- plus codes
@@ -143,19 +167,18 @@ object DestinationParser {
         val label = s.uppercase().substringAfter(token).trim().takeIf { it.isNotBlank() }
 
         if (PlusCode.isFull(token)) {
-            val area = PlusCode.decode(token) ?: return ParseResult.Invalid("Malformed plus code.")
+            val area = PlusCode.decode(token)
+                ?: return ParseResult.Invalid(ParseProblem.MALFORMED_PLUS_CODE)
             return ParseResult.Success(area.center, ParseResult.Format.PLUS_CODE, label)
         }
         if (PlusCode.isShort(token)) {
             if (reference == null) {
-                return ParseResult.Invalid(
-                    "\"$token\" is a shortened plus code. It needs your current position to " +
-                        "resolve, and there is no position fix yet.",
-                )
+                return ParseResult.Invalid(ParseProblem.SHORT_PLUS_CODE_NEEDS_FIX, token)
             }
             val full = PlusCode.recoverNearest(token, reference)
-                ?: return ParseResult.Invalid("Could not resolve \"$token\".")
-            val area = PlusCode.decode(full) ?: return ParseResult.Invalid("Malformed plus code.")
+                ?: return ParseResult.Invalid(ParseProblem.PLUS_CODE_UNRESOLVABLE, token)
+            val area = PlusCode.decode(full)
+                ?: return ParseResult.Invalid(ParseProblem.MALFORMED_PLUS_CODE)
             return ParseResult.Success(
                 area.center, ParseResult.Format.PLUS_CODE_SHORT, label, usedReference = true,
             )
@@ -179,8 +202,8 @@ object DestinationParser {
         val compact = token.filterNot { it.isWhitespace() }
         // Reject odd digit counts up front so "31UDQ123" doesn't silently mis-parse.
         val digits = compact.dropWhile { it.isDigit() }.drop(3)
-        if (digits.length % 2 != 0) return ParseResult.Invalid("MGRS needs an even number of digits.")
-        val p = Mgrs.fromMgrs(compact) ?: return ParseResult.Invalid("Not a valid MGRS reference.")
+        if (digits.length % 2 != 0) return ParseResult.Invalid(ParseProblem.MGRS_ODD_DIGIT_COUNT)
+        val p = Mgrs.fromMgrs(compact) ?: return ParseResult.Invalid(ParseProblem.MGRS_INVALID)
         return validate(p.lat, p.lon, ParseResult.Format.MGRS, null)
     }
 
@@ -195,7 +218,7 @@ object DestinationParser {
         val band = m.groupValues[2].first()
         val easting = m.groupValues[3].toDoubleOrNull() ?: return null
         val northing = m.groupValues[4].toDoubleOrNull() ?: return null
-        if (zone !in 1..60) return ParseResult.Invalid("UTM zone must be 1-60.")
+        if (zone !in 1..60) return ParseResult.Invalid(ParseProblem.UTM_ZONE_OUT_OF_RANGE)
         val p = Mgrs.fromUtm(Mgrs.Utm(zone, band >= 'N', easting, northing))
         return validate(p.lat, p.lon, ParseResult.Format.UTM, null)
     }
@@ -262,9 +285,9 @@ object DestinationParser {
         format: ParseResult.Format,
         label: String?,
     ): ParseResult = when {
-        lat.isNaN() || lon.isNaN() -> ParseResult.Invalid("Not a number.")
-        lat < -90 || lat > 90 -> ParseResult.Invalid("Latitude must be between -90 and 90.")
-        lon < -180 || lon > 180 -> ParseResult.Invalid("Longitude must be between -180 and 180.")
+        lat.isNaN() || lon.isNaN() -> ParseResult.Invalid(ParseProblem.NOT_A_NUMBER)
+        lat < -90 || lat > 90 -> ParseResult.Invalid(ParseProblem.LATITUDE_OUT_OF_RANGE)
+        lon < -180 || lon > 180 -> ParseResult.Invalid(ParseProblem.LONGITUDE_OUT_OF_RANGE)
         else -> ParseResult.Success(LatLon(lat, lon), format, label?.take(60))
     }
 }

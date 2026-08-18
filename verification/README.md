@@ -12,6 +12,9 @@ build — once you have Android Studio open, `./gradlew :core:test` is the real 
 | `run_core_tests.py` | The Kotlin in `core/src/main/kotlin` transpiled back to Python, run against the same assertions as `core/src/test/kotlin`. This is what catches transcription errors in the port. |
 | `wmm_reference.py` | `Wmm.kt` ported to Python and checked against NOAA's reference implementation over thousands of points; reports the declination across the deployment region; regenerates `WmmReferenceTest.kt`. Needs `pip install pygeomag` for the coefficient files, which this repo does not ship. |
 | `WmmReferenceTest.kt.template` | Skeleton the above fills in. Not a script. |
+| `strings_table.py` | The single aligned table of every user-facing string in English, French and Arabic. |
+| `emit_strings.py` | Emits `values/`, `values-fr/` and `values-ar/` from it, then checks the three key sets and all format specifiers match. Run after editing the table; never hand-edit one language's file. |
+| `TRANSLATIONS.md` | The three languages side by side for review, with the safety-critical rows marked. |
 
 Run them with `python3 <script>`; only `wmm_reference.py` has a dependency.
 

@@ -124,17 +124,29 @@ class GeoTest {
 
     @Test
     fun `distance formatting degrades precision sensibly`() {
-        assertEquals("120 m", Format.distance(123.0))
-        assertEquals("1.2 km", Format.distance(1_234.0))
-        assertEquals("123 km", Format.distance(123_456.0))
+        // The unit word lives in the UI layer now, so these assert the number and the scale.
+        Format.distance(123.0).let {
+            assertEquals("120", it.value)
+            assertEquals(LengthUnit.METRES, it.unit)
+        }
+        Format.distance(1_234.0).let {
+            assertEquals("1.2", it.value)
+            assertEquals(LengthUnit.KILOMETRES, it.unit)
+        }
+        Format.distance(123_456.0).let {
+            assertEquals("123", it.value)
+            assertEquals(LengthUnit.KILOMETRES, it.unit)
+        }
     }
 
     @Test
     fun `compass points`() {
-        assertEquals("N", Format.compassPoint(0.0))
-        assertEquals("N", Format.compassPoint(359.0))
-        assertEquals("NE", Format.compassPoint(45.0))
-        assertEquals("S", Format.compassPoint(180.0))
-        assertEquals("NW", Format.compassPoint(315.0))
+        // Index into the sixteen-point rose: N = 0, clockwise. The abbreviations are a
+        // translated string array, so :core only knows which of the sixteen it is.
+        assertEquals(0, Format.compassPointIndex(0.0))
+        assertEquals(0, Format.compassPointIndex(359.0))
+        assertEquals(2, Format.compassPointIndex(45.0))
+        assertEquals(8, Format.compassPointIndex(180.0))
+        assertEquals(14, Format.compassPointIndex(315.0))
     }
 }

@@ -37,11 +37,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.gpsarrow.R
 import dev.gpsarrow.core.Destination
 import dev.gpsarrow.core.DestinationQuery
 import dev.gpsarrow.core.DestinationSort
@@ -87,21 +90,24 @@ fun DestinationsScreen(
     pendingDelete?.let { target ->
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            title = { Text("Delete this point?") },
+            title = { Text(stringResource(R.string.delete_dialog_title)) },
             text = {
                 Text(
-                    "\"${target.name}\" will be removed. " +
-                        Format.decimal(target.position),
+                    stringResource(
+                        R.string.delete_dialog_body,
+                        target.name,
+                        ltrIsolate(Format.decimal(target.position)),
+                    ),
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     pendingDelete = null
                     onDelete(target)
-                }) { Text("Delete") }
+                }) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("Keep") }
+                TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.keep)) }
             },
         )
     }
@@ -113,15 +119,18 @@ fun DestinationsScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Destinations", style = MaterialTheme.typography.headlineMedium)
+            Text(
+                text = stringResource(R.string.destinations_title),
+                style = MaterialTheme.typography.headlineMedium,
+            )
         }
 
         if (destinations.isNotEmpty()) {
             OutlinedTextField(
                 value = query,
                 onValueChange = onQueryChange,
-                label = { Text("Search") },
-                placeholder = { Text("Name or note") },
+                label = { Text(stringResource(R.string.search)) },
+                placeholder = { Text(stringResource(R.string.search_placeholder)) },
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -135,7 +144,7 @@ fun DestinationsScreen(
             ) {
                 Box {
                     TextButton(onClick = { sortMenuOpen = true }) {
-                        Text(effectiveSort.label, maxLines = 1)
+                        Text(stringResource(effectiveSort.labelRes()), maxLines = 1)
                     }
                     DropdownMenu(
                         expanded = sortMenuOpen,
@@ -146,10 +155,10 @@ fun DestinationsScreen(
                             DropdownMenuItem(
                                 text = {
                                     Column {
-                                        Text(option.label)
+                                        Text(stringResource(option.labelRes()))
                                         if (unavailable) {
                                             Text(
-                                                "needs a position fix",
+                                                stringResource(R.string.sort_needs_position),
                                                 style = MaterialTheme.typography.labelLarge,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
@@ -169,7 +178,7 @@ fun DestinationsScreen(
                 FilterChip(
                     selected = favouritesOnly,
                     onClick = { onFavouritesOnlyChange(!favouritesOnly) },
-                    label = { Text("Starred") },
+                    label = { Text(stringResource(R.string.filter_starred)) },
                 )
             }
 
@@ -180,7 +189,7 @@ fun DestinationsScreen(
             // there, just no longer labelled.
             if (currentPosition != null && positionIsStale) {
                 Text(
-                    "Distances are from your last known position, not a live fix.",
+                    stringResource(R.string.distances_stale_warning),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(top = 4.dp),
@@ -190,23 +199,22 @@ fun DestinationsScreen(
 
         when {
             destinations.isEmpty() -> EmptyState(
-                title = "No destinations yet",
-                body = "Save your location from the arrow screen, or add a point from " +
-                    "coordinates, a plus code or an MGRS reference.",
-                actionLabel = "Add your first one",
+                title = stringResource(R.string.empty_no_destinations_title),
+                body = stringResource(R.string.empty_no_destinations_body),
+                actionLabel = stringResource(R.string.empty_add_first),
                 onAction = onAdd,
             )
 
             visible.isEmpty() -> EmptyState(
-                title = "Nothing matches",
+                title = stringResource(R.string.empty_nothing_matches_title),
                 body = if (favouritesOnly && query.isNotBlank()) {
-                    "No starred point matches \"$query\"."
+                    stringResource(R.string.empty_no_starred_match, query)
                 } else if (favouritesOnly) {
-                    "You haven't starred any points yet. Tap the star on a row to add one."
+                    stringResource(R.string.empty_no_starred)
                 } else {
-                    "No saved point matches \"$query\"."
+                    stringResource(R.string.empty_no_match, query)
                 },
-                actionLabel = "Clear search",
+                actionLabel = stringResource(R.string.clear_search),
                 onAction = { onQueryChange(""); onFavouritesOnlyChange(false) },
             )
 
@@ -247,7 +255,10 @@ fun DestinationsScreen(
                 .align(Alignment.BottomEnd)
                 .padding(20.dp),
         ) {
-            Icon(Icons.Filled.Add, contentDescription = "Add a destination")
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = stringResource(R.string.cd_add_destination),
+            )
         }
     }
 }
@@ -264,6 +275,8 @@ private fun DestinationRow(
     onToggleFavourite: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val numberLocale = rememberNumberLocale()
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -284,7 +297,11 @@ private fun DestinationRow(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (selected) "▸ ${destination.name}" else destination.name,
+                    text = if (selected) {
+                        stringResource(R.string.selected_destination, destination.name)
+                    } else {
+                        destination.name
+                    },
                     style = MaterialTheme.typography.bodyLarge,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -293,8 +310,15 @@ private fun DestinationRow(
                     // The accuracy the point was captured at, when it is known. A point taken
                     // from a ±40 m fix must not sit in the list looking identical to one taken
                     // from a ±4 m fix — the arrow is only ever as good as what it aims at.
-                    text = Format.decimal(destination.position) +
-                        (destination.accuracyMeters?.let { " · ±${it.toInt()} m" } ?: ""),
+                    text = ltrIsolate(Format.decimal(destination.position)) +
+                        (
+                            destination.accuracyMeters?.let {
+                                stringResource(
+                                    R.string.accuracy_suffix,
+                                    Format.number("%d", numberLocale, it.toInt()),
+                                )
+                            } ?: ""
+                            ),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -305,9 +329,11 @@ private fun DestinationRow(
                         text = Format.distance(
                             Geo.distanceMeters(it, destination.position),
                             units,
-                        ) + " · " + Format.bearing(
+                            numberLocale,
+                        ).text(context) + " · " + Format.bearing(
                             Geo.initialBearingDegrees(it, destination.position),
-                        ),
+                            numberLocale,
+                        ).text(context),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary,
                     )
@@ -318,9 +344,9 @@ private fun DestinationRow(
                 Icon(
                     imageVector = Icons.Filled.Star,
                     contentDescription = if (destination.isFavourite) {
-                        "Unstar ${destination.name}"
+                        stringResource(R.string.cd_unstar, destination.name)
                     } else {
-                        "Star ${destination.name}"
+                        stringResource(R.string.cd_star, destination.name)
                     },
                     // Same glyph, distinguished by tint: keeps us on material-icons-core only.
                     tint = if (destination.isFavourite) MaterialTheme.colorScheme.primary
@@ -328,10 +354,16 @@ private fun DestinationRow(
                 )
             }
             IconButton(onClick = onEdit, modifier = Modifier.size(44.dp)) {
-                Icon(Icons.Filled.Edit, contentDescription = "Edit ${destination.name}")
+                Icon(
+                    imageVector = Icons.Filled.Edit,
+                    contentDescription = stringResource(R.string.cd_edit, destination.name),
+                )
             }
             IconButton(onClick = onDelete, modifier = Modifier.size(44.dp)) {
-                Icon(Icons.Filled.Delete, contentDescription = "Delete ${destination.name}")
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = stringResource(R.string.cd_delete, destination.name),
+                )
             }
         }
     }
@@ -368,6 +400,8 @@ fun Destination.shareText(): String = buildString {
     appendLine(name)
     appendLine(Format.decimal(position))
     appendLine(Format.dms(position))
+    // Deliberately untranslated: this is text the user hands to another app, another device
+    // or a radio, and every one of those expects the Latin labels.
     appendLine("Plus code: ${PlusCode.encode(position)}")
     Mgrs.toMgrs(position, spaced = true)?.let { appendLine("MGRS: $it") }
     appendLine("geo:${position.lat},${position.lon}")

@@ -25,9 +25,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import dev.gpsarrow.R
 
 /**
  * Location permission, explained before it is asked for.
@@ -70,19 +72,18 @@ fun PermissionGate(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = if (coarseOnly) "Precise location needed" else "Location permission",
+            text = stringResource(
+                if (coarseOnly) R.string.permission_title_precise
+                else R.string.permission_title_location,
+            ),
             style = MaterialTheme.typography.headlineMedium,
             textAlign = TextAlign.Center,
         )
         Text(
-            text = if (coarseOnly) {
-                "You granted approximate location. An arrow pointing at a destination needs " +
-                    "precise GPS — approximate is accurate to about a kilometre, which would " +
-                    "point you the wrong way."
-            } else {
-                "GPS Arrow reads your position from the GPS satellites directly. Nothing is " +
-                    "sent anywhere — this build has no internet permission at all."
-            },
+            text = stringResource(
+                if (coarseOnly) R.string.permission_body_approximate
+                else R.string.permission_body_initial,
+            ),
             modifier = Modifier.padding(vertical = 16.dp),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -99,13 +100,18 @@ fun PermissionGate(
                 )
             },
         ) {
-            Text(if (coarseOnly) "Grant precise location" else "Continue")
+            Text(
+                stringResource(
+                    if (coarseOnly) R.string.permission_grant_precise
+                    else R.string.permission_continue,
+                ),
+            )
         }
 
         // After a denial the system stops showing the dialog; the only route left is Settings.
         if (asked && !fineGranted) {
             TextButton(onClick = { context.openAppSettings() }) {
-                Text("Open app settings")
+                Text(stringResource(R.string.permission_open_settings))
             }
         }
     }

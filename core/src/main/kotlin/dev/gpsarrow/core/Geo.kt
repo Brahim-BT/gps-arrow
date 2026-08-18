@@ -173,7 +173,89 @@ class CircularSmoother(private val alpha: Double = 0.15) {
 
 enum class DistanceUnits { METRIC, IMPERIAL, NAUTICAL }
 
+/**
+ * The unit a [DistanceReadout] came out in. The *word* for it lives in the UI layer, because
+ * it is translated and because Arabic does not necessarily put it on the same side of the
+ * number as English does.
+ */
+enum class LengthUnit { METRES, KILOMETRES, FEET, MILES, NAUTICAL_MILES }
+
+/**
+ * A distance, split into a number already formatted for the reader and the unit it is in.
+ *
+ * `:core` deliberately stops here rather than returning "120 m". Composing the final string is
+ * the UI layer's job: it owns the translations, and it is the only layer that can know whether
+ * this language writes the unit after the number, before it, or with a different separator.
+ */
+data class DistanceReadout(
+    val value: String,
+    val unit: LengthUnit,
+    /** True when [value] is a bound the fix cannot see past, not a measurement. */
+    val isLowerBound: Boolean = false,
+)
+
+/** A bearing, split for the same reason as [DistanceReadout]. */
+data class BearingReadout(
+    /** Zero-padded degrees, e.g. "047". */
+    val degrees: String,
+    /** Index into the sixteen-point compass rose, N = 0, clockwise. */
+    val pointIndex: Int,
+)
+
 object Format {
+
+    /**
+     * [base] with the Latin numbering system pinned via the BCP-47 `nu` extension.
+     *
+     * **Latin digits everywhere, in every language, is a product decision — do not "fix" it.**
+     * CLDR gives `ar-MA` the `latn` numbering system and `ar-MR` `arab`, so the two countries
+     * this app is deployed in disagree with each other, and the picker offers a language rather
+     * than a region: "follow the locale" has no defined answer. One Arabic build that reads the
+     * same in Nouakchott and Casablanca is worth more than matching each country's default, and
+     * it keeps prose consistent with coordinates, which must stay Latin because they are an
+     * interchange value.
+     *
+     * This is the polite half of the guarantee. [latinDigits] is the other half, because
+     * whether a given device's formatter honours the `nu` keyword is an ICU-version question
+     * and this app would rather not have the answer vary by handset.
+     */
+    fun latinDigitLocale(base: Locale): Locale = runCatching {
+        Locale.Builder().setLocale(base).setUnicodeLocaleKeyword("nu", "latn").build()
+    }.getOrDefault(base)
+
+    /**
+     * Force every decimal digit in [text] to ASCII, whatever script the formatter used.
+     *
+     * The enforcing half of the rule above: [latinDigitLocale] asks, this guarantees. A locale
+     * that arrives here without the extension — `ar-MR` straight from the device, say — still
+     * comes out in Latin digits, which is exactly the regression this exists to prevent.
+     * Separators are left alone, so French keeps its decimal comma.
+     */
+    private fun latinDigits(text: String): String {
+        if (text.all { it.code < 0x0660 }) return text
+        return buildString(text.length) {
+            for (ch in text) {
+                val d = if (ch in '0'..'9') null else ch.digitToIntOrNull()
+                append(if (d != null) '0' + d else ch)
+            }
+        }
+    }
+
+    /**
+     * A single number formatted for [locale] with the Latin-digit rule applied.
+     *
+     * Exposed so callers outside this object — the diagnostics panel, chip labels — go through
+     * the same rule instead of reimplementing it and drifting. Anything numeric the user sees
+     * should come through here or through [distance] / [bearing].
+     */
+    fun number(pattern: String, locale: Locale, value: Any): String =
+        latinDigits(String.format(latinDigitLocale(locale), pattern, value))
+
+    private fun fixed(value: Double, decimals: Int, locale: Locale): String =
+        latinDigits(String.format(locale, "%.${decimals}f", value))
+
+    private fun whole(value: Long, locale: Locale): String =
+        latinDigits(String.format(locale, "%d", value))
 
     /**
      * Human distance with precision that degrades sensibly with magnitude.
@@ -181,53 +263,74 @@ object Format {
      * Every ladder has a floor, and the floor is not zero. Rounding to the nearest 10 m makes
      * anything under 5 m print as "0 m" — a claim that you are standing on the point, from a
      * receiver that cannot tell 0 m from 8 m. Below the resolution of the format the honest
-     * answer is a bound, not a number. [DistanceUnits.NAUTICAL] keeps two decimals throughout,
-     * so its floor is one hundredth of a nautical mile rather than ten metres.
+     * answer is a bound, not a number, and [DistanceReadout.isLowerBound] says which it is.
+     * [DistanceUnits.NAUTICAL] keeps two decimals throughout, so its floor is one hundredth of
+     * a nautical mile rather than ten metres.
      */
-    fun distance(meters: Double, units: DistanceUnits = DistanceUnits.METRIC): String = when (units) {
+    fun distance(
+        meters: Double,
+        units: DistanceUnits = DistanceUnits.METRIC,
+        locale: Locale = Locale.ROOT,
+    ): DistanceReadout = when (units) {
         DistanceUnits.METRIC -> when {
-            meters < 10 -> "under 10 m"
-            meters < 1_000 -> "${(meters / 10.0).roundToInt() * 10} m"
-            meters < 100_000 -> String.format("%.1f km", meters / 1_000.0)
-            else -> "${(meters / 1_000.0).roundToLong()} km"
+            meters < 10 ->
+                DistanceReadout(whole(10L, locale), LengthUnit.METRES, isLowerBound = true)
+
+            meters < 1_000 ->
+                DistanceReadout(whole((meters / 10.0).roundToInt() * 10L, locale), LengthUnit.METRES)
+
+            meters < 100_000 ->
+                DistanceReadout(fixed(meters / 1_000.0, 1, locale), LengthUnit.KILOMETRES)
+
+            else ->
+                DistanceReadout(whole((meters / 1_000.0).roundToLong(), locale), LengthUnit.KILOMETRES)
         }
 
         DistanceUnits.IMPERIAL -> {
             val feet = meters * 3.280839895
             val miles = meters / 1609.344
             when {
-                feet < 30 -> "under 30 ft"
-                feet < 1_000 -> "${(feet / 10.0).roundToInt() * 10} ft"
-                miles < 100 -> String.format("%.1f mi", miles)
-                else -> "${miles.roundToLong()} mi"
+                feet < 30 ->
+                    DistanceReadout(whole(30L, locale), LengthUnit.FEET, isLowerBound = true)
+
+                feet < 1_000 ->
+                    DistanceReadout(whole((feet / 10.0).roundToInt() * 10L, locale), LengthUnit.FEET)
+
+                miles < 100 -> DistanceReadout(fixed(miles, 1, locale), LengthUnit.MILES)
+                else -> DistanceReadout(whole(miles.roundToLong(), locale), LengthUnit.MILES)
             }
         }
 
         DistanceUnits.NAUTICAL -> {
             val nm = meters / 1852.0
             when {
-                nm < 0.01 -> "under 0.01 NM"
-                nm < 100 -> String.format("%.2f NM", nm)
-                else -> "${nm.roundToLong()} NM"
+                nm < 0.01 -> DistanceReadout(
+                    fixed(0.01, 2, locale), LengthUnit.NAUTICAL_MILES, isLowerBound = true,
+                )
+
+                nm < 100 -> DistanceReadout(fixed(nm, 2, locale), LengthUnit.NAUTICAL_MILES)
+                else -> DistanceReadout(whole(nm.roundToLong(), locale), LengthUnit.NAUTICAL_MILES)
             }
         }
     }
 
-    /** "047deg NE" style bearing label. */
-    fun bearing(deg: Double): String {
+    /** Degrees and a compass point, for the UI to join up in its own word order. */
+    fun bearing(deg: Double, locale: Locale = Locale.ROOT): BearingReadout {
         val d = Geo.normalizeDegrees(deg)
-        return String.format("%03.0f° %s", d, compassPoint(d))
+        return BearingReadout(
+            degrees = latinDigits(String.format(locale, "%03.0f", d)),
+            pointIndex = compassPointIndex(d),
+        )
     }
 
-    private val POINTS = arrayOf(
-        "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
-        "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW",
-    )
-
-    fun compassPoint(deg: Double): String {
-        val idx = ((Geo.normalizeDegrees(deg) / 22.5) + 0.5).toInt() % 16
-        return POINTS[idx]
-    }
+    /**
+     * Index into the sixteen-point rose, N = 0 and clockwise from there.
+     *
+     * An index rather than a letter because "NE" is not what this is called in every language,
+     * and the abbreviations are a translated string array in the UI layer.
+     */
+    fun compassPointIndex(deg: Double): Int =
+        ((Geo.normalizeDegrees(deg) / 22.5) + 0.5).toInt() % 16
 
     /**
      * Decimal degrees, 5dp ~= 1.1 m — more than a GNSS fix justifies.

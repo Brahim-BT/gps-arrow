@@ -9,14 +9,18 @@ import java.text.Normalizer
  * saved points: the thing you navigated to yesterday is overwhelmingly likely to be the thing
  * you want today. It costs one nullable timestamp on [Destination].
  */
-enum class DestinationSort(val label: String) {
-    NAME_ASC("Name A–Z"),
-    NAME_DESC("Name Z–A"),
-    DISTANCE_NEAREST("Nearest first"),
-    DISTANCE_FARTHEST("Farthest first"),
-    ADDED_NEWEST("Newest first"),
-    ADDED_OLDEST("Oldest first"),
-    RECENTLY_USED("Recently used"),
+enum class DestinationSort {
+    /**
+     * "A–Z" is an English alphabet talking about itself, so the label for this — and for every
+     * order below — is a translated string in the UI layer rather than a property here.
+     */
+    NAME_ASC,
+    NAME_DESC,
+    DISTANCE_NEAREST,
+    DISTANCE_FARTHEST,
+    ADDED_NEWEST,
+    ADDED_OLDEST,
+    RECENTLY_USED,
     ;
 
     /** True for orders that are meaningless without knowing where the user is. */

@@ -322,7 +322,10 @@ class DestinationParserTest {
     fun `shortened share links fail loudly instead of silently`() {
         val r = DestinationParser.parse("https://maps.app.goo.gl/abc123XYZ", here)
         assertTrue("expected NeedsNetwork, got $r", r is ParseResult.NeedsNetwork)
-        assertTrue((r as ParseResult.NeedsNetwork).reason.contains("shortened"))
+        // The reason is a value now, not a sentence, so this pins the value and the host it
+        // carried rather than an English substring that a translation would break.
+        assertEquals(ParseProblem.SHORTENED_LINK, (r as ParseResult.NeedsNetwork).problem)
+        assertEquals("maps.app.goo.gl", r.arg)
     }
 
     @Test

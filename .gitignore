@@ -41,3 +41,4 @@ signing.properties
 # ---- Misc ----
 *.log
 !.github/**
+__pycache__/

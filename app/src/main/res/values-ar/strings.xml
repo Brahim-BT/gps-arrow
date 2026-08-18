@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Modern Standard Arabic, kept short for a utility read while walking.
+
+  Generated from verification/strings_table.py so the three languages stay key-for-key
+  identical. Edit the table and regenerate rather than editing one file by hand: a key that
+  exists in one language and not another is exactly the bug that ships a half-translated app.
+-->
+<resources>
+
+    <!-- Product name and tabs -->
+    <string name="app_name">GPS Arrow</string>
+    <string name="navigate_here">التوجه إلى هنا</string>
+    <string name="tab_arrow">السهم</string>
+    <string name="tab_destinations">الوجهات</string>
+    <string name="tab_map">الخريطة</string>
+    <string name="tab_settings">الإعدادات</string>
+
+    <!-- Arrow screen -->
+    <string name="save_my_location">حفظ موقعي</string>
+    <string name="save_my_location_no_fix">حفظ موقعي (لم يُحدَّد الموقع بعد)</string>
+    <string name="save_my_location_stale">حفظ موقعي (تحديد الموقع قديم)</string>
+    <string name="add_point">إضافة نقطة</string>
+    <string name="arrived_title">أنت هنا</string>
+    <string name="arrived_explanation">أقرب مما يمكن لتحديد الموقع هذا قياسه، لذلك يشير المؤشر إلى الشمال.</string>
+    <string name="pointing_north_no_destination">يشير إلى الشمال — لم تُختَر وجهة بعد</string>
+    <string name="pointing_north_waiting_fix">يشير إلى الشمال — في انتظار تحديد الموقع</string>
+    <string name="magnetic_north_notice">هذا هو الشمال المغناطيسي. سيصبح الشمال الجغرافي بمجرد توفر تحديد للموقع لحساب الانحراف المغناطيسي.</string>
+    <string name="tap_destinations_hint">اضغط على «الوجهات» لاختيار واحدة.</string>
+    <string name="compass_unreliable">البوصلة غير موثوقة — حرّك الهاتف على شكل الرقم 8 لإعادة معايرتها.</string>
+    <string name="position_out_of_date">الموقع قديم — جارٍ البحث عن الأقمار الصناعية.</string>
+    <string name="no_compass_title">لا توجد بوصلة</string>
+    <string name="no_compass_body">لا يحتوي هذا الجهاز على مستشعر بوصلة صالح. سيعمل السهم بمجرد أن تبدأ بالتحرك، مستخدماً اتجاه سيرك من GPS.</string>
+
+    <!-- Status chips -->
+    <string name="chip_accuracy">±%1$s م</string>
+    <string name="chip_accuracy_weak">ضعيف ±%1$s م</string>
+    <string name="chip_stale_fix">تحديد قديم</string>
+    <string name="chip_no_fix">لا يوجد تحديد</string>
+    <string name="chip_satellites">%1$s/%2$s قمر</string>
+
+    <!-- Heading source -->
+    <string name="heading_compass">بوصلة</string>
+    <string name="heading_compass_magnetic">بوصلة (مغناطيسية)</string>
+    <string name="heading_gps_course">اتجاه GPS</string>
+    <string name="heading_compass_uncalibrated">البوصلة تحتاج إلى معايرة</string>
+    <string name="heading_none">لا يوجد اتجاه</string>
+
+    <!-- Units and bearings -->
+    <string name="unit_metres">%1$s م</string>
+    <string name="unit_kilometres">%1$s كم</string>
+    <string name="unit_feet">%1$s قدم</string>
+    <string name="unit_miles">%1$s ميل</string>
+    <string name="unit_nautical_miles">%1$s ميل بحري</string>
+    <string name="distance_under">أقل من %1$s</string>
+    <string name="bearing_format">%1$s° %2$s</string>
+
+    <!-- Destinations list -->
+    <string name="destinations_title">الوجهات</string>
+    <string name="search">بحث</string>
+    <string name="search_placeholder">الاسم أو الملاحظة</string>
+    <string name="sort_needs_position">يتطلب تحديد الموقع</string>
+    <string name="filter_starred">المفضّلة</string>
+    <string name="distances_stale_warning">المسافات محسوبة من آخر موقع معروف، وليس من تحديد حالي للموقع.</string>
+    <string name="empty_no_destinations_title">لا توجد وجهات بعد</string>
+    <string name="empty_no_destinations_body">احفظ موقعك من شاشة السهم، أو أضف نقطة من الإحداثيات أو من plus code أو من مرجع MGRS.</string>
+    <string name="empty_add_first">أضف أول وجهة</string>
+    <string name="empty_nothing_matches_title">لا توجد نتائج</string>
+    <string name="empty_no_starred_match">لا توجد نقطة مفضّلة تطابق «%1$s».</string>
+    <string name="empty_no_starred">لم تضِف أي نقطة إلى المفضّلة بعد. اضغط على النجمة في أي صف لإضافة واحدة.</string>
+    <string name="empty_no_match">لا توجد نقطة محفوظة تطابق «%1$s».</string>
+    <string name="clear_search">مسح البحث</string>
+    <string name="cd_add_destination">إضافة وجهة</string>
+    <string name="cd_star">إضافة %1$s إلى المفضّلة</string>
+    <string name="cd_unstar">إزالة %1$s من المفضّلة</string>
+    <string name="cd_edit">تعديل %1$s</string>
+    <string name="cd_delete">حذف %1$s</string>
+    <string name="selected_destination">▸ %1$s</string>
+    <string name="accuracy_suffix"> · ±%1$s م</string>
+    <string name="delete_dialog_title">حذف هذه النقطة؟</string>
+    <string name="delete_dialog_body">سيتم حذف «%1$s». %2$s</string>
+    <string name="delete">حذف</string>
+    <string name="keep">الاحتفاظ</string>
+
+    <!-- Sort orders -->
+    <string name="sort_name_asc">الاسم أ–ي</string>
+    <string name="sort_name_desc">الاسم ي–أ</string>
+    <string name="sort_nearest">الأقرب أولاً</string>
+    <string name="sort_farthest">الأبعد أولاً</string>
+    <string name="sort_newest">الأحدث أولاً</string>
+    <string name="sort_oldest">الأقدم أولاً</string>
+    <string name="sort_recently_used">المستخدمة مؤخراً</string>
+
+    <!-- Add and edit a point -->
+    <string name="add_point_title">إضافة نقطة</string>
+    <string name="edit_point_title">تعديل النقطة</string>
+    <string name="back">رجوع</string>
+    <string name="field_name">الاسم</string>
+    <string name="field_name_placeholder">بداية المسار</string>
+    <string name="field_latitude">خط العرض</string>
+    <string name="field_longitude">خط الطول</string>
+    <string name="field_latitude_placeholder">48.8584    (شمال موجب، جنوب سالب)</string>
+    <string name="field_longitude_placeholder">2.2945    (شرق موجب، غرب سالب)</string>
+    <string name="field_latitude_hint">أو ألصق هنا إحداثية كاملة — سيُملأ الحقلان معاً.</string>
+    <string name="field_longitude_hint">بين ‎-180‎ و‎180‎</string>
+    <string name="error_not_a_number">ليس رقماً</string>
+    <string name="error_latitude_range">يجب أن يكون بين ‎-90‎ و‎90‎</string>
+    <string name="error_longitude_range">يجب أن يكون بين ‎-180‎ و‎180‎</string>
+    <string name="read_as">قُرئ بصيغة %1$s وقُسِّم على الحقلين.</string>
+    <string name="save_point">حفظ النقطة</string>
+    <string name="save_changes">حفظ التعديلات</string>
+    <string name="plus_code_label">‏Plus code %1$s</string>
+    <string name="mgrs_label">‏MGRS %1$s</string>
+    <string name="pasteable_formats">الصيغ المقبولة</string>
+    <string name="shortened_links_warning">الروابط المختصرة (maps.app.goo.gl، bit.ly) لا يمكن أن تعمل بدون اتصال — الخادم الذي أنشأها هو وحده من يعرف إلى أين تشير.</string>
+
+    <!-- Coordinate format names, as shown by “Read as …” -->
+    <string name="format_decimal">درجات عشرية</string>
+    <string name="format_dms">درجات ودقائق وثوان</string>
+    <string name="format_geo_uri">‏رابط ‎geo:</string>
+    <string name="format_plus_code">‏plus code</string>
+    <string name="format_plus_code_short">‏plus code مختصر</string>
+    <string name="format_mgrs">‏مرجع MGRS</string>
+    <string name="format_utm">‏مرجع UTM</string>
+    <string name="format_map_url">رابط خريطة</string>
+
+    <!-- Parser problems -->
+    <string name="parse_shortened_link">روابط %1$s مختصرة — خادمها هو وحده من يعرف إلى أين تشير. افتح الرابط مرة واحدة أثناء توفر الشبكة، ثم انسخ العنوان الكامل أو الإحداثيات منه.</string>
+    <string name="parse_link_without_coordinates">هذا الرابط لا يحتوي على إحداثيات، لذا لا يمكن تحليله بدون اتصال. افتحه أثناء الاتصال وانسخ الإحداثيات.</string>
+    <string name="parse_malformed_plus_code">‏plus code غير صالح.</string>
+    <string name="parse_short_plus_code_needs_fix">‏«%1$s» هو plus code مختصر. يحتاج إلى موقعك الحالي لتحليله، ولم يُحدَّد الموقع بعد.</string>
+    <string name="parse_plus_code_unresolvable">تعذّر تحليل «%1$s».</string>
+    <string name="parse_mgrs_odd_digit_count">يجب أن يحتوي مرجع MGRS على عدد زوجي من الأرقام.</string>
+    <string name="parse_mgrs_invalid">‏مرجع MGRS غير صالح.</string>
+    <string name="parse_utm_zone_out_of_range">يجب أن تكون منطقة UTM بين 1 و60.</string>
+    <string name="parse_not_a_number">ليس رقماً.</string>
+    <string name="parse_latitude_out_of_range">يجب أن يكون خط العرض بين ‎-90‎ و‎90‎.</string>
+    <string name="parse_longitude_out_of_range">يجب أن يكون خط الطول بين ‎-180‎ و‎180‎.</string>
+
+    <!-- Snackbars -->
+    <string name="saved_point">تم حفظ «%1$s» — يمكنك إعادة تسميته من «الوجهات»</string>
+    <string name="saved_point_with_accuracy">تم حفظ «%1$s» بدقة ±%2$s م — يمكنك إعادة تسميته من «الوجهات»</string>
+    <string name="save_failed_fix_changed">تغيّر تحديد الموقع أثناء الحفظ — أعد المحاولة</string>
+    <string name="save_blocked_no_fix">لم يُحدَّد الموقع بعد — لا شيء لحفظه. امهل الأقمار الصناعية لحظة، أو اخرج إلى العراء.</string>
+    <string name="save_blocked_stale">مضى على تحديد الموقع هذا %1$s ثانية، فهو يمثل مكانك السابق لا مكانك الحالي. في انتظار تحديد جديد.</string>
+    <string name="deleted_point">تم حذف «%1$s»</string>
+    <string name="undo">تراجع</string>
+
+    <!-- Degraded-subsystem banners -->
+    <string name="degraded_declination">يُستخدم الشمال المغناطيسي — نموذج الانحراف غير متوفر</string>
+    <string name="degraded_store_read">تعذّرت قراءة الوجهات المحفوظة</string>
+    <string name="degraded_no_location">لا توجد تحديثات للموقع — %1$s</string>
+    <string name="degraded_no_compass">البوصلة غير متوفرة — يُؤخذ الاتجاه من GPS أثناء الحركة</string>
+
+    <!-- Permission gate -->
+    <string name="permission_title_precise">مطلوب تحديد دقيق للموقع</string>
+    <string name="permission_title_location">إذن الوصول إلى الموقع</string>
+    <string name="permission_body_approximate">لقد منحت إذن الموقع التقريبي. السهم الذي يشير إلى وجهة يحتاج إلى GPS دقيق — الموقع التقريبي دقته نحو كيلومتر واحد، وهو ما سيوجّهك في الاتجاه الخطأ.</string>
+    <string name="permission_body_initial">يقرأ GPS Arrow موقعك مباشرة من الأقمار الصناعية. لا يُرسل أي شيء إلى أي جهة — هذه النسخة لا تملك إذن الوصول إلى الإنترنت إطلاقاً.</string>
+    <string name="permission_grant_precise">منح إذن الموقع الدقيق</string>
+    <string name="permission_continue">متابعة</string>
+    <string name="permission_open_settings">فتح إعدادات التطبيق</string>
+
+    <!-- Map tab -->
+    <string name="map_ready">الخريطة جاهزة: %1$s</string>
+    <string name="map_back_to_arrow">العودة إلى السهم</string>
+    <string name="map_none_title">لا توجد خريطة لهذه المنطقة بعد</string>
+    <string name="map_none_arrow_works">لا يزال السهم يعمل — فهو لا يحتاج إلى خرائط.</string>
+    <string name="map_none_download">لرؤية الشوارع هنا، نزّل %1$s في المرة القادمة التي يتوفر فيها Wi-Fi.</string>
+    <string name="map_none_download_sized">لرؤية الشوارع هنا، نزّل %1$s (حوالي %2$s) في المرة القادمة التي يتوفر فيها Wi-Fi.</string>
+    <string name="map_none_explanation">تُنزَّل مناطق الخريطة مرة واحدة أثناء الاتصال، ثم تعمل بدون اتصال إلى الأبد.</string>
+    <string name="map_open_region_list">فتح قائمة المناطق</string>
+    <string name="map_remind_when_online">ذكّرني عند الاتصال بالإنترنت</string>
+
+    <!-- Notification -->
+    <string name="navigating">جارٍ التوجيه</string>
+    <string name="notification_text">جارٍ التوجيه — افتح التطبيق لرؤية السهم والمسافة</string>
+    <string name="stop">إيقاف</string>
+    <string name="channel_navigation">التوجيه</string>
+    <string name="channel_navigation_description">يُبقي السهم يعمل عندما تكون الشاشة مطفأة.</string>
+
+    <!-- Settings and About -->
+    <string name="settings_title">الإعدادات</string>
+    <string name="settings_language">اللغة</string>
+    <string name="settings_about">حول التطبيق</string>
+    <string name="about_version">الإصدار</string>
+    <string name="about_declination_source">النموذج المغناطيسي</string>
+    <string name="about_declination_framework">‏مدمج في أندرويد (WMM2020)</string>
+    <string name="about_declination_note">يختلف الانحراف المغناطيسي في المغرب وموريتانيا عن النموذج الحالي بأقل من 0.2 درجة، وهو أقل من هامش عدم اليقين في النموذج نفسه.</string>
+    <string name="about_offline">لا يستخدم هذا التطبيق الإنترنت إطلاقاً، ولا يملك إذناً بذلك.</string>
+    <string name="about_attribution">النموذج المغناطيسي: World Magnetic Model من NOAA/NGA، ملكية عامة.</string>
+
+    <!-- Language picker -->
+    <string name="language_picker_title">اختر لغتك</string>
+    <string name="language_picker_subtitle">يمكنك تغييرها لاحقاً من الإعدادات.</string>
+    <string name="language_picker_confirm">متابعة</string>
+
+    <!-- Diagnostics panel -->
+    <string name="diagnostics_title">التشخيص</string>
+    <string name="diagnostics_close">إغلاق</string>
+    <string name="diagnostics_hint">اضغط مطوّلاً على مؤشرات الحالة في أي وقت لفتح هذه اللوحة أو إغلاقها.</string>
+    <string name="diag_arrow_mode">وضع السهم</string>
+    <string name="diag_arrow_angle">زاوية السهم</string>
+    <string name="diag_arbiter_mode">مصدر الاتجاه</string>
+    <string name="diag_heading_smoothed">الاتجاه (بعد التنعيم)</string>
+    <string name="diag_compass_raw">البوصلة (خام)</string>
+    <string name="diag_compass_smoothed">البوصلة (بعد التنعيم)</string>
+    <string name="diag_raw_minus_smoothed">الخام − المنعَّم</string>
+    <string name="diag_compass_sensor">مستشعر البوصلة</string>
+    <string name="diag_sample_rate">معدل أخذ العينات</string>
+    <string name="diag_smoothing_tau">ثابت التنعيم</string>
+    <string name="diag_sensors_present">المستشعرات المتوفرة</string>
+    <string name="diag_magnetometer_ok">المغنيطومتر سليم</string>
+    <string name="diag_declination">الانحراف المغناطيسي</string>
+    <string name="diag_declination_source">مصدر الانحراف</string>
+    <string name="diag_bearing_to_destination">الاتجاه نحو الوجهة</string>
+    <string name="diag_distance">المسافة</string>
+    <string name="diag_fix">تحديد الموقع</string>
+    <string name="diag_fix_accuracy">دقة التحديد</string>
+    <string name="diag_fix_age">عمر التحديد</string>
+    <string name="diag_fix_quality">جودة التحديد</string>
+    <string name="diag_provider">المزوّد</string>
+    <string name="diag_satellites">الأقمار الصناعية</string>
+    <string name="diag_gps_enabled">‏GPS مفعّل</string>
+    <string name="diag_location_job">خدمة الموقع تعمل</string>
+    <string name="diag_heading_job">خدمة البوصلة تعمل</string>
+    <string name="diag_heading_updates">تحديثات الاتجاه</string>
+    <string name="diag_fix_updates">تحديثات الموقع</string>
+    <string name="diag_degraded">أعطال جزئية</string>
+    <string name="diag_none">لا شيء</string>
+    <string name="diag_seconds">%1$s ث</string>
+    <string name="diag_millis">%1$s م.ث</string>
+    <string name="diag_hertz">%1$s هرتز</string>
+    <string name="diag_degrees">%1$s°</string>
+    <string name="diag_accuracy_meters">±%1$s م</string>
+    <string name="diag_unavailable">—</string>
+
+    <!-- Sixteen-point compass rose, N first, clockwise. -->
+    <string-array name="compass_points">
+        <item>N</item>
+        <item>NNE</item>
+        <item>NE</item>
+        <item>ENE</item>
+        <item>E</item>
+        <item>ESE</item>
+        <item>SE</item>
+        <item>SSE</item>
+        <item>S</item>
+        <item>SSW</item>
+        <item>SW</item>
+        <item>WSW</item>
+        <item>W</item>
+        <item>WNW</item>
+        <item>NW</item>
+        <item>NNW</item>
+    </string-array>
+</resources>

@@ -2,7 +2,6 @@ package dev.gpsarrow.core
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -26,44 +25,107 @@ class HonestReadoutTest {
     @Test
     fun `distance never prints zero, because no fix can support it`() {
         // Rounding to the nearest 10 m used to render everything under 5 m as "0 m" — a claim
-        // of standing on the point, from a receiver that cannot tell 0 m from 8 m apart.
+        // of standing on the point, from a receiver that cannot tell 0 m from 8 m apart. The
+        // bound is now carried as a flag so each language can word "under 10 m" its own way.
         listOf(0.0, 1.0, 4.9, 5.0, 9.0, 9.999).forEach {
-            assertEquals("at $it m", "under 10 m", Format.distance(it, DistanceUnits.METRIC))
+            val r = Format.distance(it, DistanceUnits.METRIC)
+            assertTrue("at $it m", r.isLowerBound)
+            assertEquals("at $it m", "10", r.value)
+            assertEquals(LengthUnit.METRES, r.unit)
         }
-        assertEquals("10 m", Format.distance(10.0, DistanceUnits.METRIC))
-        assertEquals("10 m", Format.distance(14.0, DistanceUnits.METRIC))
-        assertEquals("20 m", Format.distance(15.0, DistanceUnits.METRIC))
+        listOf(10.0 to "10", 14.0 to "10", 15.0 to "20").forEach { (meters, expected) ->
+            val r = Format.distance(meters, DistanceUnits.METRIC)
+            assertFalse("at $meters m", r.isLowerBound)
+            assertEquals("at $meters m", expected, r.value)
+        }
     }
 
     @Test
     fun `every unit system has a floor at its own resolution`() {
         // 30 ft is 9.14 m, the imperial equivalent of the metric floor.
-        assertEquals("under 30 ft", Format.distance(9.0, DistanceUnits.IMPERIAL))
-        assertEquals("30 ft", Format.distance(9.2, DistanceUnits.IMPERIAL))
-        assertEquals("1000 ft", Format.distance(304.0, DistanceUnits.IMPERIAL))
+        Format.distance(9.0, DistanceUnits.IMPERIAL).let {
+            assertTrue(it.isLowerBound)
+            assertEquals("30", it.value)
+            assertEquals(LengthUnit.FEET, it.unit)
+        }
+        Format.distance(9.2, DistanceUnits.IMPERIAL).let {
+            assertFalse(it.isLowerBound)
+            assertEquals("30", it.value)
+        }
+        assertEquals("1000", Format.distance(304.0, DistanceUnits.IMPERIAL).value)
 
         // Two decimals of a nautical mile is 18.5 m, so that is where nautical has to stop.
-        assertEquals("under 0.01 NM", Format.distance(0.0, DistanceUnits.NAUTICAL))
-        assertEquals("under 0.01 NM", Format.distance(18.0, DistanceUnits.NAUTICAL))
+        listOf(0.0, 18.0).forEach {
+            val r = Format.distance(it, DistanceUnits.NAUTICAL)
+            assertTrue("at $it m", r.isLowerBound)
+            assertEquals("0.01", r.value)
+            assertEquals(LengthUnit.NAUTICAL_MILES, r.unit)
+        }
     }
 
     @Test
     fun `the floor and the arrival radius do not contradict each other`() {
         // ARRIVED takes over at or below ARRIVAL_RADIUS_M, so TARGET mode starts above it. If
-        // someone lowers the arrival radius under the floor, the arrow would start showing
-        // "under 10 m" as a live target distance and this fails.
-        assertNotEquals(
-            "under 10 m",
-            Format.distance(NavigationState.ARRIVAL_RADIUS_M, DistanceUnits.METRIC),
+        // someone lowers the arrival radius under the floor, the arrow would start showing a
+        // bound as a live target distance and this fails.
+        assertFalse(
+            Format.distance(NavigationState.ARRIVAL_RADIUS_M, DistanceUnits.METRIC).isLowerBound,
         )
     }
 
     @Test
     fun `the pre-existing precision ladder is unchanged above the floor`() {
-        assertEquals("120 m", Format.distance(123.0))
-        assertEquals("990 m", Format.distance(994.0))
-        assertEquals("123 km", Format.distance(123_456.0))
+        assertEquals("120", Format.distance(123.0).value)
+        assertEquals("990", Format.distance(994.0).value)
+        Format.distance(123_456.0).let {
+            assertEquals("123", it.value)
+            assertEquals(LengthUnit.KILOMETRES, it.unit)
+        }
     }
+
+    // ------------------------------------------------------------------ Latin digits, always
+
+    @Test
+    fun `Arabic locales never produce Arabic-Indic digits`() {
+        // ar-MR is the locale that would regress silently: CLDR gives Mauritania the `arab`
+        // numbering system while Morocco gets `latn`, so a device in Nouakchott would render
+        // ٤٥٠ where one in Casablanca renders 450 — same app, same build, different-looking
+        // screen. One Arabic build reading identically in both countries is a product decision.
+        //
+        // These locales are deliberately raw, WITHOUT the nu-latn extension, so what is being
+        // tested is the transliteration guarantee rather than the polite request.
+        val locales = listOf(
+            Locale.forLanguageTag("ar-MR"),
+            Locale.forLanguageTag("ar-EG"),
+            Locale.forLanguageTag("ar"),
+            Locale.forLanguageTag("fa-IR"),
+            Locale.FRANCE,
+        )
+        locales.forEach { locale ->
+            listOf(0.0, 450.0, 1_234.0, 123_456.0).forEach { meters ->
+                val value = Format.distance(meters, DistanceUnits.METRIC, locale).value
+                assertTrue("$locale gave $value", value.all { it.isAsciiDigitOrSeparator() })
+            }
+            val bearing = Format.bearing(47.0, locale)
+            assertEquals("$locale", "047", bearing.degrees)
+            assertEquals(2, bearing.pointIndex)
+            assertTrue("$locale", Format.number("%d", locale, 1_234).all {
+                it.isAsciiDigitOrSeparator()
+            })
+        }
+    }
+
+    @Test
+    fun `pinning the numbering system does not disturb the language`() {
+        val pinned = Format.latinDigitLocale(Locale.forLanguageTag("ar-MR"))
+        assertEquals("ar", pinned.language)
+        assertEquals("MR", pinned.country)
+        // Separators still follow the language; only the digits are pinned.
+        assertEquals("1234", Format.number("%d", Locale.FRANCE, 1234))
+    }
+
+    private fun Char.isAsciiDigitOrSeparator(): Boolean =
+        this in '0'..'9' || this in ".,\u00a0\u202f- "
 
     // ------------------------------------------------------------------ interchange formats
 

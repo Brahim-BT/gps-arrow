@@ -1,5 +1,6 @@
 package dev.gpsarrow
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarDuration
@@ -39,38 +41,53 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.gpsarrow.core.Destination
 import dev.gpsarrow.core.DestinationParser
 import dev.gpsarrow.core.DistanceUnits
 import dev.gpsarrow.core.Format
 import dev.gpsarrow.core.ParseResult
+import dev.gpsarrow.locale.AppLanguage
+import dev.gpsarrow.locale.AppLocale
 import dev.gpsarrow.service.NavigationService
 import dev.gpsarrow.ui.AddDestinationScreen
 import dev.gpsarrow.ui.ArrowScreen
 import dev.gpsarrow.ui.CoordinateDraft
 import dev.gpsarrow.ui.DestinationsScreen
+import dev.gpsarrow.ui.LanguagePicker
 import dev.gpsarrow.ui.MapScreen
 import dev.gpsarrow.ui.PermissionGate
+import dev.gpsarrow.ui.SettingsScreen
 import dev.gpsarrow.ui.rememberNotificationPermissionRequest
 import dev.gpsarrow.ui.theme.GpsArrowTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * The three top-level tabs.
+ * The four top-level tabs.
  *
  * Adding a point is an action, not a place, so it is a FAB inside Destinations rather than a
  * peer tab — which also removes the "which tab am I on now?" jump after saving.
  *
- * Dropping to three tabs gives ~130dp each at the A54's ~390dp width, and "Destinations" needs
- * ~116dp with its icon padding, so the full word is back; "Saved" was only ever a compromise
- * forced by the four-tab layout.
+ * Labels are resources now, and that changes the width budget: "Destinations" is the longest in
+ * English at ~116dp with icon padding, but French wants the same word and Arabic's "الإعدادات"
+ * renders taller rather than wider. At four tabs each gets ~97dp on the A54, so every label is
+ * `maxLines = 1` and TabRow is left to ellipsise rather than wrap — a two-line tab bar shifts
+ * the arrow down the screen, which matters more than a truncated word.
  */
-private enum class AppTab(val label: String) {
-    ARROW("Arrow"),
-    DESTINATIONS("Destinations"),
-    MAP("Map"),
+private enum class AppTab(val labelRes: Int) {
+    ARROW(R.string.tab_arrow),
+    DESTINATIONS(R.string.tab_destinations),
+    MAP(R.string.tab_map),
+
+    /**
+     * Settings is a tab rather than an overflow item because its one real content — the
+     * language — is what a user needs when the app is in a language they cannot read, and a
+     * menu they cannot read is not a route to it. Four tabs still leave ~97dp each at the
+     * A54's width.
+     */
+    SETTINGS(R.string.tab_settings),
 }
 
 /** What the editor sheet is doing, when it is open at all. */
@@ -85,6 +102,14 @@ private sealed interface Editor {
 class MainActivity : ComponentActivity() {
 
     private val viewModel: NavigationViewModel by viewModels()
+
+    /**
+     * The API 26-32 half of the per-app locale, and harmless on 33+ where the platform has
+     * already applied it. Both halves read the same stored preference, so they cannot disagree.
+     */
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLocale.wrap(newBase))
+    }
 
     /** Text handed to us by a geo: link or a plain-text share. */
     private var sharedText by mutableStateOf<String?>(null)
@@ -101,12 +126,28 @@ class MainActivity : ComponentActivity() {
         setContent {
             GpsArrowTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    PermissionGate {
-                        AppRoot(
-                            viewModel = viewModel,
-                            initialSharedText = sharedText,
-                            onSharedTextConsumed = { sharedText = null },
+                    var chosen by remember { mutableStateOf(AppLocale.hasChosen(this)) }
+                    if (!chosen) {
+                        // Before anything else, including the permission gate: a permission
+                        // rationale the user cannot read is worse than useless, because a
+                        // denial here is effectively permanent.
+                        LanguagePicker(
+                            onChosen = { language ->
+                                chosen = true
+                                if (AppLocale.set(this, language)) recreate()
+                            },
                         )
+                    } else {
+                        PermissionGate {
+                            AppRoot(
+                                viewModel = viewModel,
+                                initialSharedText = sharedText,
+                                onSharedTextConsumed = { sharedText = null },
+                                onLanguageSelected = { language ->
+                                    if (AppLocale.set(this, language)) recreate()
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -144,6 +185,7 @@ private fun AppRoot(
     viewModel: NavigationViewModel,
     initialSharedText: String?,
     onSharedTextConsumed: () -> Unit,
+    onLanguageSelected: (AppLanguage) -> Unit,
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -258,7 +300,7 @@ private fun AppRoot(
             NavigationService.start(
                 context = context,
                 title = destination.name,
-                text = "Navigating — open for the arrow and distance",
+                text = context.getString(R.string.notification_text),
             )
         }
     }
@@ -276,7 +318,7 @@ private fun AppRoot(
                         Tab(
                             selected = tab == entry,
                             onClick = { tab = entry },
-                            text = { Text(entry.label, maxLines = 1) },
+                            text = { Text(stringResource(entry.labelRes), maxLines = 1) },
                             icon = { TabIcon(entry) },
                         )
                     }
@@ -331,13 +373,17 @@ private fun AppRoot(
                 when (tab) {
                     AppTab.ARROW -> ArrowScreen(
                         state = state,
-                        headingSourceLabel = state.headingChipLabel(),
+                        headingSourceLabel = stringResource(state.headingChipRes()),
                         satellitesUsed = gnss.satellitesUsed,
                         satellitesVisible = gnss.satellitesVisible,
                         degraded = degraded,
                         units = units,
                         showDiagnostics = showDiagnostics,
-                        diagnostics = if (showDiagnostics) viewModel.diagnostics() else emptyList(),
+                        diagnostics = if (showDiagnostics) {
+                            viewModel.diagnostics(context.numberLocale())
+                        } else {
+                            emptyList()
+                        },
                         onToggleDiagnostics = { showDiagnostics = !showDiagnostics },
                         onPickDestination = { tab = AppTab.DESTINATIONS },
                         // Stays on the arrow screen as the primary one-tap action. It is an
@@ -346,23 +392,50 @@ private fun AppRoot(
                             // The button stays tappable even when the fix isn't good enough,
                             // so a refusal always comes with the reason. A disabled button
                             // that silently does nothing teaches the user the app is broken.
-                            val blocked = viewModel.saveBlockedReason()
-                            if (blocked != null) {
-                                scope.launch { snackbarHost.showSnackbar(blocked) }
-                            } else {
-                                viewModel.quickSaveHere { saved ->
+                            when (val blocked = viewModel.saveBlocked()) {
+                                SaveBlock.NoFix -> scope.launch {
+                                    snackbarHost.showSnackbar(
+                                        context.getString(R.string.save_blocked_no_fix),
+                                    )
+                                }
+
+                                is SaveBlock.StaleFix -> scope.launch {
+                                    snackbarHost.showSnackbar(
+                                        context.getString(
+                                            R.string.save_blocked_stale,
+                                            Format.number(
+                                                "%d",
+                                                context.numberLocale(),
+                                                blocked.ageSeconds,
+                                            ),
+                                        ),
+                                    )
+                                }
+
+                                null -> viewModel.quickSaveHere { saved ->
                                     scope.launch {
                                         snackbarHost.showSnackbar(
-                                            if (saved != null) {
-                                                "Saved \"${saved.name}\"" +
-                                                    (
-                                                        saved.accuracyMeters
-                                                            ?.let { " at ±${it.toInt()} m" }
-                                                            ?: ""
-                                                        ) +
-                                                    " — rename it from Destinations"
-                                            } else {
-                                                "The fix changed while saving — try again"
+                                            when {
+                                                saved == null ->
+                                                    context.getString(
+                                                        R.string.save_failed_fix_changed,
+                                                    )
+
+                                                saved.accuracyMeters == null ->
+                                                    context.getString(
+                                                        R.string.saved_point,
+                                                        saved.name,
+                                                    )
+
+                                                else -> context.getString(
+                                                    R.string.saved_point_with_accuracy,
+                                                    saved.name,
+                                                    Format.number(
+                                                        "%d",
+                                                        context.numberLocale(),
+                                                        saved.accuracyMeters!!.toInt(),
+                                                    ),
+                                                )
                                             },
                                         )
                                     }
@@ -406,8 +479,11 @@ private fun AppRoot(
                             viewModel.deleteDestination(target) { removed ->
                                 scope.launch {
                                     val result = snackbarHost.showSnackbar(
-                                        message = "Deleted \"${removed.name}\"",
-                                        actionLabel = "Undo",
+                                        message = context.getString(
+                                            R.string.deleted_point,
+                                            removed.name,
+                                        ),
+                                        actionLabel = context.getString(R.string.undo),
                                         duration = SnackbarDuration.Long,
                                     )
                                     if (result == SnackbarResult.ActionPerformed) {
@@ -418,6 +494,14 @@ private fun AppRoot(
                         },
                         onAdd = { editor = Editor.New },
                         highlightId = highlightId,
+                    )
+
+                    AppTab.SETTINGS -> SettingsScreen(
+                        current = AppLocale.current(context),
+                        onLanguageSelected = onLanguageSelected,
+                        versionName = remember(context) { context.versionName() },
+                        declinationSource = viewModel.declinationSource,
+                        declinationIsFramework = viewModel.declinationIsFramework,
                     )
 
                     AppTab.MAP -> if (mapEverOpened) {
@@ -452,6 +536,7 @@ private fun TabIcon(entry: AppTab) {
         )
         AppTab.DESTINATIONS -> Icon(Icons.Filled.List, contentDescription = null)
         AppTab.MAP -> Icon(Icons.Filled.Place, contentDescription = null)
+        AppTab.SETTINGS -> Icon(Icons.Filled.Settings, contentDescription = null)
     }
 }
 
@@ -467,3 +552,11 @@ private val CoordinateDraftSaver = listSaver<CoordinateDraft, String>(
         )
     },
 )
+
+/**
+ * The versionName from the package manager rather than a BuildConfig constant, so About cannot
+ * drift from what was actually installed.
+ */
+private fun Context.versionName(): String = runCatching {
+    packageManager.getPackageInfo(packageName, 0).versionName ?: "—"
+}.getOrDefault("—")

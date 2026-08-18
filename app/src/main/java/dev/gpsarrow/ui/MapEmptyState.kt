@@ -14,8 +14,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import dev.gpsarrow.R
 import dev.gpsarrow.maps.MapTier
 
 /**
@@ -45,7 +47,7 @@ fun MapScreen(
             is MapTier.Available -> {
                 // v1: replace this with the MapLibre MapView wrapped in AndroidView, reading
                 // tier.region.pmtilesUri  ->  "pmtiles://file:///.../regions/fr.pmtiles"
-                Text("Map ready: ${tier.region.summary.name}")
+                Text(stringResource(R.string.map_ready, tier.region.summary.name))
                 Text(
                     tier.region.pmtilesUri,
                     style = MaterialTheme.typography.labelLarge,
@@ -69,7 +71,7 @@ fun MapScreen(
         }
 
         TextButton(onClick = onBack, modifier = Modifier.padding(top = 16.dp)) {
-            Text("Back to the arrow")
+            Text(stringResource(R.string.map_back_to_arrow))
         }
     }
 }
@@ -88,24 +90,21 @@ private fun NoDataCard(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                "No map for this area yet",
+                stringResource(R.string.map_none_title),
                 style = MaterialTheme.typography.headlineMedium,
                 textAlign = TextAlign.Center,
             )
             Text(
-                "The arrow still works — it doesn't need maps.",
+                stringResource(R.string.map_none_arrow_works),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.secondary,
                 textAlign = TextAlign.Center,
             )
             Text(
-                if (regionName != null) {
-                    "To see streets here, download $regionName" +
-                        (sizeLabel?.let { " (about $it)" } ?: "") +
-                        " next time you have Wi-Fi."
-                } else {
-                    "Map regions are downloaded once while you're online, then work offline " +
-                        "forever after."
+                when {
+                    regionName == null -> stringResource(R.string.map_none_explanation)
+                    sizeLabel == null -> stringResource(R.string.map_none_download, regionName)
+                    else -> stringResource(R.string.map_none_download_sized, regionName, sizeLabel)
                 },
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -113,10 +112,10 @@ private fun NoDataCard(
             )
 
             Button(onClick = onOpenRegions, modifier = Modifier.fillMaxWidth()) {
-                Text("Open region list")
+                Text(stringResource(R.string.map_open_region_list))
             }
             OutlinedButton(onClick = onRemindWhenOnline, modifier = Modifier.fillMaxWidth()) {
-                Text("Remind me when I'm online")
+                Text(stringResource(R.string.map_remind_when_online))
             }
         }
     }

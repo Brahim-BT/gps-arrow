@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  French. Maghreb-neutral register, vouvoiement throughout.
+
+  Generated from verification/strings_table.py so the three languages stay key-for-key
+  identical. Edit the table and regenerate rather than editing one file by hand: a key that
+  exists in one language and not another is exactly the bug that ships a half-translated app.
+-->
+<resources>
+
+    <!-- Product name and tabs -->
+    <string name="app_name">GPS Arrow</string>
+    <string name="navigate_here">Naviguer jusqu’ici</string>
+    <string name="tab_arrow">Flèche</string>
+    <string name="tab_destinations">Destinations</string>
+    <string name="tab_map">Carte</string>
+    <string name="tab_settings">Réglages</string>
+
+    <!-- Arrow screen -->
+    <string name="save_my_location">Enregistrer ma position</string>
+    <string name="save_my_location_no_fix">Enregistrer ma position (position non acquise)</string>
+    <string name="save_my_location_stale">Enregistrer ma position (position périmée)</string>
+    <string name="add_point">Ajouter un point</string>
+    <string name="arrived_title">Vous y êtes</string>
+    <string name="arrived_explanation">Plus près que ce que cette position peut mesurer : l’aiguille indique le nord.</string>
+    <string name="pointing_north_no_destination">Pointe vers le nord — aucune destination choisie</string>
+    <string name="pointing_north_waiting_fix">Pointe vers le nord — en attente de la position</string>
+    <string name="magnetic_north_notice">C’est le nord magnétique. Il deviendra le nord géographique dès qu’une position permettra de calculer la déclinaison.</string>
+    <string name="tap_destinations_hint">Touchez Destinations pour en choisir une.</string>
+    <string name="compass_unreliable">Boussole peu fiable — décrivez un 8 avec le téléphone pour la recalibrer.</string>
+    <string name="position_out_of_date">Position périmée — recherche de satellites en cours.</string>
+    <string name="no_compass_title">Pas de boussole</string>
+    <string name="no_compass_body">Cet appareil n’a pas de capteur de boussole utilisable. La flèche fonctionnera dès que vous commencerez à vous déplacer, en utilisant votre cap GPS.</string>
+
+    <!-- Status chips -->
+    <string name="chip_accuracy">±%1$s m</string>
+    <string name="chip_accuracy_weak">faible ±%1$s m</string>
+    <string name="chip_stale_fix">position périmée</string>
+    <string name="chip_no_fix">pas de position</string>
+    <string name="chip_satellites">%1$s/%2$s sat.</string>
+
+    <!-- Heading source -->
+    <string name="heading_compass">Boussole</string>
+    <string name="heading_compass_magnetic">Boussole (magnétique)</string>
+    <string name="heading_gps_course">Cap GPS</string>
+    <string name="heading_compass_uncalibrated">Boussole à calibrer</string>
+    <string name="heading_none">Pas de cap</string>
+
+    <!-- Units and bearings -->
+    <string name="unit_metres">%1$s m</string>
+    <string name="unit_kilometres">%1$s km</string>
+    <string name="unit_feet">%1$s pi</string>
+    <string name="unit_miles">%1$s mi</string>
+    <string name="unit_nautical_miles">%1$s NM</string>
+    <string name="distance_under">moins de %1$s</string>
+    <string name="bearing_format">%1$s° %2$s</string>
+
+    <!-- Destinations list -->
+    <string name="destinations_title">Destinations</string>
+    <string name="search">Rechercher</string>
+    <string name="search_placeholder">Nom ou note</string>
+    <string name="sort_needs_position">nécessite une position</string>
+    <string name="filter_starred">Favoris</string>
+    <string name="distances_stale_warning">Les distances sont calculées depuis votre dernière position connue, pas depuis une position actuelle.</string>
+    <string name="empty_no_destinations_title">Aucune destination</string>
+    <string name="empty_no_destinations_body">Enregistrez votre position depuis l’écran de la flèche, ou ajoutez un point à partir de coordonnées, d’un plus code ou d’une référence MGRS.</string>
+    <string name="empty_add_first">Ajouter la première</string>
+    <string name="empty_nothing_matches_title">Aucun résultat</string>
+    <string name="empty_no_starred_match">Aucun point favori ne correspond à « %1$s ».</string>
+    <string name="empty_no_starred">Vous n’avez encore aucun favori. Touchez l’étoile sur une ligne pour en ajouter un.</string>
+    <string name="empty_no_match">Aucun point enregistré ne correspond à « %1$s ».</string>
+    <string name="clear_search">Effacer la recherche</string>
+    <string name="cd_add_destination">Ajouter une destination</string>
+    <string name="cd_star">Ajouter %1$s aux favoris</string>
+    <string name="cd_unstar">Retirer %1$s des favoris</string>
+    <string name="cd_edit">Modifier %1$s</string>
+    <string name="cd_delete">Supprimer %1$s</string>
+    <string name="selected_destination">▸ %1$s</string>
+    <string name="accuracy_suffix"> · ±%1$s m</string>
+    <string name="delete_dialog_title">Supprimer ce point ?</string>
+    <string name="delete_dialog_body">« %1$s » sera supprimé. %2$s</string>
+    <string name="delete">Supprimer</string>
+    <string name="keep">Conserver</string>
+
+    <!-- Sort orders -->
+    <string name="sort_name_asc">Nom A–Z</string>
+    <string name="sort_name_desc">Nom Z–A</string>
+    <string name="sort_nearest">Les plus proches d’abord</string>
+    <string name="sort_farthest">Les plus éloignés d’abord</string>
+    <string name="sort_newest">Les plus récents d’abord</string>
+    <string name="sort_oldest">Les plus anciens d’abord</string>
+    <string name="sort_recently_used">Utilisés récemment</string>
+
+    <!-- Add and edit a point -->
+    <string name="add_point_title">Ajouter un point</string>
+    <string name="edit_point_title">Modifier le point</string>
+    <string name="back">Retour</string>
+    <string name="field_name">Nom</string>
+    <string name="field_name_placeholder">Départ du sentier</string>
+    <string name="field_latitude">Latitude</string>
+    <string name="field_longitude">Longitude</string>
+    <string name="field_latitude_placeholder">48.8584    (N positif, S négatif)</string>
+    <string name="field_longitude_placeholder">2.2945    (E positif, O négatif)</string>
+    <string name="field_latitude_hint">Ou collez ici une coordonnée complète — les deux champs se rempliront.</string>
+    <string name="field_longitude_hint">Entre -180 et 180</string>
+    <string name="error_not_a_number">Ce n’est pas un nombre</string>
+    <string name="error_latitude_range">Doit être entre -90 et 90</string>
+    <string name="error_longitude_range">Doit être entre -180 et 180</string>
+    <string name="read_as">Interprété comme %1$s et réparti dans les deux champs.</string>
+    <string name="save_point">Enregistrer le point</string>
+    <string name="save_changes">Enregistrer les modifications</string>
+    <string name="plus_code_label">Plus code %1$s</string>
+    <string name="mgrs_label">MGRS %1$s</string>
+    <string name="pasteable_formats">Formats acceptés</string>
+    <string name="shortened_links_warning">Les liens raccourcis (maps.app.goo.gl, bit.ly) ne peuvent jamais fonctionner hors ligne : seul le serveur qui les a créés sait où ils mènent.</string>
+
+    <!-- Coordinate format names, as shown by “Read as …” -->
+    <string name="format_decimal">degrés décimaux</string>
+    <string name="format_dms">degrés, minutes, secondes</string>
+    <string name="format_geo_uri">un lien geo:</string>
+    <string name="format_plus_code">un plus code</string>
+    <string name="format_plus_code_short">un plus code abrégé</string>
+    <string name="format_mgrs">une référence MGRS</string>
+    <string name="format_utm">une référence UTM</string>
+    <string name="format_map_url">un lien de carte</string>
+
+    <!-- Parser problems -->
+    <string name="parse_shortened_link">Les liens %1$s sont raccourcis : seul leur serveur sait où ils mènent. Ouvrez le lien une fois avec du réseau, puis copiez l’adresse complète ou les coordonnées qu’elle contient.</string>
+    <string name="parse_link_without_coordinates">Ce lien ne contient pas de coordonnées : il ne peut pas être résolu sans connexion. Ouvrez-le avec du réseau et copiez les coordonnées.</string>
+    <string name="parse_malformed_plus_code">Plus code mal formé.</string>
+    <string name="parse_short_plus_code_needs_fix">« %1$s » est un plus code abrégé. Il a besoin de votre position actuelle pour être résolu, et la position n’est pas encore acquise.</string>
+    <string name="parse_plus_code_unresolvable">Impossible de résoudre « %1$s ».</string>
+    <string name="parse_mgrs_odd_digit_count">Une référence MGRS doit comporter un nombre pair de chiffres.</string>
+    <string name="parse_mgrs_invalid">Référence MGRS non valide.</string>
+    <string name="parse_utm_zone_out_of_range">La zone UTM doit être comprise entre 1 et 60.</string>
+    <string name="parse_not_a_number">Ce n’est pas un nombre.</string>
+    <string name="parse_latitude_out_of_range">La latitude doit être comprise entre -90 et 90.</string>
+    <string name="parse_longitude_out_of_range">La longitude doit être comprise entre -180 et 180.</string>
+
+    <!-- Snackbars -->
+    <string name="saved_point">« %1$s » enregistré — vous pouvez le renommer depuis Destinations</string>
+    <string name="saved_point_with_accuracy">« %1$s » enregistré à ±%2$s m — vous pouvez le renommer depuis Destinations</string>
+    <string name="save_failed_fix_changed">La position a changé pendant l’enregistrement — réessayez</string>
+    <string name="save_blocked_no_fix">Position non acquise — rien à enregistrer. Laissez un moment aux satellites, ou sortez à l’extérieur.</string>
+    <string name="save_blocked_stale">Cette position date de %1$s s : c’est là où vous étiez, pas là où vous êtes. En attente d’une position récente.</string>
+    <string name="deleted_point">« %1$s » supprimé</string>
+    <string name="undo">Annuler</string>
+
+    <!-- Degraded-subsystem banners -->
+    <string name="degraded_declination">Nord magnétique utilisé — modèle de déclinaison indisponible</string>
+    <string name="degraded_store_read">Impossible de lire les destinations enregistrées</string>
+    <string name="degraded_no_location">Aucune mise à jour de position — %1$s</string>
+    <string name="degraded_no_compass">Boussole indisponible — le cap provient du GPS pendant le déplacement</string>
+
+    <!-- Permission gate -->
+    <string name="permission_title_precise">Position précise requise</string>
+    <string name="permission_title_location">Autorisation de localisation</string>
+    <string name="permission_body_approximate">Vous avez accordé la localisation approximative. Une flèche qui pointe vers une destination a besoin du GPS précis : l’approximatif est précis à environ un kilomètre, ce qui vous enverrait dans la mauvaise direction.</string>
+    <string name="permission_body_initial">GPS Arrow lit votre position directement depuis les satellites GPS. Rien n’est envoyé nulle part : cette version n’a aucune autorisation d’accès à Internet.</string>
+    <string name="permission_grant_precise">Accorder la position précise</string>
+    <string name="permission_continue">Continuer</string>
+    <string name="permission_open_settings">Ouvrir les paramètres de l’application</string>
+
+    <!-- Map tab -->
+    <string name="map_ready">Carte prête : %1$s</string>
+    <string name="map_back_to_arrow">Retour à la flèche</string>
+    <string name="map_none_title">Pas encore de carte pour cette zone</string>
+    <string name="map_none_arrow_works">La flèche fonctionne toujours — elle n’a pas besoin de cartes.</string>
+    <string name="map_none_download">Pour voir les rues ici, téléchargez %1$s la prochaine fois que vous aurez du Wi-Fi.</string>
+    <string name="map_none_download_sized">Pour voir les rues ici, téléchargez %1$s (environ %2$s) la prochaine fois que vous aurez du Wi-Fi.</string>
+    <string name="map_none_explanation">Les régions cartographiques se téléchargent une fois en ligne, puis fonctionnent hors ligne pour toujours.</string>
+    <string name="map_open_region_list">Ouvrir la liste des régions</string>
+    <string name="map_remind_when_online">Me le rappeler quand je serai en ligne</string>
+
+    <!-- Notification -->
+    <string name="navigating">Navigation en cours</string>
+    <string name="notification_text">Navigation en cours — ouvrez l’application pour la flèche et la distance</string>
+    <string name="stop">Arrêter</string>
+    <string name="channel_navigation">Navigation</string>
+    <string name="channel_navigation_description">Maintient la flèche active lorsque l’écran est éteint.</string>
+
+    <!-- Settings and About -->
+    <string name="settings_title">Réglages</string>
+    <string name="settings_language">Langue</string>
+    <string name="settings_about">À propos</string>
+    <string name="about_version">Version</string>
+    <string name="about_declination_source">Modèle magnétique</string>
+    <string name="about_declination_framework">Intégré à Android (WMM2020)</string>
+    <string name="about_declination_note">Au Maroc et en Mauritanie, la déclinaison magnétique s’écarte du modèle actuel de moins de 0,2°, soit moins que l’incertitude propre au modèle.</string>
+    <string name="about_offline">Cette application n’utilise jamais Internet. Elle n’en a pas l’autorisation.</string>
+    <string name="about_attribution">Modèle magnétique : World Magnetic Model de la NOAA/NGA, domaine public.</string>
+
+    <!-- Language picker -->
+    <string name="language_picker_title">Choisissez votre langue</string>
+    <string name="language_picker_subtitle">Vous pourrez la changer plus tard dans les Réglages.</string>
+    <string name="language_picker_confirm">Continuer</string>
+
+    <!-- Diagnostics panel -->
+    <string name="diagnostics_title">Diagnostic</string>
+    <string name="diagnostics_close">Fermer</string>
+    <string name="diagnostics_hint">Appui long sur les indicateurs d’état pour ouvrir ou fermer ce panneau.</string>
+    <string name="diag_arrow_mode">mode de la flèche</string>
+    <string name="diag_arrow_angle">angle de la flèche</string>
+    <string name="diag_arbiter_mode">source du cap</string>
+    <string name="diag_heading_smoothed">cap (lissé)</string>
+    <string name="diag_compass_raw">boussole brute</string>
+    <string name="diag_compass_smoothed">boussole lissée</string>
+    <string name="diag_raw_minus_smoothed">brut − lissé</string>
+    <string name="diag_compass_sensor">capteur de boussole</string>
+    <string name="diag_sample_rate">fréquence d’échantillonnage</string>
+    <string name="diag_smoothing_tau">constante de lissage</string>
+    <string name="diag_sensors_present">capteurs présents</string>
+    <string name="diag_magnetometer_ok">magnétomètre ok</string>
+    <string name="diag_declination">déclinaison</string>
+    <string name="diag_declination_source">source de la déclinaison</string>
+    <string name="diag_bearing_to_destination">relèvement vers la destination</string>
+    <string name="diag_distance">distance</string>
+    <string name="diag_fix">position</string>
+    <string name="diag_fix_accuracy">précision de la position</string>
+    <string name="diag_fix_age">ancienneté de la position</string>
+    <string name="diag_fix_quality">qualité de la position</string>
+    <string name="diag_provider">fournisseur</string>
+    <string name="diag_satellites">satellites</string>
+    <string name="diag_gps_enabled">GPS activé</string>
+    <string name="diag_location_job">acquisition active</string>
+    <string name="diag_heading_job">boussole active</string>
+    <string name="diag_heading_updates">mises à jour du cap</string>
+    <string name="diag_fix_updates">mises à jour de position</string>
+    <string name="diag_degraded">dégradations</string>
+    <string name="diag_none">aucune</string>
+    <string name="diag_seconds">%1$s s</string>
+    <string name="diag_millis">%1$s ms</string>
+    <string name="diag_hertz">%1$s Hz</string>
+    <string name="diag_degrees">%1$s°</string>
+    <string name="diag_accuracy_meters">±%1$s m</string>
+    <string name="diag_unavailable">—</string>
+
+    <!-- Sixteen-point compass rose, N first, clockwise. -->
+    <string-array name="compass_points">
+        <item>N</item>
+        <item>NNE</item>
+        <item>NE</item>
+        <item>ENE</item>
+        <item>E</item>
+        <item>ESE</item>
+        <item>SE</item>
+        <item>SSE</item>
+        <item>S</item>
+        <item>SSO</item>
+        <item>SO</item>
+        <item>OSO</item>
+        <item>O</item>
+        <item>ONO</item>
+        <item>NO</item>
+        <item>NNO</item>
+    </string-array>
+</resources>

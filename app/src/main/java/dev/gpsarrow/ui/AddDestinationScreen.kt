@@ -22,8 +22,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import dev.gpsarrow.R
 import dev.gpsarrow.core.Destination
 import dev.gpsarrow.core.DestinationParser
 import dev.gpsarrow.core.Format
@@ -52,6 +55,7 @@ fun AddDestinationScreen(
     editing: Destination? = null,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     val name = draft.name
     val latText = draft.latText
     val lonText = draft.lonText
@@ -75,7 +79,7 @@ fun AddDestinationScreen(
             draft.copy(
                 latText = Format.coordinate(parsed.position.lat),
                 lonText = Format.coordinate(parsed.position.lon),
-                readAs = parsed.format.name.lowercase().replace('_', ' '),
+                readAs = context.getString(parsed.format.labelRes()),
                 name = if (draft.name.isBlank()) parsed.label ?: draft.name else draft.name,
             ),
         )
@@ -86,14 +90,14 @@ fun AddDestinationScreen(
     val lon = lonText.trim().replace(',', '.').toDoubleOrNull()
     val latError = when {
         latText.isBlank() -> null
-        lat == null -> "Not a number"
-        lat < -90 || lat > 90 -> "Must be between -90 and 90"
+        lat == null -> stringResource(R.string.error_not_a_number)
+        lat < -90 || lat > 90 -> stringResource(R.string.error_latitude_range)
         else -> null
     }
     val lonError = when {
         lonText.isBlank() -> null
-        lon == null -> "Not a number"
-        lon < -180 || lon > 180 -> "Must be between -180 and 180"
+        lon == null -> stringResource(R.string.error_not_a_number)
+        lon < -180 || lon > 180 -> stringResource(R.string.error_longitude_range)
         else -> null
     }
     val position = if (latError == null && lonError == null && lat != null && lon != null) {
@@ -115,12 +119,14 @@ fun AddDestinationScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (onBack != null) {
-                TextButton(onClick = onBack) { Text("Back") }
+                TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
             } else {
                 Spacer(Modifier.width(1.dp))
             }
             Text(
-                if (editing == null) "Add a point" else "Edit point",
+                stringResource(
+                    if (editing == null) R.string.add_point_title else R.string.edit_point_title,
+                ),
                 style = MaterialTheme.typography.headlineMedium,
             )
             Spacer(Modifier.width(1.dp))
@@ -129,8 +135,8 @@ fun AddDestinationScreen(
         OutlinedTextField(
             value = name,
             onValueChange = { onDraftChange(draft.copy(name = it)) },
-            label = { Text("Name") },
-            placeholder = { Text("Trailhead") },
+            label = { Text(stringResource(R.string.field_name)) },
+            placeholder = { Text(stringResource(R.string.field_name_placeholder)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -140,10 +146,10 @@ fun AddDestinationScreen(
             onValueChange = {
                 if (!applyPaste(it)) onDraftChange(draft.copy(latText = it, readAs = null))
             },
-            label = { Text("Latitude") },
-            placeholder = { Text("48.8584    (N positive, S negative)") },
+            label = { Text(stringResource(R.string.field_latitude)) },
+            placeholder = { Text(stringResource(R.string.field_latitude_placeholder)) },
             supportingText = {
-                Text(latError ?: "Or paste a whole coordinate here — both fields will fill.")
+                Text(latError ?: stringResource(R.string.field_latitude_hint))
             },
             isError = latError != null,
             singleLine = true,
@@ -156,9 +162,9 @@ fun AddDestinationScreen(
             onValueChange = {
                 if (!applyPaste(it)) onDraftChange(draft.copy(lonText = it, readAs = null))
             },
-            label = { Text("Longitude") },
-            placeholder = { Text("2.2945    (E positive, W negative)") },
-            supportingText = { Text(lonError ?: "Between -180 and 180") },
+            label = { Text(stringResource(R.string.field_longitude)) },
+            placeholder = { Text(stringResource(R.string.field_longitude_placeholder)) },
+            supportingText = { Text(lonError ?: stringResource(R.string.field_longitude_hint)) },
             isError = lonError != null,
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
@@ -167,7 +173,7 @@ fun AddDestinationScreen(
 
         pastedFormat?.let {
             Text(
-                "Read as $it and split into both fields.",
+                stringResource(R.string.read_as, it),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -187,7 +193,11 @@ fun AddDestinationScreen(
             enabled = position != null,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (editing == null) "Save point" else "Save changes")
+            Text(
+                stringResource(
+                    if (editing == null) R.string.save_point else R.string.save_changes,
+                ),
+            )
         }
 
         if (editing == null) FormatExamples()
@@ -203,11 +213,17 @@ private fun OtherFormats(p: LatLon) {
         ),
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(Format.decimal(p), style = MaterialTheme.typography.headlineMedium)
-            Text(Format.dms(p), style = MaterialTheme.typography.bodyLarge)
-            Text("Plus code ${PlusCode.encode(p)}", style = MaterialTheme.typography.bodyLarge)
+            Text(ltrIsolate(Format.decimal(p)), style = MaterialTheme.typography.headlineMedium)
+            Text(ltrIsolate(Format.dms(p)), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = stringResource(R.string.plus_code_label, ltrIsolate(PlusCode.encode(p))),
+                style = MaterialTheme.typography.bodyLarge,
+            )
             Mgrs.toMgrs(p, spaced = true)?.let {
-                Text("MGRS $it", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = stringResource(R.string.mgrs_label, ltrIsolate(it)),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
             }
         }
     }
@@ -216,7 +232,10 @@ private fun OtherFormats(p: LatLon) {
 @Composable
 private fun FormatExamples() {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text("Pasteable formats", style = MaterialTheme.typography.bodyLarge)
+        Text(
+            text = stringResource(R.string.pasteable_formats),
+            style = MaterialTheme.typography.bodyLarge,
+        )
         listOf(
             "48.8584, 2.2945",
             "33.8568 S, 151.2153 E",
@@ -233,8 +252,7 @@ private fun FormatExamples() {
             )
         }
         Text(
-            "Shortened links (maps.app.goo.gl, bit.ly) can never work offline — only the " +
-                "server that made them knows where they point.",
+            stringResource(R.string.shortened_links_warning),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.error,
             modifier = Modifier.padding(top = 6.dp),
