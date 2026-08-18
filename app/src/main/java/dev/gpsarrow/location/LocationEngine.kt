@@ -30,8 +30,10 @@ import kotlinx.coroutines.flow.callbackFlow
  * of AOSP and always present.
  *
  * GPS_PROVIDER is the source of truth. FUSED_PROVIDER (API 31+, the *platform* one, not the
- * Play Services one) is requested opportunistically where present, and NETWORK_PROVIDER is
- * used only to paint a greyed-out last-known position while the GNSS fix is still cold.
+ * Play Services one) is requested opportunistically where present, but never competes with GPS
+ * — see [fixes]. NETWORK_PROVIDER is not used at all: it is the only provider whose error is
+ * measured in kilometres, there is no separate low-confidence channel for it to feed, and an
+ * app that works with the radio off should not be quietly trilaterating off cell towers.
  */
 class LocationEngine(private val context: Context) {
 
@@ -63,6 +65,19 @@ class LocationEngine(private val context: Context) {
      * Best available position with no waiting — used to render something the instant the app
      * opens, clearly marked as stale, rather than an empty screen for the 30-90 s a cold GNSS
      * fix can take with no assistance data.
+     *
+     * Two rules, both learned the hard way:
+     *
+     * **Provider priority, not newest-wins.** The old version took whichever of GPS / FUSED /
+     * NETWORK had the latest timestamp, so a fresh cell-tower position beat a GPS fix from five
+     * minutes ago and landed in the same `Fix` field the arrow and the save button read. A
+     * NETWORK position can be a kilometre out. This app would rather say "I don't know" and let
+     * the compass carry the screen — which it already does, because the needle never needed a
+     * fix — than paint a position it cannot stand behind.
+     *
+     * **The accuracy gate applies here too.** [fixes] has always rejected anything worse than
+     * [NavigationState.REJECT_ACCURACY_M]; this path skipped it entirely, which was the one
+     * hole through which a fix the stream would have thrown away could reach the store.
      */
     @SuppressLint("MissingPermission")
     fun lastKnown(): Fix? {
@@ -71,17 +86,25 @@ class LocationEngine(private val context: Context) {
         val providers = buildList {
             add(LocationManager.GPS_PROVIDER)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) add(LocationManager.FUSED_PROVIDER)
-            add(LocationManager.NETWORK_PROVIDER)
         }
         return providers
+            .asSequence()
             .mapNotNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }
-            .maxByOrNull { it.time }
-            ?.toFix()
+            .map { it.toFix() }
+            .firstOrNull { it.accuracyMeters <= NavigationState.REJECT_ACCURACY_M }
     }
 
     /**
      * Stream of accepted fixes. Fixes worse than [NavigationState.REJECT_ACCURACY_M] never
      * reach the arrow — a confidently wrong arrow is worse than no arrow.
+     *
+     * Exactly one provider is authoritative at a time. Both GPS_PROVIDER and FUSED_PROVIDER are
+     * *registered*, but they are two independent position solutions for the same instant, and
+     * standing still they routinely disagree by the width of the accuracy circle. Merging them
+     * into one `Fix` field on a last-writer-wins basis makes the position hop between two points
+     * ~10 m apart at the fix rate, which is what made a just-saved waypoint read 10 m away
+     * instead of 0 m. GPS is the source of truth exactly as BUILD_PLAN 2.1 says; the platform
+     * fused provider only fills in while GPS is silent (cold start, indoors, tunnel).
      */
     @SuppressLint("MissingPermission")
     fun fixes(rate: Rate = Rate.ACTIVE): Flow<Fix> = callbackFlow {
@@ -91,13 +114,25 @@ class LocationEngine(private val context: Context) {
             return@callbackFlow
         }
 
+        // Touched only from the main looper (see the Looper argument below), so no volatile.
+        // Zero means "GPS has never reported", which lets the fused provider paint the first
+        // fix during a cold start and then hands authority to GPS the moment it locks.
+        var lastGpsElapsedMs = 0L
+
         val listener = object : LocationListener {
             // Runs on the main looper via the system's location dispatch: an exception here
             // kills the process. A dropped fix is recoverable; a crash is not.
             override fun onLocationChanged(location: Location) {
                 runCatching {
                     val fix = location.toFix(satellitesUsed, satellitesVisible)
-                    if (fix.accuracyMeters <= NavigationState.REJECT_ACCURACY_M) trySend(fix)
+                    val now = SystemClock.elapsedRealtime()
+                    val isGps = fix.provider == LocationManager.GPS_PROVIDER
+                    if (isGps) lastGpsElapsedMs = now
+
+                    val authoritative = isGps || now - lastGpsElapsedMs >= FUSED_FALLBACK_AFTER_MS
+                    if (authoritative && fix.accuracyMeters <= NavigationState.REJECT_ACCURACY_M) {
+                        trySend(fix)
+                    }
                 }.onFailure { Log.w(TAG, "dropped a location fix", it) }
             }
 
@@ -171,6 +206,15 @@ class LocationEngine(private val context: Context) {
 
     private companion object {
         const val TAG = "LocationEngine"
+
+        /**
+         * How long GPS_PROVIDER may go quiet before FUSED_PROVIDER is allowed to take over.
+         *
+         * Longer than three ACTIVE intervals, so a single dropped fix never causes a handover
+         * (and a handover is a visible position jump); short enough that walking indoors leaves
+         * the arrow stale for a few seconds rather than a minute.
+         */
+        const val FUSED_FALLBACK_AFTER_MS = 3_500L
     }
 }
 

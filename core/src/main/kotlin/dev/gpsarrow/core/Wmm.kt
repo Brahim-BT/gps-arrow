@@ -19,6 +19,16 @@ import kotlin.math.sqrt
  *
  * Standard degree-12 spherical harmonic expansion in geodetic coordinates, per the WMM
  * technical report.
+ *
+ * **History worth keeping.** Until August 2026 this class returned a declination roughly 170
+ * degrees wrong. Two independent faults: the Legendre normalisation used a convention that did
+ * not match the recursion it was paired with, and the geocentric-to-geodetic rotation had the
+ * wrong sign on the north component. Neither was caught because no `WMM.COF` ships in the app,
+ * so [Declination] always fell through to the framework model and this code never ran — and
+ * because the only test asserted that the answer was finite and under 180 degrees, which is
+ * true of almost any wrong answer. It is now checked against the NOAA reference implementation
+ * at real coordinates; see `WmmReferenceTest`. If you touch the expansion, that is the test
+ * that has to stay green.
  */
 class Wmm private constructor(
     private val epoch: Double,
@@ -81,9 +91,12 @@ class Wmm private constructor(
             sinM[m] = sin(m * lambda)
         }
 
-        var xp = 0.0   // north
-        var yp = 0.0   // east
-        var zp = 0.0   // down
+        // Field in the GEOCENTRIC spherical frame, named as in the WMM technical report:
+        // bt is southward (increasing colatitude), bp eastward, br outward. Keeping the
+        // report's names here is what makes the rotation below checkable by eye.
+        var bt = 0.0
+        var bp = 0.0
+        var br = 0.0
         val aOverR = EARTH_RADIUS / r
 
         for (n in 1..nMax) {
@@ -91,18 +104,26 @@ class Wmm private constructor(
             for (m in 0..n) {
                 val gnm = g[n][m] + dt * gDot[n][m]
                 val hnm = h[n][m] + dt * hDot[n][m]
-                xp -= f1 * (gnm * cosM[m] + hnm * sinM[m]) * dPnm[n][m]
-                yp += f1 * m * (gnm * sinM[m] - hnm * cosM[m]) * pnm[n][m] /
+                val t1 = gnm * cosM[m] + hnm * sinM[m]
+                val t2 = gnm * sinM[m] - hnm * cosM[m]
+                bt -= f1 * t1 * dPnm[n][m]
+                br += (n + 1) * f1 * t1 * pnm[n][m]
+                bp += m * f1 * t2 * pnm[n][m] /
                     (if (cosPhiPrime == 0.0) 1e-12 else cosPhiPrime)
-                zp -= (n + 1) * f1 * (gnm * cosM[m] + hnm * sinM[m]) * pnm[n][m]
             }
         }
 
-        // Rotate from geocentric back to geodetic.
-        val dPhi = phiPrime - phi
-        val x = xp * cos(dPhi) - zp * sin(dPhi)
-        val z = xp * sin(dPhi) + zp * cos(dPhi)
-        val y = yp
+        // Rotate geocentric -> geodetic. [alpha] is the angle between the two verticals, and
+        // x/y/z come out as north / east / down.
+        //
+        // This rotation used to be written with the opposite sign on both terms of x and on
+        // the bt term of z, which put the declination 180 degrees out — see the class comment.
+        val alpha = phi - phiPrime
+        val ca = cos(alpha)
+        val sa = sin(alpha)
+        val x = -bt * ca - br * sa
+        val y = bp
+        val z = bt * sa - br * ca
 
         val horizontal = sqrt(x * x + y * y)
         return Field(
@@ -148,16 +169,17 @@ class Wmm private constructor(
                 }
             }
         }
-        // Schmidt semi-normalisation.
-        for (n in 1..nMax) {
-            for (m in 1..n) {
-                var s = 1.0
-                for (i in (n - m + 1)..(n + m)) s *= i.toDouble()
-                val factor = sqrt(2.0 / s)
-                p[n][m] *= factor
-                dp[n][m] *= factor
-            }
-        }
+        // No normalisation here, deliberately. This recursion produces the UNnormalised
+        // associated Legendre functions, and [Loader.parse] has already pushed the Schmidt
+        // factors into the coefficients — which is where the reference implementation puts
+        // them, and it is the only way the two halves compose.
+        //
+        // The previous version applied sqrt(2*(n-m)!/(n+m)!) to p and dp at this point. That is
+        // the factor for converting standard unnormalised functions to Schmidt, but this
+        // recursion's sectoral seed is p[n][n] = sin(theta) * p[n-1][n-1], which omits the
+        // (2n-1)!! that the standard functions carry — so the factor was being applied to
+        // something it did not describe. The result was a field of roughly the right magnitude
+        // pointing in the wrong direction.
     }
 
     companion object Loader {
@@ -206,6 +228,29 @@ class Wmm private constructor(
                 rows++
             }
             if (rows < 10) return null
+
+            // Convert the Schmidt semi-normalised Gauss coefficients in the file to the
+            // unnormalised form [legendre] expects, folding the factors into the coefficients
+            // once at load time rather than into P and dP on every evaluation. This is exactly
+            // what the reference implementation (geomag70.c) does, and the two must agree:
+            // the recursion and the normalisation are a matched pair, not independent choices.
+            val snorm = Array(nMax + 1) { DoubleArray(nMax + 1) }
+            snorm[0][0] = 1.0
+            for (n in 1..nMax) {
+                snorm[n][0] = snorm[n - 1][0] * (2 * n - 1).toDouble() / n.toDouble()
+                var j = 2.0
+                for (m in 0..n) {
+                    if (m > 0) {
+                        val flnmj = (n - m + 1).toDouble() * j / (n + m).toDouble()
+                        snorm[n][m] = snorm[n][m - 1] * sqrt(flnmj)
+                        j = 1.0
+                        h[n][m] *= snorm[n][m]
+                        hd[n][m] *= snorm[n][m]
+                    }
+                    g[n][m] *= snorm[n][m]
+                    gd[n][m] *= snorm[n][m]
+                }
+            }
             return Wmm(epoch, modelName, nMax, g, h, gd, hd)
         }
 

@@ -224,8 +224,8 @@ private fun AppRoot(
                 ?.let { parsed ->
                     addDraft = CoordinateDraft(
                         name = parsed.label.orEmpty(),
-                        latText = "%.6f".format(parsed.position.lat),
-                        lonText = "%.6f".format(parsed.position.lon),
+                        latText = Format.coordinate(parsed.position.lat),
+                        lonText = Format.coordinate(parsed.position.lon),
                         readAs = parsed.format.name.lowercase().replace('_', ' '),
                     )
                 }
@@ -240,6 +240,15 @@ private fun AppRoot(
     // Start / stop the foreground service in step with having something to navigate to.
     // Note this is keyed on the destination, NOT on the visible tab: sensors and the service
     // follow the activity lifecycle so the arrow never re-acquires on a tab switch.
+    //
+    // The notification deliberately carries NO distance. Being keyed on the destination, this
+    // effect runs once when the target is chosen, so the number it wrote was the distance at
+    // that moment and then stayed there for the rest of the walk — a notification reading
+    // "1.2 km away" while the user stands on the spot. A frozen number is worse than no
+    // number, especially on the surface people read with the screen off. Making it live means
+    // re-issuing the notification as the state changes, which cannot be done from here safely
+    // (Android 12+ blocks starting a foreground service from the background, and this
+    // composition outlives the visible activity) — it belongs in the service. See TESTING.md.
     LaunchedEffect(state.destination?.id) {
         val destination = state.destination
         if (destination == null) {
@@ -249,9 +258,7 @@ private fun AppRoot(
             NavigationService.start(
                 context = context,
                 title = destination.name,
-                text = state.distanceMeters
-                    ?.let { "${Format.distance(it, units)} away" }
-                    ?: "Acquiring position",
+                text = "Navigating — open for the arrow and distance",
             )
         }
     }
@@ -324,7 +331,7 @@ private fun AppRoot(
                 when (tab) {
                     AppTab.ARROW -> ArrowScreen(
                         state = state,
-                        headingSourceLabel = state.headingSource.label(),
+                        headingSourceLabel = state.headingChipLabel(),
                         satellitesUsed = gnss.satellitesUsed,
                         satellitesVisible = gnss.satellitesVisible,
                         degraded = degraded,
@@ -336,15 +343,29 @@ private fun AppRoot(
                         // Stays on the arrow screen as the primary one-tap action. It is an
                         // action, not a place, so it is emphatically NOT a tab.
                         onSaveMyLocation = {
-                            viewModel.quickSaveHere { saved ->
-                                scope.launch {
-                                    snackbarHost.showSnackbar(
-                                        if (saved != null) {
-                                            "Saved as \"${saved.name}\" — rename it from Saved"
-                                        } else {
-                                            "No position fix yet, nothing to save"
-                                        },
-                                    )
+                            // The button stays tappable even when the fix isn't good enough,
+                            // so a refusal always comes with the reason. A disabled button
+                            // that silently does nothing teaches the user the app is broken.
+                            val blocked = viewModel.saveBlockedReason()
+                            if (blocked != null) {
+                                scope.launch { snackbarHost.showSnackbar(blocked) }
+                            } else {
+                                viewModel.quickSaveHere { saved ->
+                                    scope.launch {
+                                        snackbarHost.showSnackbar(
+                                            if (saved != null) {
+                                                "Saved \"${saved.name}\"" +
+                                                    (
+                                                        saved.accuracyMeters
+                                                            ?.let { " at ±${it.toInt()} m" }
+                                                            ?: ""
+                                                        ) +
+                                                    " — rename it from Destinations"
+                                            } else {
+                                                "The fix changed while saving — try again"
+                                            },
+                                        )
+                                    }
                                 }
                             }
                         },
@@ -352,7 +373,6 @@ private fun AppRoot(
                             tab = AppTab.DESTINATIONS
                             editor = Editor.New
                         },
-                        onOpenMap = { tab = AppTab.MAP },
                     )
 
                     AppTab.DESTINATIONS -> DestinationsScreen(
@@ -376,8 +396,8 @@ private fun AppRoot(
                         onEdit = {
                             editDraft = CoordinateDraft(
                                 name = it.name,
-                                latText = "%.6f".format(it.position.lat),
-                                lonText = "%.6f".format(it.position.lon),
+                                latText = Format.coordinate(it.position.lat),
+                                lonText = Format.coordinate(it.position.lon),
                             )
                             editor = Editor.Existing(it)
                         },

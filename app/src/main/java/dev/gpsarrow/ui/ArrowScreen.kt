@@ -72,7 +72,6 @@ fun ArrowScreen(
     onPickDestination: () -> Unit,
     onSaveMyLocation: () -> Unit,
     onAddDestination: () -> Unit,
-    onOpenMap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -110,75 +109,66 @@ fun ArrowScreen(
         }
 
         ActionButtons(
-            hasFix = state.fix != null,
+            // Enabled whenever there is anything at all to save. A fix that exists but is too
+            // old still gets a tap, because the refusal carries the explanation; only the
+            // genuinely empty case is disabled, and its own label says why.
+            saveEnabled = state.fix != null,
+            saveLabel = when {
+                state.fix == null -> "Save my location (no fix yet)"
+                !state.isSaveable -> "Save my location (fix is stale)"
+                else -> "Save my location"
+            },
             onSaveMyLocation = onSaveMyLocation,
             onAddDestination = onAddDestination,
-            onPickDestination = onPickDestination,
-            onOpenMap = onOpenMap,
         )
     }
 }
 
 /**
- * Buttons sized to their content across two rows.
+ * The actions that live on the arrow screen, now that the tab bar owns navigation.
  *
- * The previous single row gave three equal `weight(1f)` slots, so "Destinations" got the same
- * width as "Map" and its label was squeezed. The primary action now owns a full-width row and
- * the secondary actions share the second, which keeps every label on one line down to very
- * narrow screens.
+ * "Destinations" and "Map" used to sit here as buttons; both are tabs, so both are gone — a
+ * second way to reach the same place is just a wider tap target for the wrong reason.
+ *
+ * What is left is deliberately not navigation:
+ *  - **Save my location** is the primary action of the whole app (the "where did I park"
+ *    button), one tap from the home screen, and it is emphatically not a place.
+ *  - **Add point** opens the coordinate editor. It has no tab of its own — its other entry
+ *    point is the FAB inside Destinations — so it is kept as a secondary action rather than
+ *    silently costing the user a tap.
  */
 @Composable
 private fun ActionButtons(
-    hasFix: Boolean,
+    saveEnabled: Boolean,
+    saveLabel: String,
     onSaveMyLocation: () -> Unit,
     onAddDestination: () -> Unit,
-    onPickDestination: () -> Unit,
-    onOpenMap: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Button(
             onClick = onSaveMyLocation,
-            enabled = hasFix,
+            enabled = saveEnabled,
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 52.dp),
             contentPadding = ButtonDefaults.ContentPadding,
         ) {
             Text(
-                text = if (hasFix) "Save my location" else "Save my location (no fix yet)",
+                text = saveLabel,
                 maxLines = 1,
                 style = MaterialTheme.typography.labelLarge,
             )
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        OutlinedButton(
+            onClick = onAddDestination,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            contentPadding = ButtonDefaults.TextButtonContentPadding,
         ) {
-            OutlinedButton(
-                onClick = onPickDestination,
-                modifier = Modifier.weight(1f),
-                contentPadding = ButtonDefaults.TextButtonContentPadding,
-            ) {
-                Text("Destinations", maxLines = 1, style = MaterialTheme.typography.labelLarge)
-            }
-            OutlinedButton(
-                onClick = onAddDestination,
-                modifier = Modifier.weight(1f),
-                contentPadding = ButtonDefaults.TextButtonContentPadding,
-            ) {
-                Text("Add point", maxLines = 1, style = MaterialTheme.typography.labelLarge)
-            }
-            OutlinedButton(
-                onClick = onOpenMap,
-                modifier = Modifier.weight(0.6f),
-                contentPadding = ButtonDefaults.TextButtonContentPadding,
-            ) {
-                Text("Map", maxLines = 1, style = MaterialTheme.typography.labelLarge)
-            }
+            Text("Add point", maxLines = 1, style = MaterialTheme.typography.labelLarge)
         }
     }
 }
@@ -195,7 +185,9 @@ private fun CompassFace(
 
     val arrowColor = when {
         uncalibrated -> MaterialTheme.colorScheme.error
-        mode == ArrowMode.NORTH -> MaterialTheme.colorScheme.onSurfaceVariant
+        mode == ArrowMode.NORTH || mode == ArrowMode.ARRIVED ->
+            MaterialTheme.colorScheme.onSurfaceVariant
+
         stale -> MaterialTheme.colorScheme.onSurfaceVariant
         else -> MaterialTheme.colorScheme.primary
     }
@@ -249,6 +241,42 @@ private fun CompassFace(
                 }
             }
 
+            // At arm's length from the target the bearing to it is GNSS noise, so the needle
+            // goes back to being a compass and the screen says why. Without this the arrow
+            // swings to a new "direction to target" on every fix — the 1 Hz twitch on device.
+            ArrowMode.ARRIVED -> {
+                // Same distance readout as TARGET — that is the number the user came for.
+                // Only the bearing line is replaced, because the bearing is the part that
+                // has stopped being information.
+                state.distanceMeters?.let { d ->
+                    Text(
+                        text = Format.distance(d, units),
+                        style = MaterialTheme.typography.displayLarge,
+                        color = if (stale) MaterialTheme.colorScheme.onSurfaceVariant
+                        else MaterialTheme.colorScheme.onBackground,
+                    )
+                }
+                Text(
+                    text = "You're here",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                state.destination?.let {
+                    Text(
+                        text = it.name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    text = "Closer than this fix can measure, so the needle is showing north.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+                )
+            }
+
             ArrowMode.NORTH -> {
                 Text(
                     text = state.headingDeg?.let { Format.bearing(it) } ?: "—",
@@ -266,6 +294,19 @@ private fun CompassFace(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 24.dp),
                 )
+                // Declination needs a position, so with no fix this really is magnetic north.
+                // Under a degree of error in Britain, over twenty in northern Canada — not
+                // something to leave the user to guess at.
+                if (state.headingIsMagnetic) {
+                    Text(
+                        text = "That's magnetic north. It becomes true north once there's a " +
+                            "position fix to compute the declination from.",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 6.dp, start = 24.dp, end = 24.dp),
+                    )
+                }
                 if (state.destination == null) {
                     Text(
                         text = "Tap Destinations to pick one.",
@@ -286,7 +327,8 @@ private fun CompassFace(
         if (uncalibrated) {
             Warning("Compass unreliable — wave the phone in a figure of eight to recalibrate.")
         }
-        if (mode == ArrowMode.TARGET && state.quality == FixQuality.STALE) {
+        val targeting = mode == ArrowMode.TARGET || mode == ArrowMode.ARRIVED
+        if (targeting && state.quality == FixQuality.STALE) {
             Warning("Position is out of date — searching for satellites.")
         }
     }

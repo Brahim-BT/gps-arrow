@@ -41,6 +41,8 @@ class DestinationStore(context: Context) {
         position: LatLon,
         note: String? = null,
         source: String = "manual",
+        /** Accuracy of the fix this came from; null when it was typed, pasted or imported. */
+        accuracyMeters: Float? = null,
     ): Destination = withContext(Dispatchers.IO) {
         val destination = Destination(
             id = UUID.randomUUID().toString(),
@@ -49,6 +51,7 @@ class DestinationStore(context: Context) {
             note = note,
             createdAtMillis = System.currentTimeMillis(),
             source = source,
+            accuracyMeters = accuracyMeters,
         )
         _destinations.value = _destinations.value + destination
         write(_destinations.value)
@@ -74,8 +77,16 @@ class DestinationStore(context: Context) {
             if (it.id != id) {
                 it
             } else {
-                it.copy(name = name.ifBlank { it.name }, position = position, note = note)
-                    .also { edited -> updated = edited }
+                it.copy(
+                    name = name.ifBlank { it.name },
+                    position = position,
+                    note = note,
+                    // A hand-typed coordinate is no longer the fix it came from, so the fix's
+                    // accuracy has stopped describing it. Keep the badge only if the position
+                    // is byte-identical; otherwise drop it rather than let it vouch for a
+                    // number the receiver never produced.
+                    accuracyMeters = if (position == it.position) it.accuracyMeters else null,
+                ).also { edited -> updated = edited }
             }
         }
         write(_destinations.value)
@@ -131,6 +142,13 @@ class DestinationStore(context: Context) {
                         isFavourite = o.optBoolean("favourite", false),
                         // Absent in files written by older versions; null means "never used".
                         lastUsedAtMillis = o.optLong("lastUsed", 0L).takeIf { it > 0L },
+                        // Also absent in older files. Null means "we don't know how good this
+                        // point is", which the UI must render as silence, never as ±0 m.
+                        accuracyMeters = if (o.has(KEY_ACCURACY)) {
+                            o.getDouble(KEY_ACCURACY).toFloat()
+                        } else {
+                            null
+                        },
                     ),
                 )
             }
@@ -151,6 +169,9 @@ class DestinationStore(context: Context) {
                     put("source", d.source)
                     if (d.isFavourite) put("favourite", true)
                     d.lastUsedAtMillis?.let { put("lastUsed", it) }
+                    // Omitted rather than written as 0 when unknown: absent and "perfect" must
+                    // not collapse to the same thing on the way back in.
+                    d.accuracyMeters?.let { put(KEY_ACCURACY, it.toDouble()) }
                 },
             )
         }
@@ -202,5 +223,6 @@ class DestinationStore(context: Context) {
     private companion object {
         const val FILE_NAME = "destinations.json"
         const val TAG = "DestinationStore"
+        const val KEY_ACCURACY = "accuracyM"
     }
 }

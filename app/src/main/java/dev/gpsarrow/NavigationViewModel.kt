@@ -289,14 +289,43 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
         it == FixQuality.STALE || it == FixQuality.NONE
     }
 
+    /**
+     * Why "save my location" cannot run right now, phrased for a snackbar — or null when it can.
+     *
+     * A saved point is permanent in a way the arrow is not, so this refuses on a stale fix
+     * rather than recording where the user was several minutes ago as where they are.
+     */
+    fun saveBlockedReason(): String? {
+        val s = _state.value
+        if (s.fix == null) {
+            return "No position fix yet — nothing to save. " +
+                "Give the satellites a moment, or step outside."
+        }
+        if (!s.isSaveable) {
+            return "That fix is ${s.fixAgeMillis / 1000} s old, so it's where you were, " +
+                "not where you are. Waiting for a fresh one."
+        }
+        return null
+    }
+
     fun saveCurrentPosition(name: String, onDone: (Destination?) -> Unit = {}) {
-        val fix = _state.value.fix
-        if (fix == null) {
+        val current = _state.value
+        val fix = current.fix
+        if (fix == null || !current.isSaveable) {
             onDone(null)
             return
         }
         viewModelScope.launch {
-            onDone(store.add(name, fix.position, source = "current position"))
+            onDone(
+                store.add(
+                    name,
+                    fix.position,
+                    source = "current position",
+                    // Recorded so the list can show what this point is worth. The arrow can
+                    // only ever be as good as the point it aims at.
+                    accuracyMeters = fix.accuracyMeters,
+                ),
+            )
         }
     }
 
@@ -384,3 +413,18 @@ fun HeadingSource.label(): String = when (this) {
     HeadingSource.COMPASS_UNCALIBRATED -> "Compass needs calibration"
     HeadingSource.NONE -> "No heading"
 }
+
+/**
+ * The chip label, with the caveat that the source alone can't express.
+ *
+ * Before the first fix there is no position, so there is no declination, so "Compass" is
+ * showing magnetic north — which in Alaska is twenty degrees from the one the app claims to
+ * point in. "Compass needs calibration" is left alone: it is already the louder warning of
+ * the two and stacking them helps nobody.
+ */
+fun NavigationState.headingChipLabel(): String =
+    if (headingIsMagnetic && headingSource == HeadingSource.COMPASS) {
+        "Compass (magnetic)"
+    } else {
+        headingSource.label()
+    }

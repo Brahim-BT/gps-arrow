@@ -5,5 +5,5 @@
     <string name="navigating">Navigating</string>
     <string name="stop">Stop</string>
     <string name="channel_navigation">Navigation</string>
-    <string name="channel_navigation_description">Shows distance and bearing while navigating.</string>
+    <string name="channel_navigation_description">Keeps the arrow running while the screen is off.</string>
 </resources>

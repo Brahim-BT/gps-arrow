@@ -63,7 +63,8 @@ fun AddDestinationScreen(
      */
     fun asFullCoordinate(text: String): ParseResult.Success? {
         if (text.isBlank()) return null
-        if (text.toDoubleOrNull() != null) return null
+        // Locale-aware, and it has to be: see DestinationParser.isSingleComponent.
+        if (DestinationParser.isSingleComponent(text)) return null
         return DestinationParser.parse(text, currentPosition) as? ParseResult.Success
     }
 
@@ -72,8 +73,8 @@ fun AddDestinationScreen(
         val parsed = asFullCoordinate(text) ?: return false
         onDraftChange(
             draft.copy(
-                latText = "%.6f".format(parsed.position.lat),
-                lonText = "%.6f".format(parsed.position.lon),
+                latText = Format.coordinate(parsed.position.lat),
+                lonText = Format.coordinate(parsed.position.lon),
                 readAs = parsed.format.name.lowercase().replace('_', ' '),
                 name = if (draft.name.isBlank()) parsed.label ?: draft.name else draft.name,
             ),

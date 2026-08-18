@@ -1,0 +1,103 @@
+package dev.gpsarrow.core
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import kotlin.math.abs
+
+/**
+ * [Wmm] against the NOAA reference implementation, at real coordinates.
+ *
+ * GENERATED — do not hand-edit the numbers. The coefficient block below is the public-domain
+ * WMM2025 file from NOAA NCEI verbatim (header: epoch 2025.0, released 11/13/2024), and every
+ * expected declination was produced by geomag70.c (via the `pygeomag` port of it) at the same
+ * coordinate, altitude and date. Regenerate with `python3 verification/wmm_reference.py --generate`.
+ *
+ * Why this exists: the previous test for this class asserted only that the declination was
+ * finite and under 180 degrees, which stayed green while the evaluator was 170 degrees wrong.
+ * A bound is not a reference value. The four non-African points are here to catch a hemisphere
+ * or quadrant sign flip, which is the failure mode the region points alone would miss.
+ */
+class WmmReferenceTest {
+
+    private data class Case(
+        val name: String,
+        val lat: Double,
+        val lon: Double,
+        val altMeters: Double,
+        val declinationDeg: Double,
+    )
+
+    private val cases = listOf(
+@@CASES@@
+    )
+
+    /** Decimal year for 18 August 2026, the date the expectations were generated at. */
+    private val epochOfTest = Wmm.decimalYearOf(@@Y@@, @@M@@, @@D@@)
+
+    private val model: Wmm by lazy {
+        val parsed = Wmm.parse(WMM2025_COF)
+        assertNotNull("the bundled WMM2025 coefficients must parse", parsed)
+        parsed!!
+    }
+
+    @Test
+    fun `model metadata matches the coefficient file header`() {
+        assertEquals("WMM-2025", model.name)
+        assertEquals(0.0, model.yearsFromEpoch(2025.0), 1e-12)
+        assertTrue(model.isValidFor(epochOfTest))
+    }
+
+    @Test
+    fun `declination matches the NOAA reference implementation`() {
+        // 1e-6 deg is about 4 milliarcseconds. The two implementations agree far more closely
+        // than that; the tolerance is here for cross-platform floating point, not for slack.
+        cases.forEach { c ->
+            val got = model.declination(LatLon(c.lat, c.lon), c.altMeters, epochOfTest)
+            assertEquals(c.name, c.declinationDeg, got, 1e-6)
+        }
+    }
+
+    @Test
+    fun `declination in the deployment region is a small negative number, not a large one`() {
+        // A plain-language guard against the exact regression this test was written for: any
+        // sign or normalisation fault throws the answer tens or hundreds of degrees off, and
+        // across Morocco and Mauritania the true value is within a few degrees of north.
+        cases.take(@@N_REGION@@).forEach { c ->
+            val got = model.declination(LatLon(c.lat, c.lon), c.altMeters, epochOfTest)
+            assertTrue("${c.name} declination was $got", abs(got) < 6.0)
+        }
+    }
+
+    @Test
+    fun `the field is physically plausible everywhere in the region`() {
+        // Total intensity at the Earth's surface runs roughly 22000-67000 nT globally; the
+        // magnitude is rotation-invariant, so this catches a bad expansion even when a sign
+        // fault would leave the declination looking innocuous.
+        var lat = 14.5
+        while (lat <= 36.0) {
+            var lon = -17.5
+            while (lon <= -0.5) {
+                val f = model.calculate(LatLon(lat, lon), 0.0, epochOfTest)
+                assertTrue(
+                    "intensity ${f.totalIntensityNt} at $lat,$lon",
+                    f.totalIntensityNt in 20_000.0..70_000.0,
+                )
+                assertTrue("inclination ${f.inclinationDeg} at $lat,$lon", abs(f.inclinationDeg) < 90.0)
+                lon += 2.0
+            }
+            lat += 2.0
+        }
+    }
+
+    private companion object {
+        /**
+         * WMM2025, from NOAA NCEI. Public domain (17 U.S.C. 105); not subject to copyright.
+         * Test data only — the app ships no coefficient file and uses the framework model.
+         */
+        val WMM2025_COF = """
+@@COF@@
+        """.trimIndent()
+    }
+}

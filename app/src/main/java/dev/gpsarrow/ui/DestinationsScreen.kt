@@ -173,8 +173,12 @@ fun DestinationsScreen(
                 )
             }
 
-            // Distances are shown from a stale position: say so rather than implying they're live.
-            if (effectiveSort.needsPosition && positionIsStale) {
+            // Distances are shown from a stale position: say so rather than implying they're
+            // live. Gated on `currentPosition`, NOT on the sort order: every row shows a
+            // distance and a bearing whenever an origin exists, so tying the caveat to the
+            // distance *sorts* hid it from anyone browsing by name — the readouts were still
+            // there, just no longer labelled.
+            if (currentPosition != null && positionIsStale) {
                 Text(
                     "Distances are from your last known position, not a live fix.",
                     style = MaterialTheme.typography.labelLarge,
@@ -286,9 +290,15 @@ private fun DestinationRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = Format.decimal(destination.position),
+                    // The accuracy the point was captured at, when it is known. A point taken
+                    // from a ±40 m fix must not sit in the list looking identical to one taken
+                    // from a ±4 m fix — the arrow is only ever as good as what it aims at.
+                    text = Format.decimal(destination.position) +
+                        (destination.accuracyMeters?.let { " · ±${it.toInt()} m" } ?: ""),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 currentPosition?.let {
                     Text(

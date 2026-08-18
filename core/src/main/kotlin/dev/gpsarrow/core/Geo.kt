@@ -9,6 +9,7 @@ import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import kotlin.math.sin
 import kotlin.math.sqrt
+import java.util.Locale
 
 /** Mean Earth radius (IUGG), metres. */
 const val EARTH_RADIUS_M = 6_371_008.8
@@ -174,9 +175,18 @@ enum class DistanceUnits { METRIC, IMPERIAL, NAUTICAL }
 
 object Format {
 
-    /** Human distance with precision that degrades sensibly with magnitude. */
+    /**
+     * Human distance with precision that degrades sensibly with magnitude.
+     *
+     * Every ladder has a floor, and the floor is not zero. Rounding to the nearest 10 m makes
+     * anything under 5 m print as "0 m" — a claim that you are standing on the point, from a
+     * receiver that cannot tell 0 m from 8 m. Below the resolution of the format the honest
+     * answer is a bound, not a number. [DistanceUnits.NAUTICAL] keeps two decimals throughout,
+     * so its floor is one hundredth of a nautical mile rather than ten metres.
+     */
     fun distance(meters: Double, units: DistanceUnits = DistanceUnits.METRIC): String = when (units) {
         DistanceUnits.METRIC -> when {
+            meters < 10 -> "under 10 m"
             meters < 1_000 -> "${(meters / 10.0).roundToInt() * 10} m"
             meters < 100_000 -> String.format("%.1f km", meters / 1_000.0)
             else -> "${(meters / 1_000.0).roundToLong()} km"
@@ -186,6 +196,7 @@ object Format {
             val feet = meters * 3.280839895
             val miles = meters / 1609.344
             when {
+                feet < 30 -> "under 30 ft"
                 feet < 1_000 -> "${(feet / 10.0).roundToInt() * 10} ft"
                 miles < 100 -> String.format("%.1f mi", miles)
                 else -> "${miles.roundToLong()} mi"
@@ -194,7 +205,11 @@ object Format {
 
         DistanceUnits.NAUTICAL -> {
             val nm = meters / 1852.0
-            if (nm < 100) String.format("%.2f NM", nm) else "${nm.roundToLong()} NM"
+            when {
+                nm < 0.01 -> "under 0.01 NM"
+                nm < 100 -> String.format("%.2f NM", nm)
+                else -> "${nm.roundToLong()} NM"
+            }
         }
     }
 
@@ -214,8 +229,26 @@ object Format {
         return POINTS[idx]
     }
 
-    /** Decimal degrees, 5dp ~= 1.1 m — more than a GNSS fix justifies. */
-    fun decimal(p: LatLon): String = String.format("%.5f, %.5f", p.lat, p.lon)
+    /**
+     * Decimal degrees, 5dp ~= 1.1 m — more than a GNSS fix justifies.
+     *
+     * [Locale.ROOT], not the device locale, and deliberately so: this is an interchange format.
+     * `String.format` with a comma-decimal locale renders 48.8584 as "48,85840", which turns
+     * "48,85840, 2,29450" into a string with three commas and no unambiguous split — fine for
+     * this app's own parser, which accepts both separators, and unreadable to every other tool
+     * the user might paste it into. Coordinates are written with a dot everywhere: on charts,
+     * in aviation, on handheld GPS units. [dms] is the same format for the same reason.
+     */
+    fun decimal(p: LatLon): String = String.format(Locale.ROOT, "%.5f, %.5f", p.lat, p.lon)
+
+    /**
+     * One coordinate component for an editable text field. 6dp, about 0.11 m.
+     *
+     * [Locale.ROOT] for the same reason as [decimal], plus one of its own: the list row and the
+     * editor must agree. Formatting the row with a dot and the edit field with the device's
+     * comma shows the same point two different ways on two adjacent screens.
+     */
+    fun coordinate(value: Double): String = String.format(Locale.ROOT, "%.6f", value)
 
     /** Degrees / minutes / seconds, the format most paper maps and radios use. */
     fun dms(p: LatLon): String = "${dmsComponent(p.lat, true)} ${dmsComponent(p.lon, false)}"
@@ -230,6 +263,6 @@ object Format {
         // Guard against 59.9999" rounding up to 60".
         if (s >= 59.995) { s = 0.0; m += 1 }
         if (m >= 60) { m = 0; d += 1 }
-        return String.format("%d°%02d'%05.2f\"%s", d, m, s, hemi)
+        return String.format(Locale.ROOT, "%d°%02d'%05.2f\"%s", d, m, s, hemi)
     }
 }

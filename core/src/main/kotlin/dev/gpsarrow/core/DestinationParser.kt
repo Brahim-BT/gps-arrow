@@ -36,6 +36,25 @@ object DestinationParser {
     )
 
     /**
+     * True when [input] is one number rather than a whole coordinate.
+     *
+     * The editor uses this to decide whether a keystroke should be handed to [parse] at all.
+     * It lives here, in `:core`, because getting it wrong corrupts coordinates silently and
+     * that deserves a unit test rather than a Compose lambda.
+     *
+     * The comma normalisation is the whole point. `String.toDoubleOrNull` only accepts a dot,
+     * so on a device whose locale writes decimals with a comma — French and Arabic both do —
+     * "48,8" is not a number by that test, fell through to [parse], and came back as the pair
+     * (48, 8): [DECIMAL] reads a comma as the pair separator. A user typing a latitude had
+     * their coordinate replaced with a point 5000 km away on the first digit after the comma.
+     *
+     * A real pair still fails this test and reaches the parser, because normalising
+     * "48,85840, 2,29450" gives "48.85840. 2.29450", which is not a number either.
+     */
+    fun isSingleComponent(input: String): Boolean =
+        input.trim().replace(',', '.').toDoubleOrNull() != null
+
+    /**
      * @param reference current position; required only to expand short plus codes.
      */
     fun parse(input: String, reference: LatLon? = null): ParseResult {
