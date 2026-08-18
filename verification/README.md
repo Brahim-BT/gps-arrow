@@ -38,6 +38,28 @@ being reported as if it validated the module. The lesson is not that transpiled 
 useless — it caught a genuine MGRS corner/centre defect — but that a pass rate is meaningless
 without a coverage denominator, and this one never stated its denominator.
 
+## The sweep passed on code that did not compile
+
+CI run #7 failed with four `Unresolved reference` errors in `MainActivity.kt` after
+`check_project.py` had reported clean on 33 files. Unresolved symbols are precisely what this
+script exists to catch, so the false confidence was worse than the four missing characters.
+
+The blind spot was directional. The symbol check walked **imports** and asked "does this
+resolve to a declaration?" — a check that cannot see a symbol used with *no import at all*,
+because there is no import line to inspect. Kotlin needs an explicit import for a top-level
+function from another package even though a member of an imported class needs none, and that
+asymmetry is invisible by eye in a file that already imports nine other things from the same
+package.
+
+Section 2b now walks the other direction: every **use** of a project top-level function must be
+reachable from where it is used — same package, explicit import, wildcard import, or declared in
+that file. It is deliberately conservative, only flagging names declared in exactly one package
+project-wide, so a same-named member function elsewhere cannot produce a false positive. It was
+verified by running it against the failing commit, where it reports both missing imports.
+
+The general lesson, which is the same one twice now: a check that only ever looks in one
+direction will report clean on the half it cannot see.
+
 ## The WMM evaluator was 170 degrees wrong, and a green test said otherwise
 
 August 2026. `Wmm.kt` had two independent faults:

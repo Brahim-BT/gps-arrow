@@ -85,47 +85,84 @@ class HonestReadoutTest {
 
     // ------------------------------------------------------------------ Latin digits, always
 
+    /**
+     * The property under test, written the way the production code computes it rather than as a
+     * list of characters someone guessed at.
+     *
+     * The first version of this test allowed a hand-written set of digits *and separators*,
+     * which conflated two different things and failed on the first real JVM run: `ar-MR`,
+     * `ar-EG` and `fa-IR` use U+066B ARABIC DECIMAL SEPARATOR, so "1\u066B2" has entirely Latin
+     * digits and still fell outside the set. The guarantee is about digits. Separators follow
+     * the language on purpose, because French must keep its comma.
+     */
+    private fun String.hasOnlyLatinDigits(): Boolean =
+        none { it.digitToIntOrNull() != null && it !in '0'..'9' }
+
     @Test
-    fun `Arabic locales never produce Arabic-Indic digits`() {
+    fun `no locale can put a non-Latin digit on the screen`() {
         // ar-MR is the locale that would regress silently: CLDR gives Mauritania the `arab`
         // numbering system while Morocco gets `latn`, so a device in Nouakchott would render
-        // ٤٥٠ where one in Casablanca renders 450 — same app, same build, different-looking
-        // screen. One Arabic build reading identically in both countries is a product decision.
+        // Arabic-Indic where one in Casablanca renders Latin - same app, same build, a
+        // different-looking screen. One Arabic build reading identically in both countries is
+        // a product decision, recorded in Format.latinDigitLocale.
         //
-        // These locales are deliberately raw, WITHOUT the nu-latn extension, so what is being
-        // tested is the transliteration guarantee rather than the polite request.
+        // These locales are deliberately raw, WITHOUT the nu-latn extension, so what is under
+        // test is the transliteration guarantee rather than the polite request. fa-IR is here
+        // because `arabext` is a third set of digits again, and bn-IN a fourth.
         val locales = listOf(
             Locale.forLanguageTag("ar-MR"),
             Locale.forLanguageTag("ar-EG"),
+            Locale.forLanguageTag("ar-MA"),
             Locale.forLanguageTag("ar"),
             Locale.forLanguageTag("fa-IR"),
+            Locale.forLanguageTag("bn-IN"),
             Locale.FRANCE,
+            Locale.ENGLISH,
         )
         locales.forEach { locale ->
-            listOf(0.0, 450.0, 1_234.0, 123_456.0).forEach { meters ->
-                val value = Format.distance(meters, DistanceUnits.METRIC, locale).value
-                assertTrue("$locale gave $value", value.all { it.isAsciiDigitOrSeparator() })
+            DistanceUnits.entries.forEach { units ->
+                listOf(0.0, 5.0, 450.0, 1_234.0, 123_456.0).forEach { meters ->
+                    val value = Format.distance(meters, units, locale).value
+                    assertTrue("$locale/$units gave $value", value.hasOnlyLatinDigits())
+                }
             }
             val bearing = Format.bearing(47.0, locale)
             assertEquals("$locale", "047", bearing.degrees)
             assertEquals(2, bearing.pointIndex)
-            assertTrue("$locale", Format.number("%d", locale, 1_234).all {
-                it.isAsciiDigitOrSeparator()
-            })
+            assertTrue("$locale", Format.number("%d", locale, 1_234).hasOnlyLatinDigits())
+            assertTrue("$locale", Format.number("%.2f", locale, 1.5).hasOnlyLatinDigits())
         }
     }
 
     @Test
-    fun `pinning the numbering system does not disturb the language`() {
+    fun `the digit check would notice if the transliteration stopped working`() {
+        // Without this, a hasOnlyLatinDigits that always returned true would make the test
+        // above pass while guaranteeing nothing.
+        assertFalse("\u0664\u0665\u0660".hasOnlyLatinDigits())   // Arabic-Indic 450
+        assertFalse("\u06F4\u06F5\u06F0".hasOnlyLatinDigits())   // Extended Arabic-Indic 450
+        assertFalse("\u09EA\u09EB\u09E6".hasOnlyLatinDigits())   // Bengali 450
+        assertTrue("450".hasOnlyLatinDigits())
+        // A non-ASCII separator between Latin digits passes, and should: it is not a digit.
+        assertTrue("1\u066B2".hasOnlyLatinDigits())
+    }
+
+    @Test
+    fun `the numbering system is pinned without disturbing the language`() {
         val pinned = Format.latinDigitLocale(Locale.forLanguageTag("ar-MR"))
         assertEquals("ar", pinned.language)
         assertEquals("MR", pinned.country)
-        // Separators still follow the language; only the digits are pinned.
-        assertEquals("1234", Format.number("%d", Locale.FRANCE, 1234))
+        // Pure Locale API, no CLDR data involved, so this holds on any JDK: the request is
+        // provably made even where the platform declines to honour it.
+        assertEquals("latn", pinned.getUnicodeLocaleType("nu"))
     }
 
-    private fun Char.isAsciiDigitOrSeparator(): Boolean =
-        this in '0'..'9' || this in ".,\u00a0\u202f- "
+    @Test
+    fun `separators still follow the language, which is why they are not pinned`() {
+        // English and French are the two no JDK can plausibly disagree about, and they are what
+        // would break if someone ever "fixed" separators to ASCII along with the digits.
+        assertEquals("1.2", Format.distance(1_234.0, DistanceUnits.METRIC, Locale.ENGLISH).value)
+        assertEquals("1,2", Format.distance(1_234.0, DistanceUnits.METRIC, Locale.FRANCE).value)
+    }
 
     // ------------------------------------------------------------------ interchange formats
 

@@ -251,11 +251,17 @@ object Format {
     fun number(pattern: String, locale: Locale, value: Any): String =
         latinDigits(String.format(latinDigitLocale(locale), pattern, value))
 
+    // Both of these pin the numbering system before formatting, exactly as [number] does.
+    // They did not, originally, and that half-applied rule is worth naming: on a JDK that
+    // honours the `nu` keyword, `ar` then also yields a full stop rather than U+066B ARABIC
+    // DECIMAL SEPARATOR, so the Arabic build reads "1.2 كم" like the other two. The digits
+    // were never at risk — [latinDigits] catches those either way — but the separator was
+    // silently following the region, which is the same split the whole rule exists to close.
     private fun fixed(value: Double, decimals: Int, locale: Locale): String =
-        latinDigits(String.format(locale, "%.${decimals}f", value))
+        latinDigits(String.format(latinDigitLocale(locale), "%.${decimals}f", value))
 
     private fun whole(value: Long, locale: Locale): String =
-        latinDigits(String.format(locale, "%d", value))
+        latinDigits(String.format(latinDigitLocale(locale), "%d", value))
 
     /**
      * Human distance with precision that degrades sensibly with magnitude.
@@ -318,7 +324,7 @@ object Format {
     fun bearing(deg: Double, locale: Locale = Locale.ROOT): BearingReadout {
         val d = Geo.normalizeDegrees(deg)
         return BearingReadout(
-            degrees = latinDigits(String.format(locale, "%03.0f", d)),
+            degrees = latinDigits(String.format(latinDigitLocale(locale), "%03.0f", d)),
             pointIndex = compassPointIndex(d),
         )
     }

@@ -84,6 +84,70 @@ for src in walk(".kt"):
             f"UNRESOLVED IMPORT  {symbol}  in {os.path.relpath(src, ROOT)}"
         )
 
+# ------------------------------------------------- 2b. symbols USED but not reachable
+#
+# The check above walks imports and asks "does this resolve?". That direction is blind to a
+# symbol used with no import at all, because there is no import line to inspect — which is
+# exactly how CI run #7 shipped four unresolved references past a clean sweep. Kotlin needs an
+# explicit import for a top-level function from another package, even though a member of an
+# imported class needs none, and that asymmetry is easy to miss by eye.
+#
+# So walk the other direction: every USE of a project top-level function must be reachable from
+# where it is used — same package, explicit import, wildcard import, or declared in that file.
+
+TOP_FUN = re.compile(
+    r"^(?:@\w+\s+)*(?:public |internal |private |inline |suspend )*"
+    r"fun\s+(?:<[^>]+>\s+)?(?:([\w.<>?]+)\.)?(\w+)\s*\(",
+    re.M,
+)
+
+file_info = {}
+for src in walk(".kt"):
+    text = open(src, encoding="utf-8").read()
+    pkg = re.search(r"^package\s+([\w.]+)", text, re.M)
+    imports, wildcards = set(), set()
+    for m in re.finditer(r"^import\s+([\w.]+)(\.\*)?", text, re.M):
+        (wildcards if m.group(2) else imports).add(
+            m.group(1) if m.group(2) else m.group(1).rsplit(".", 1)[-1]
+        )
+    file_info[src] = {
+        "pkg": pkg.group(1) if pkg else "",
+        "text": text,
+        "imports": imports,
+        "wildcards": wildcards,
+        "tops": {m.group(2) for m in TOP_FUN.finditer(text)},
+    }
+
+top_level_funs = defaultdict(set)
+for src, i in file_info.items():
+    for name in i["tops"]:
+        top_level_funs[name].add(i["pkg"])
+
+for src, i in file_info.items():
+    body = re.sub(r"/\*.*?\*/", "", i["text"], flags=re.S)
+    body = re.sub(r"//[^\n]*", "", body)
+    body = re.sub(r'"""(?:[^"]|"(?!""))*"""', '""', body)
+    body = re.sub(r'"(?:\\.|[^"\\\n])*"', '""', body)
+    body = re.sub(r"^import[^\n]*", "", body, flags=re.M)
+    # A declaration is not a usage.
+    body = re.sub(r"\bfun\s+(?:<[^>]+>\s*)?(?:[\w.<>?]+\.)?\w+\s*\(", "fun (", body)
+
+    for name, pkgs in top_level_funs.items():
+        if name in i["tops"] or name in i["imports"] or i["pkg"] in pkgs:
+            continue
+        if pkgs & i["wildcards"]:
+            continue
+        # Only unambiguous names: declared in exactly one package project-wide, so a same-named
+        # member function elsewhere cannot be what was meant.
+        if len(pkgs) != 1:
+            continue
+        if re.search(r"(?<![\w.])" + re.escape(name) + r"\s*\(", body) or \
+           re.search(r"\.\s*" + re.escape(name) + r"\s*\(", body):
+            problems.append(
+                f"UNIMPORTED USAGE  '{name}' (declared in {sorted(pkgs)[0]}) "
+                f"used in {os.path.relpath(src, ROOT)}"
+            )
+
 # ---------------------------------------------------------------- 3. :core purity
 for src in walk(".kt", "core"):
     text = open(src, encoding="utf-8").read()

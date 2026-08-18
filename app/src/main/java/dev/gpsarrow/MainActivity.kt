@@ -59,6 +59,10 @@ import dev.gpsarrow.ui.LanguagePicker
 import dev.gpsarrow.ui.MapScreen
 import dev.gpsarrow.ui.PermissionGate
 import dev.gpsarrow.ui.SettingsScreen
+// Top-level extension functions from another package need an explicit import, unlike the
+// members of an imported class. Omitting these is what broke CI run #7.
+import dev.gpsarrow.ui.headingChipRes
+import dev.gpsarrow.ui.numberLocale
 import dev.gpsarrow.ui.rememberNotificationPermissionRequest
 import dev.gpsarrow.ui.theme.GpsArrowTheme
 import kotlinx.coroutines.delay
