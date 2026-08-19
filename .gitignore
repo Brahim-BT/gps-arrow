@@ -46,3 +46,14 @@ __pycache__/
 # Editor backups. The agent sandbox cannot delete files in this tree,
 # so a stray *.bak must at least never reach a commit.
 *.bak
+
+# ---- Map extracts ----
+# Region files are cut with `pmtiles extract` (REGION_FILES.md) and distributed as GitHub
+# release assets, never as repo contents. They are hundreds of megabytes; GitHub hard-rejects
+# any file over 100 MB on push, and git history is forever even when the push fails.
+#
+# This line exists because both extracts were once produced in the repo root, where `push.sh`
+# does `git add -A` and would have staged 347 MB without comment.
+*.pmtiles
+*.pmtiles.part
+*.mbtiles

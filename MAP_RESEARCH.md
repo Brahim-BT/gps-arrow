@@ -50,12 +50,36 @@ So the real options are **z12, z13, z14, z15**.
 
 ### What each level costs and buys
 
+> **The estimates that were here were wrong and have been replaced.** z14 is now measured. The
+> other rows are re-derived from that measurement and are given as ranges, because two defensible
+> scaling rules disagree and I have one data point. See "The size model was wrong" below for what
+> broke and why. The old numbers were: Morocco 183 MB, Mauritania 35 MB, both 218 MB at z14.
+
 | maxzoom | Morocco + W. Sahara | Mauritania | Both | What you give up |
 |---|---|---|---|---|
-| z12 | 65 MB | 20 MB | **85 MB** | Minor roads thin out; no useful street detail in towns |
-| z13 | 104 MB | 25 MB | **129 MB** | Street network present but sparse at walking scale |
-| z14 | 183 MB | 35 MB | **218 MB** | Buildings are *merged blobs*, not individual footprints |
-| z15 | 341 MB | 55 MB | **396 MB** | Nothing — this is the maximum available |
+| z12 | 46–66 MB | 9–21 MB | **55–87 MB** | Minor roads thin out; no useful street detail in towns |
+| z13 | 105–132 MB | 26–42 MB | **131–174 MB** | Street network present but sparse at walking scale |
+| **z14** | **264 MB** ✔ | **83 MB** ✔ | **347 MB** ✔ | Buildings are *merged blobs*, not individual footprints |
+| z15 | 528–741 MB | 166–293 MB | **694–1033 MB** | Nothing — this is the maximum available |
+
+✔ = measured from the built archive. Everything else is scaled from those two numbers by two
+different rules that disagree, hence the ranges. **The spread is ±14% combined at z13 but ±38% for
+Mauritania alone, and ±57% for Mauritania at z12** — so these are not good to ±20% and should not
+be quoted as though they were. Measure instead; it is nearly free (below).
+
+**If you want an exact z13 figure, it costs under a minute and no network.** `pmtiles extract`
+reads local archives, so a lower-zoom cut can be taken from the z14 file we already have rather
+than from the planet:
+
+```bash
+pmtiles extract morocco-z14.pmtiles    morocco-z13.pmtiles    --maxzoom=13
+pmtiles extract mauritania-z14.pmtiles mauritania-z13.pmtiles --maxzoom=13
+ls -l *-z13.pmtiles
+```
+
+That is strictly better than any number I can give, and it also settles which of the two scaling
+rules below is right — which would make every remaining row in the table trustworthy instead of a
+range. I would do this before quoting the user anything.
 
 The z14/z15 line is sharp and documented: the Protomaps `buildings` layer says *"z0–14 contains
 merged buildings, even disconnected ones. z15+ contains individual OSM equivalent buildings."*
@@ -81,47 +105,81 @@ it is not the difference between viable and not. z12 is the only option I would 
 85 MB is barely cheaper than z13's 129 MB and it degrades exactly the street-level detail a
 walking navigator is for.
 
-### How these numbers were produced — and their honest status
+### The size model was wrong — what broke, and the corrected one
 
-**Modelled, not measured.** I could not reach the Protomaps build server from this sandbox
-(see §4), so I could not run `pmtiles extract` and weigh the result.
+Predicted against actual, from the 2026-08-19 build:
 
-The model, stated so it can be checked:
+| | predicted | actual | error |
+|---|---|---|---|
+| Morocco | 183 MB | 264 MB | **+44%** |
+| Mauritania | 35 MB | 83 MB | **+137%** |
+| Both | 218 MB | 347 MB | +59% |
 
-- Protomaps publish the planet at **~120 GB for z0–15**, and that **"each additional zoom level
-  roughly doubles the size of the file."**
-- Extract size scales with **OSM data volume**, not land area — high-zoom vector tile bytes are
-  almost entirely feature geometry, and PMTiles **deduplicates identical tiles**, so the tens of
-  thousands of byte-identical empty Sahara tiles collapse to near-nothing. (An earlier version of
-  this estimate had a "floor" term of tile-count × 600 B, which put Mauritania at 1.1 GB. That
-  was wrong for exactly this reason and has been removed.)
-- Current Geofabrik extracts, 2026-08-17: **Morocco 231 MB**, **Mauritania 29.1 MB**.
-  Planet: **87.6 GB**.
-- So `size(z15) ≈ 120 GB × country_pbf / 87.6 GB`, halving per level below 15, plus a directory
-  overhead allowance (25 MB Morocco / 15 MB Mauritania).
+Stated confidence was ±40%. Morocco scraped inside it; Mauritania missed by more than three times
+the stated band. A confidence interval that a sample falls outside by that margin was not a
+confidence interval, it was a guess with error bars drawn on afterwards.
 
-**Validation.** The same model predicts Germany 6.0 GB, France 6.3 GB, Netherlands 2.2 GB,
-Switzerland 0.62 GB — which reproduces the Protomaps documentation's own rule of thumb that
-*"a country-sized extract typically lands in the low gigabytes."* That is the only independent
-check available without running the extract, and it passes.
+**The old model.** `size(z15) ≈ 120 GB × country_pbf / planet_pbf`, halved per level below 15.
+It assumed vector-tile bytes are proportional to OSM feature volume.
 
-**Confidence:** roughly ±40%. Morocco at z14 is "somewhere between 110 and 260 MB". Good enough
-to choose a zoom level; not good enough to print in the UI. The catalogue must carry the **real**
-byte count from the actual file, which is why `RegionSummary.bytes` exists.
+**Two plausible causes, both ruled out by measurement:**
 
-**To settle it exactly** (about 10 minutes, needs the `pmtiles` CLI and a decent connection):
+- *Directory overhead underestimated?* No. Root directory, leaf directories and metadata together
+  are **0.23%** of the Morocco file and **0.49%** of Mauritania's. Negligible at any scale.
+- *Deduplication over-credited in sparse terrain?* No, and this one is genuinely surprising.
+  Dedup is **3.39:1** for Morocco and **3.35:1** for Mauritania — essentially identical. Empty
+  desert does not collapse better than a mapped city.
 
-```bash
-BUILD=$(curl -s https://maps.protomaps.com/builds/ | grep -o 'v4[^"]*\.pmtiles' | tail -1)
-pmtiles extract "https://build.protomaps.com/$BUILD" morocco-z14.pmtiles \
-    --bbox=-17.10,20.77,-0.99,35.95 --maxzoom=14
-pmtiles extract "https://build.protomaps.com/$BUILD" mauritania-z14.pmtiles \
-    --bbox=-17.07,14.72,-4.83,27.30 --maxzoom=14
-ls -l *.pmtiles
+**The actual cause.** One measurement gives it away:
+
+| | OSM data | bytes per tile |
+|---|---|---|
+| Morocco : Mauritania | **7.94 : 1** | **1.89 : 1** |
+
+Eight times the OSM data buys under twice the bytes per tile. Tile size is therefore *mostly not*
+a function of OSM feature volume, and a model proportional to it cannot fit both countries — it
+will fit the dense one roughly and the sparse one terribly, which is exactly the observed pattern.
+
+What the model left out is that the Protomaps basemap is **not only OSM**. The `earth` layer comes
+from OSMCoastline, `landcover` from the Daylight distribution, and low-zoom `water` and
+`boundaries` from Natural Earth. Every land tile carries those polygons whether or not a single
+road crosses it — an **area-driven floor** that `country_pbf` does not measure at all.
+
+Fitting `bytes_per_tile = A + B × (OSM bytes per tile)` to the two measured archives:
+
+```
+bytes_per_tile = 137.5 + 0.68 × (OSM PBF bytes per tile)
 ```
 
-Better still, use `--region=` with a GeoJSON country polygon instead of `--bbox`; Morocco's
-bounding box includes a lot of Atlantic.
+That floor of ~137 bytes/tile is **40% of the Morocco file and 76% of Mauritania's**. The emptier
+the region, the more of it is floor — which is precisely why the old model's error was worse for
+the emptier country.
+
+**The bitter part:** the first version of this estimate *had* a floor term, `tile_count × 600 B`.
+I removed it, reasoning that deduplication would collapse empty tiles to nothing. The measured
+dedup is 3.35:1, not infinite. The structure was right and I talked myself out of it; only the
+constant was wrong, and it was wrong by 4.4×, not by being present.
+
+**Status of the corrected model.** It is a two-parameter fit to two data points, so it reproduces
+them exactly and that means **nothing**. It is calibration, not validation. Its value is that it
+is anchored on measurements of this exact pipeline rather than on a chain of ratios through a
+planet file, and that it has the right *shape* — a floor plus a density term.
+
+**Why the other rows are ranges.** Dropping a zoom level scales the two components differently:
+
+- the **floor** goes with tile count, which falls **4×** per level dropped;
+- the **feature payload** follows Protomaps' documented "each zoom level roughly doubles", so **2×**.
+
+Applying the doubling rule to the whole file gives Morocco z13 = 132 MB. Splitting by the measured
+floor share gives 105 MB. Both are defensible from what is known, they differ by 25%, and one data
+point cannot separate them. Hence ranges — and hence the local `--maxzoom=13` re-cut above, which
+replaces the whole argument with a number.
+
+**One further correction.** These are `--bbox` extracts, and a bounding box is a rectangle while a
+country is not. The Mauritania box takes in slices of Western Sahara, Mali, Senegal and Algeria;
+the Morocco box takes in a lot of Atlantic. Sizing a bbox extract from the OSM volume of the
+country whose name is on it is wrong twice over. `--region=` with a GeoJSON country polygon would
+cut closer, at the cost of needing a polygon file.
 
 ---
 
