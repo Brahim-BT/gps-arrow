@@ -15,19 +15,11 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Place
-import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,7 +32,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.gpsarrow.core.Destination
@@ -52,6 +43,8 @@ import dev.gpsarrow.locale.AppLanguage
 import dev.gpsarrow.locale.AppLocale
 import dev.gpsarrow.service.NavigationService
 import dev.gpsarrow.ui.AddDestinationScreen
+import dev.gpsarrow.ui.AppBar
+import dev.gpsarrow.ui.AppTabs
 import dev.gpsarrow.ui.ArrowScreen
 import dev.gpsarrow.ui.CoordinateDraft
 import dev.gpsarrow.ui.DestinationsScreen
@@ -74,11 +67,11 @@ import kotlinx.coroutines.launch
  * Adding a point is an action, not a place, so it is a FAB inside Destinations rather than a
  * peer tab — which also removes the "which tab am I on now?" jump after saving.
  *
- * Labels are resources now, and that changes the width budget: "Destinations" is the longest in
- * English at ~116dp with icon padding, but French wants the same word and Arabic's "الإعدادات"
- * renders taller rather than wider. At four tabs each gets ~97dp on the A54, so every label is
- * `maxLines = 1` and TabRow is left to ellipsise rather than wrap — a two-line tab bar shifts
- * the arrow down the screen, which matters more than a truncated word.
+ * The width problem is gone. A fixed tab row divided the screen four ways and forced label
+ * shortening — "Destinations" had to become "Saved" — and the three languages would each have
+ * fought that fight separately. `AppTabs` is scrollable, so every tab is as wide as its own
+ * word in whatever language is active, and the neighbours sitting half off-screen are what tell
+ * the user there is more to swipe to. No label is truncated in any of the three.
  */
 private enum class AppTab(val labelRes: Int) {
     ARROW(R.string.tab_arrow),
@@ -317,16 +310,12 @@ private fun AppRoot(
     ) {
         Column(Modifier.fillMaxSize()) {
             if (editor == null) {
-                TabRow(selectedTabIndex = tab.ordinal) {
-                    AppTab.entries.forEach { entry ->
-                        Tab(
-                            selected = tab == entry,
-                            onClick = { tab = entry },
-                            text = { Text(stringResource(entry.labelRes), maxLines = 1) },
-                            icon = { TabIcon(entry) },
-                        )
-                    }
-                }
+                AppBar()
+                AppTabs(
+                    titles = AppTab.entries.map { stringResource(it.labelRes) },
+                    selectedIndex = tab.ordinal,
+                    onSelect = { tab = AppTab.entries[it] },
+                )
             }
 
             Box(Modifier.weight(1f)) {
@@ -524,23 +513,6 @@ private fun AppRoot(
             hostState = snackbarHost,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
-    }
-}
-
-/**
- * Tab icons come from material-icons-core only, which ships with material3. The arrow uses the
- * app's own vector so the first tab needs no icon dependency whatsoever.
- */
-@Composable
-private fun TabIcon(entry: AppTab) {
-    when (entry) {
-        AppTab.ARROW -> Icon(
-            painter = painterResource(R.drawable.ic_notification_arrow),
-            contentDescription = null,
-        )
-        AppTab.DESTINATIONS -> Icon(Icons.Filled.List, contentDescription = null)
-        AppTab.MAP -> Icon(Icons.Filled.Place, contentDescription = null)
-        AppTab.SETTINGS -> Icon(Icons.Filled.Settings, contentDescription = null)
     }
 }
 

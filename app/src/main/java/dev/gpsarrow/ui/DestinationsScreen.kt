@@ -1,5 +1,6 @@
 package dev.gpsarrow.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,19 +10,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -41,6 +42,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,6 +56,7 @@ import dev.gpsarrow.core.Geo
 import dev.gpsarrow.core.LatLon
 import dev.gpsarrow.core.Mgrs
 import dev.gpsarrow.core.PlusCode
+import dev.gpsarrow.ui.theme.AppTheme
 
 @Composable
 fun DestinationsScreen(
@@ -113,18 +116,10 @@ fun DestinationsScreen(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.destinations_title),
-                style = MaterialTheme.typography.headlineMedium,
-            )
-        }
+    Column(modifier = Modifier.fillMaxSize()) {
+        SectionHeader(stringResource(R.string.select_destination))
 
+        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
         if (destinations.isNotEmpty()) {
             OutlinedTextField(
                 value = query,
@@ -196,6 +191,7 @@ fun DestinationsScreen(
                 )
             }
         }
+        }
 
         when {
             destinations.isEmpty() -> EmptyState(
@@ -227,11 +223,13 @@ fun DestinationsScreen(
                 }
                 LazyColumn(
                     state = listState,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(top = 8.dp),
-                    contentPadding = PaddingValues(bottom = 88.dp),
+                    modifier = Modifier.padding(top = 4.dp),
+                    contentPadding = PaddingValues(bottom = 96.dp),
                 ) {
-                    items(visible, key = { it.id }) { destination ->
+                    itemsIndexed(visible, key = { _, d -> d.id }) { index, destination ->
+                        if (index > 0) {
+                            HorizontalDivider(thickness = 1.dp, color = AppTheme.tokens.divider)
+                        }
                         DestinationRow(
                             destination = destination,
                             currentPosition = currentPosition,
@@ -263,6 +261,19 @@ fun DestinationsScreen(
     }
 }
 
+/**
+ * A row in the reference's shape: name and distance on one line, both large, then the smaller
+ * grey detail beneath.
+ *
+ * **No category icon.** The reference has a coloured square on every row, but those encode
+ * categories this app's data model does not have, and a decorative placeholder would imply a
+ * distinction we cannot back. Dropping it also gives the name the full width of the row, which
+ * matters most in Arabic, where the same name runs longer.
+ *
+ * Everything is `weight` and start/end, no fixed widths, so a long name in any language
+ * ellipsises rather than pushing the distance off the screen — and the whole row mirrors under
+ * RTL without a single left or right in it.
+ */
 @Composable
 private fun DestinationRow(
     destination: Destination,
@@ -277,70 +288,84 @@ private fun DestinationRow(
 ) {
     val context = LocalContext.current
     val numberLocale = rememberNumberLocale()
-    Card(
+    val tokens = AppTheme.tokens
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            // Tapping the row stays "navigate to this" — the primary action. Editing gets its
-            // own affordance rather than stealing the tap for a detail screen.
-            .clickable(onClick = onSelect),
-        colors = if (highlighted) {
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
+            .background(
+                if (highlighted) tokens.accent.copy(alpha = 0.16f) else Color.Transparent,
             )
-        } else {
-            CardDefaults.cardColors()
-        },
+            // Tapping the row stays "navigate to this" — the primary action. Editing keeps its
+            // own affordance rather than stealing the tap for a detail screen.
+            .clickable(onClick = onSelect)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Row(
-            modifier = Modifier.padding(start = 14.dp, top = 10.dp, bottom = 10.dp),
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = if (selected) {
+                    stringResource(R.string.selected_destination, destination.name)
+                } else {
+                    destination.name
+                },
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.displaySmall,
+                color = if (selected) tokens.accent else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            currentPosition?.let {
+                Text(
+                    text = Format.distance(
+                        Geo.distanceMeters(it, destination.position),
+                        units,
+                        numberLocale,
+                    ).text(context),
+                    style = MaterialTheme.typography.displaySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                )
+            }
+        }
+
+        destination.note?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodyMedium,
+                color = tokens.label,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        Text(
+            // The accuracy the point was captured at, when it is known. A point taken from a
+            // ±40 m fix must not sit in the list looking identical to one taken from a ±4 m
+            // fix — the arrow is only ever as good as what it aims at.
+            text = ltrIsolate(Format.decimal(destination.position)) +
+                (
+                    destination.accuracyMeters?.let { a ->
+                        stringResource(
+                            R.string.accuracy_suffix,
+                            Format.number("%d", numberLocale, a.toInt()),
+                        )
+                    } ?: ""
+                    ),
+            style = MaterialTheme.typography.labelMedium,
+            color = tokens.label,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = if (selected) {
-                        stringResource(R.string.selected_destination, destination.name)
-                    } else {
-                        destination.name
-                    },
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    // The accuracy the point was captured at, when it is known. A point taken
-                    // from a ±40 m fix must not sit in the list looking identical to one taken
-                    // from a ±4 m fix — the arrow is only ever as good as what it aims at.
-                    text = ltrIsolate(Format.decimal(destination.position)) +
-                        (
-                            destination.accuracyMeters?.let {
-                                stringResource(
-                                    R.string.accuracy_suffix,
-                                    Format.number("%d", numberLocale, it.toInt()),
-                                )
-                            } ?: ""
-                            ),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                currentPosition?.let {
-                    Text(
-                        text = Format.distance(
-                            Geo.distanceMeters(it, destination.position),
-                            units,
-                            numberLocale,
-                        ).text(context) + " · " + Format.bearing(
-                            Geo.initialBearingDegrees(it, destination.position),
-                            numberLocale,
-                        ).text(context),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
-
-            IconButton(onClick = onToggleFavourite, modifier = Modifier.size(44.dp)) {
+            IconButton(onClick = onToggleFavourite, modifier = Modifier.size(40.dp)) {
                 Icon(
                     imageVector = Icons.Filled.Star,
                     contentDescription = if (destination.isFavourite) {
@@ -349,22 +374,31 @@ private fun DestinationRow(
                         stringResource(R.string.cd_star, destination.name)
                     },
                     // Same glyph, distinguished by tint: keeps us on material-icons-core only.
-                    tint = if (destination.isFavourite) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                    tint = if (destination.isFavourite) tokens.accent
+                    else tokens.label.copy(alpha = 0.45f),
                 )
             }
-            IconButton(onClick = onEdit, modifier = Modifier.size(44.dp)) {
+            IconButton(onClick = onEdit, modifier = Modifier.size(40.dp)) {
                 Icon(
                     imageVector = Icons.Filled.Edit,
                     contentDescription = stringResource(R.string.cd_edit, destination.name),
+                    tint = tokens.label,
                 )
             }
-            IconButton(onClick = onDelete, modifier = Modifier.size(44.dp)) {
+            IconButton(onClick = onDelete, modifier = Modifier.size(40.dp)) {
                 Icon(
                     imageVector = Icons.Filled.Delete,
                     contentDescription = stringResource(R.string.cd_delete, destination.name),
+                    tint = tokens.label,
                 )
             }
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = formatTimestamp(context, destination.createdAtMillis),
+                style = MaterialTheme.typography.labelMedium,
+                color = tokens.label,
+                maxLines = 1,
+            )
         }
     }
 }

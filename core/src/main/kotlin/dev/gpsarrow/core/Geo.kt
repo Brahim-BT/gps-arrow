@@ -202,6 +202,17 @@ data class BearingReadout(
     val pointIndex: Int,
 )
 
+/** The unit a [SpeedReadout] came out in. */
+enum class SpeedUnit { KMH, MPH, KNOTS }
+
+/** A speed, split for the same reason as [DistanceReadout]. */
+data class SpeedReadout(
+    val value: String,
+    val unit: SpeedUnit,
+    /** True when [value] is a bound the receiver cannot see past, not a measurement. */
+    val isLowerBound: Boolean = false,
+)
+
 object Format {
 
     /**
@@ -230,8 +241,13 @@ object Format {
      * that arrives here without the extension — `ar-MR` straight from the device, say — still
      * comes out in Latin digits, which is exactly the regression this exists to prevent.
      * Separators are left alone, so French keeps its decimal comma.
+     *
+     * Public because text formatted elsewhere has to come through it too — a timestamp from
+     * `android.text.format.DateFormat`, for instance, which this module cannot produce itself
+     * but which lands on the same screen and must not be the one place Arabic-Indic digits
+     * survive.
      */
-    private fun latinDigits(text: String): String {
+    fun latinDigits(text: String): String {
         if (text.all { it.code < 0x0660 }) return text
         return buildString(text.length) {
             for (ch in text) {
@@ -319,6 +335,49 @@ object Format {
             }
         }
     }
+
+    /**
+     * Speed, with the same floor logic as [distance] and for the same reason.
+     *
+     * A GNSS receiver reports a speed while you are standing still, and it is noise — the same
+     * noise that makes a stationary course-over-ground useless, which `HeadingArbiter` already
+     * gates on. Printing "1.3 km/h" for someone who is not moving is a measurement the hardware
+     * cannot support, so below [SPEED_FLOOR_KMH] this returns the floor as a bound instead.
+     */
+    fun speed(
+        metresPerSecond: Float,
+        units: DistanceUnits = DistanceUnits.METRIC,
+        locale: Locale = Locale.ROOT,
+    ): SpeedReadout {
+        val kmh = metresPerSecond * 3.6
+        val below = kmh < SPEED_FLOOR_KMH
+        return when (units) {
+            DistanceUnits.METRIC -> SpeedReadout(
+                fixed(if (below) SPEED_FLOOR_KMH else kmh, 1, locale), SpeedUnit.KMH, below,
+            )
+
+            DistanceUnits.IMPERIAL -> SpeedReadout(
+                fixed(
+                    if (below) SPEED_FLOOR_KMH / MILES_PER_KM else kmh / MILES_PER_KM, 1, locale,
+                ),
+                SpeedUnit.MPH,
+                below,
+            )
+
+            DistanceUnits.NAUTICAL -> SpeedReadout(
+                fixed(
+                    if (below) SPEED_FLOOR_KMH / KNOTS_PER_KMH else kmh / KNOTS_PER_KMH, 1, locale,
+                ),
+                SpeedUnit.KNOTS,
+                below,
+            )
+        }
+    }
+
+    /** Walking pace. Below this a GNSS speed is noise rather than movement. */
+    const val SPEED_FLOOR_KMH = 5.0
+    private const val MILES_PER_KM = 1.609344
+    private const val KNOTS_PER_KMH = 1.852
 
     /** Degrees and a compass point, for the UI to join up in its own word order. */
     fun bearing(deg: Double, locale: Locale = Locale.ROOT): BearingReadout {

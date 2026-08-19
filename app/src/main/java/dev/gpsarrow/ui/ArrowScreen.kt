@@ -19,7 +19,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -28,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.Alignment
@@ -38,6 +38,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
@@ -52,6 +54,7 @@ import dev.gpsarrow.core.FixQuality
 import dev.gpsarrow.core.Format
 import dev.gpsarrow.core.HeadingSource
 import dev.gpsarrow.core.NavigationState
+import dev.gpsarrow.ui.theme.AppTheme
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -99,7 +102,7 @@ fun ArrowScreen(
         }
 
         degraded.forEach { d ->
-            Warning(
+            Notice(
                 if (d.arg != null) stringResource(d.messageRes, d.arg)
                 else stringResource(d.messageRes),
             )
@@ -192,6 +195,18 @@ private fun ActionButtons(
     }
 }
 
+/**
+ * The four-corner navigation layout from the reference: two readouts along the top, two along
+ * the bottom, and the needle filling everything between them.
+ *
+ * The labels sit outward — above the value in the top corners, below it in the bottom ones — so
+ * the small grey text always hugs the nearer screen edge and the four large values are pulled
+ * towards the centre, where the eye already is. That detail is straight from the screenshots.
+ *
+ * Corners degrade rather than disappear. With no destination the first corner says so and the
+ * distance shows a dash, because a layout that reflows depending on GPS state is harder to read
+ * at a glance than one that always has its numbers in the same four places.
+ */
 @Composable
 private fun CompassFace(
     state: NavigationState,
@@ -200,168 +215,133 @@ private fun CompassFace(
 ) {
     val context = LocalContext.current
     val numberLocale = rememberNumberLocale()
+    val tokens = AppTheme.tokens
     val stale = state.quality == FixQuality.STALE || state.quality == FixQuality.NONE
     val uncalibrated = state.headingSource == HeadingSource.COMPASS_UNCALIBRATED
     val mode = state.arrowMode
+    val dash = stringResource(R.string.value_unknown)
 
-    val arrowColor = when {
+    // A needle the app cannot stand behind is drawn flat and muted; the two-stop accent fill is
+    // reserved for a bearing it actually believes.
+    val mutedArrow = when {
         uncalibrated -> MaterialTheme.colorScheme.error
-        mode == ArrowMode.NORTH || mode == ArrowMode.ARRIVED ->
-            MaterialTheme.colorScheme.onSurfaceVariant
-
-        stale -> MaterialTheme.colorScheme.onSurfaceVariant
-        else -> MaterialTheme.colorScheme.primary
+        mode == ArrowMode.NORTH || mode == ArrowMode.ARRIVED -> tokens.label
+        stale -> tokens.label
+        else -> null
     }
-    val roseColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
 
     if (mode == ArrowMode.NONE) {
         NoHeadingPrompt()
         return
     }
 
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        BoxWithConstraints {
-            val side = min(maxWidth.value, maxHeight.value).dp
-            // THE ARROW MUST NEVER MIRROR.
-            //
-            // Compose flips a Canvas's coordinate system under an RTL layout direction, which
-            // is right for UI chrome and catastrophic here: this needle points at a geographic
-            // bearing, so mirroring it sends an Arabic-reading user the wrong way across an
-            // east-west axis while looking completely normal to a reviewer who does not read
-            // Arabic. North is north in every language. Forcing Ltr for the drawing scope
-            // pins the compass rose and the needle to real-world geometry; the text around
-            // them is outside this provider and still lays out RTL.
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                Canvas(
-                    modifier = Modifier
-                        .size(side * 0.85f)
-                        .aspectRatio(1f),
-                ) {
-                    drawCompassRose(roseColor)
-                    // Rotated directly from state — deliberately NOT animated. The previous
-                    // Animatable + LaunchedEffect(target) restarted a 220 ms tween on every
-                    // sensor sample (~50 Hz), so the needle never finished a movement and
-                    // looked sluggish. CircularSmoother already smooths, upstream.
-                    rotate((state.arrowDeg ?: 0.0).toFloat()) { drawArrow(arrowColor) }
-                }
-            }
+    Column(modifier = Modifier.fillMaxSize()) {
+        // ---------------------------------------------------------------- top corners
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            CornerReadout(
+                label = stringResource(R.string.label_destination),
+                value = state.destination?.name ?: stringResource(R.string.no_destination_yet),
+                alignment = Alignment.Start,
+                labelAbove = true,
+                modifier = Modifier
+                    .weight(1f)
+                    .pointerInput(Unit) { detectTapGestures { onPickDestination() } },
+                valueColor = if (state.destination == null) tokens.label
+                else MaterialTheme.colorScheme.onSurface,
+            )
+            CornerReadout(
+                label = stringResource(R.string.label_distance),
+                value = state.distanceMeters
+                    ?.let { Format.distance(it, units, numberLocale).text(context) }
+                    ?: dash,
+                alignment = Alignment.End,
+                labelAbove = true,
+                modifier = Modifier.weight(1f),
+                valueColor = if (stale) tokens.label else MaterialTheme.colorScheme.onSurface,
+            )
         }
 
-        when (mode) {
-            ArrowMode.TARGET -> {
-                state.distanceMeters?.let { d ->
-                    Text(
-                        text = Format.distance(d, units, numberLocale).text(context),
-                        style = MaterialTheme.typography.displayLarge,
-                        color = if (stale) MaterialTheme.colorScheme.onSurfaceVariant
-                        else MaterialTheme.colorScheme.onBackground,
-                    )
-                }
-                state.bearingToDestinationDeg?.let { b ->
-                    Text(
-                        text = Format.bearing(b, numberLocale).text(context),
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                state.destination?.let {
-                    Text(
-                        text = it.name,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            // At arm's length from the target the bearing to it is GNSS noise, so the needle
-            // goes back to being a compass and the screen says why. Without this the arrow
-            // swings to a new "direction to target" on every fix — the 1 Hz twitch on device.
-            ArrowMode.ARRIVED -> {
-                // Same distance readout as TARGET — that is the number the user came for.
-                // Only the bearing line is replaced, because the bearing is the part that
-                // has stopped being information.
-                state.distanceMeters?.let { d ->
-                    Text(
-                        text = Format.distance(d, units, numberLocale).text(context),
-                        style = MaterialTheme.typography.displayLarge,
-                        color = if (stale) MaterialTheme.colorScheme.onSurfaceVariant
-                        else MaterialTheme.colorScheme.onBackground,
-                    )
-                }
-                Text(
-                    text = stringResource(R.string.arrived_title),
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                state.destination?.let {
-                    Text(
-                        text = it.name,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Text(
-                    text = stringResource(R.string.arrived_explanation),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
-                )
-            }
-
-            ArrowMode.NORTH -> {
-                Text(
-                    text = state.headingDeg?.let {
-                        Format.bearing(it, numberLocale).text(context)
-                    } ?: "—",
-                    style = MaterialTheme.typography.displayLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Text(
-                    text = stringResource(
-                        if (state.destination == null) R.string.pointing_north_no_destination
-                        else R.string.pointing_north_waiting_fix,
-                    ),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 24.dp),
-                )
-                // Declination needs a position, so with no fix this really is magnetic north.
-                // Under a degree of error in Britain, over twenty in northern Canada — not
-                // something to leave the user to guess at.
-                if (state.headingIsMagnetic) {
-                    Text(
-                        text = stringResource(R.string.magnetic_north_notice),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(top = 6.dp, start = 24.dp, end = 24.dp),
-                    )
-                }
-                if (state.destination == null) {
-                    Text(
-                        text = stringResource(R.string.tap_destinations_hint),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
+        // ---------------------------------------------------------------- the needle
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center,
+        ) {
+            BoxWithConstraints {
+                val side = min(maxWidth.value, maxHeight.value).dp
+                // THE ARROW MUST NEVER MIRROR.
+                //
+                // Compose flips a Canvas's coordinate system under an RTL layout direction,
+                // which is right for UI chrome and catastrophic here: this needle points at a
+                // geographic bearing, so mirroring it sends an Arabic-reading user the wrong
+                // way across an east-west axis while looking completely normal to a reviewer
+                // who does not read Arabic. North is north in every language. Forcing Ltr for
+                // the drawing scope pins the rose and the needle to real-world geometry; the
+                // readouts around them are outside this provider and still lay out RTL.
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    Canvas(
                         modifier = Modifier
-                            .padding(top = 8.dp)
-                            .pointerInput(Unit) {
-                                detectTapGestures { onPickDestination() }
-                            },
-                    )
+                            .size(side * 0.98f)
+                            .aspectRatio(1f),
+                    ) {
+                        drawCompassRose(tokens.divider)
+                        val r = size.minDimension / 2f * 0.92f
+                        val cy = size.height / 2f
+                        val brush = mutedArrow?.let { SolidColor(it) }
+                            ?: tokens.arrowBrush(tipY = cy - r, tailY = cy + r * 0.62f)
+                        // Rotated directly from state — deliberately NOT animated. The previous
+                        // Animatable + LaunchedEffect(target) restarted a 220 ms tween on every
+                        // sensor sample (~50 Hz), so the needle never finished a movement and
+                        // looked sluggish. CircularSmoother already smooths, upstream.
+                        rotate((state.arrowDeg ?: 0.0).toFloat()) { drawArrow(brush) }
+                    }
                 }
             }
-
-            ArrowMode.NONE -> Unit
         }
 
-        if (uncalibrated) {
-            Warning(stringResource(R.string.compass_unreliable))
+        // ---------------------------------------------------------------- bottom corners
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            CornerReadout(
+                label = stringResource(R.string.label_speed),
+                value = state.fix?.speedMps
+                    ?.let { Format.speed(it, units, numberLocale).text(context) }
+                    ?: dash,
+                alignment = Alignment.Start,
+                labelAbove = false,
+                modifier = Modifier.weight(1f),
+            )
+            CornerReadout(
+                label = stringResource(R.string.label_direction),
+                value = state.headingDeg?.let {
+                    stringArrayResource(R.array.compass_points)[Format.compassPointIndex(it)]
+                } ?: dash,
+                alignment = Alignment.End,
+                labelAbove = false,
+                modifier = Modifier.weight(1f),
+            )
         }
+
+        if (uncalibrated) Notice(stringResource(R.string.compass_unreliable))
         val targeting = mode == ArrowMode.TARGET || mode == ArrowMode.ARRIVED
         if (targeting && state.quality == FixQuality.STALE) {
-            Warning(stringResource(R.string.position_out_of_date))
+            Notice(stringResource(R.string.position_out_of_date))
+        }
+        if (mode == ArrowMode.ARRIVED) {
+            Notice(stringResource(R.string.arrived_title), Tone.GOOD)
+            Notice(stringResource(R.string.arrived_explanation), Tone.INFO)
+        }
+        if (mode == ArrowMode.NORTH) {
+            Notice(
+                stringResource(
+                    if (state.destination == null) R.string.pointing_north_no_destination
+                    else R.string.pointing_north_waiting_fix,
+                ),
+                Tone.INFO,
+            )
+        }
+        if (state.headingIsMagnetic) {
+            Notice(stringResource(R.string.magnetic_north_notice), Tone.INFO)
         }
     }
 }
@@ -439,19 +419,32 @@ private fun DrawScope.drawCompassRose(color: Color) {
     }
 }
 
-private fun DrawScope.drawArrow(color: Color) {
+/**
+ * The needle: a swept dart, not a triangle.
+ *
+ * Proportions follow the reference — the trailing points reach much wider and further back than
+ * a plain triangle's, and the tail notch is deep, which is what makes it read as a dart rather
+ * than a wedge at this size. Width across the trailing points is about 0.77 of the total length.
+ *
+ * [brush] is a two-stop fill along the arrow's own axis, bright at the tip and deep at the tail.
+ * That is the one place this design keeps a gradient, and it is structure rather than gloss: a
+ * single flat orange shape filling most of a black screen reads as unfinished, and the shading
+ * is what gives the needle a direction you can see at a glance. Because the whole drawing scope
+ * is rotated, the shading rotates with it.
+ */
+private fun DrawScope.drawArrow(brush: Brush) {
     val cx = size.width / 2f
     val cy = size.height / 2f
-    val r = size.minDimension / 2f * 0.72f
+    val r = size.minDimension / 2f * 0.92f
 
     val path = Path().apply {
         moveTo(cx, cy - r)                        // tip
-        lineTo(cx + r * 0.42f, cy + r * 0.55f)    // right shoulder
-        lineTo(cx, cy + r * 0.22f)                // tail notch
-        lineTo(cx - r * 0.42f, cy + r * 0.55f)    // left shoulder
+        lineTo(cx + r * 0.62f, cy + r * 0.62f)    // trailing point
+        lineTo(cx, cy + r * 0.10f)                // tail notch, deep
+        lineTo(cx - r * 0.62f, cy + r * 0.62f)    // trailing point
         close()
     }
-    drawPath(path, color)
+    drawPath(path, brush)
 }
 
 @Composable
@@ -504,23 +497,32 @@ private fun Chip(text: String, emphasised: Boolean = false) {
     }
 }
 
+/** How loud a [Notice] is. Colour only — the layout is identical, so nothing jumps. */
+private enum class Tone { WARN, INFO, GOOD }
+
+/**
+ * A line of explanation under the arrow.
+ *
+ * Flat: coloured text on the black background rather than a tinted card. At this palette a card
+ * behind the text would be the only lifted surface on the screen and would compete with the
+ * needle, which is the thing that must dominate.
+ */
 @Composable
-private fun Warning(text: String) {
-    Card(
+private fun Notice(text: String, tone: Tone = Tone.WARN) {
+    val tokens = AppTheme.tokens
+    Text(
+        text = text,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.16f),
-        ),
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(12.dp),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.error,
-        )
-    }
+            .padding(top = 6.dp),
+        style = MaterialTheme.typography.bodyMedium,
+        color = when (tone) {
+            Tone.WARN -> MaterialTheme.colorScheme.error
+            Tone.INFO -> tokens.label
+            Tone.GOOD -> tokens.good
+        },
+        textAlign = TextAlign.Center,
+    )
 }
 
 /** No rotation vector, no accelerometer+magnetometer pair, and not moving. Rare but real. */

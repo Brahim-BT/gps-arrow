@@ -11,6 +11,7 @@
     <!-- Product name and tabs -->
     <string name="app_name">GPS Arrow</string>
     <string name="navigate_here">التوجه إلى هنا</string>
+    <string name="app_subtitle">الملاح</string>
     <string name="tab_arrow">السهم</string>
     <string name="tab_destinations">الوجهات</string>
     <string name="tab_map">الخريطة</string>
@@ -31,6 +32,17 @@
     <string name="position_out_of_date">الموقع قديم — جارٍ البحث عن الأقمار الصناعية.</string>
     <string name="no_compass_title">لا توجد بوصلة</string>
     <string name="no_compass_body">لا يحتوي هذا الجهاز على مستشعر بوصلة صالح. سيعمل السهم بمجرد أن تبدأ بالتحرك، مستخدماً اتجاه سيرك من GPS.</string>
+
+    <!-- Arrow screen corner readouts -->
+    <string name="label_destination">الوجهة</string>
+    <string name="label_distance">المسافة</string>
+    <string name="label_speed">السرعة</string>
+    <string name="label_direction">الاتجاه</string>
+    <string name="no_destination_yet">لم تُختَر</string>
+    <string name="value_unknown">—</string>
+    <string name="unit_kmh">%1$s كم/س</string>
+    <string name="unit_mph">%1$s ميل/س</string>
+    <string name="unit_knots">%1$s عقدة</string>
 
     <!-- Status chips -->
     <string name="chip_accuracy">±%1$s م</string>
@@ -57,6 +69,7 @@
 
     <!-- Destinations list -->
     <string name="destinations_title">الوجهات</string>
+    <string name="select_destination">اختر وجهة</string>
     <string name="search">بحث</string>
     <string name="search_placeholder">الاسم أو الملاحظة</string>
     <string name="sort_needs_position">يتطلب تحديد الموقع</string>

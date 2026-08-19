@@ -14,6 +14,8 @@ import dev.gpsarrow.core.LengthUnit
 import dev.gpsarrow.core.NavigationState
 import dev.gpsarrow.core.ParseProblem
 import dev.gpsarrow.core.ParseResult
+import dev.gpsarrow.core.SpeedReadout
+import dev.gpsarrow.core.SpeedUnit
 import java.util.Locale
 
 /**
@@ -72,6 +74,33 @@ private fun LengthUnit.formatRes(): Int = when (this) {
     LengthUnit.FEET -> R.string.unit_feet
     LengthUnit.MILES -> R.string.unit_miles
     LengthUnit.NAUTICAL_MILES -> R.string.unit_nautical_miles
+}
+
+fun SpeedReadout.text(context: Context): String {
+    val withUnit = context.getString(unit.formatRes(), value)
+    return if (isLowerBound) context.getString(R.string.distance_under, withUnit) else withUnit
+}
+
+private fun SpeedUnit.formatRes(): Int = when (this) {
+    SpeedUnit.KMH -> R.string.unit_kmh
+    SpeedUnit.MPH -> R.string.unit_mph
+    SpeedUnit.KNOTS -> R.string.unit_knots
+}
+
+/**
+ * A saved point's timestamp, in the reader's language but always in Latin digits.
+ *
+ * The platform formatters honour the user's 12/24-hour setting, which a hand-rolled pattern
+ * would not, so they do the work and [Format.latinDigits] enforces the app-wide digit rule on
+ * the way out. Unlike the quick-save *name*, which is stored and must never change language,
+ * this is rendered fresh on every frame and follows whatever language is active.
+ */
+fun formatTimestamp(context: Context, millis: Long): String {
+    if (millis <= 0L) return ""
+    val date = java.util.Date(millis)
+    val d = android.text.format.DateFormat.getDateFormat(context).format(date)
+    val t = android.text.format.DateFormat.getTimeFormat(context).format(date)
+    return ltrIsolate(Format.latinDigits("$d, $t"))
 }
 
 fun BearingReadout.text(context: Context): String {

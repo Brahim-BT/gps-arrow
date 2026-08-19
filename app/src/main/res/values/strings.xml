@@ -11,6 +11,7 @@
     <!-- Product name and tabs -->
     <string name="app_name">GPS Arrow</string>
     <string name="navigate_here">Navigate here</string>
+    <string name="app_subtitle">NAVIGATOR</string>
     <string name="tab_arrow">Arrow</string>
     <string name="tab_destinations">Destinations</string>
     <string name="tab_map">Map</string>
@@ -31,6 +32,17 @@
     <string name="position_out_of_date">Position is out of date — searching for satellites.</string>
     <string name="no_compass_title">No compass</string>
     <string name="no_compass_body">This device has no usable compass sensor. The arrow will work once you start moving, using your GPS course instead.</string>
+
+    <!-- Arrow screen corner readouts -->
+    <string name="label_destination">Destination</string>
+    <string name="label_distance">Distance</string>
+    <string name="label_speed">Speed</string>
+    <string name="label_direction">Direction</string>
+    <string name="no_destination_yet">None chosen</string>
+    <string name="value_unknown">—</string>
+    <string name="unit_kmh">%1$s km/h</string>
+    <string name="unit_mph">%1$s mph</string>
+    <string name="unit_knots">%1$s kn</string>
 
     <!-- Status chips -->
     <string name="chip_accuracy">±%1$s m</string>
@@ -57,6 +69,7 @@
 
     <!-- Destinations list -->
     <string name="destinations_title">Destinations</string>
+    <string name="select_destination">Select destination</string>
     <string name="search">Search</string>
     <string name="search_placeholder">Name or note</string>
     <string name="sort_needs_position">needs a position fix</string>

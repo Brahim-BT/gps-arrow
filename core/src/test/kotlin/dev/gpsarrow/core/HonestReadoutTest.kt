@@ -164,6 +164,57 @@ class HonestReadoutTest {
         assertEquals("1,2", Format.distance(1_234.0, DistanceUnits.METRIC, Locale.FRANCE).value)
     }
 
+    // ------------------------------------------------------------------ the speed floor
+
+    @Test
+    fun `speed below walking pace is a bound, not a measurement`() {
+        // The same principle as the distance floor, for the same reason: a stationary receiver
+        // reports a speed, and it is the very noise that makes a stationary course-over-ground
+        // useless — which HeadingArbiter already refuses to trust. Printing "1.3 km/h" for
+        // someone standing still is a measurement the hardware cannot support.
+        listOf(0.0f, 0.5f, 1.0f, 1.38f).forEach { mps ->
+            val r = Format.speed(mps, DistanceUnits.METRIC)
+            assertTrue("at $mps m/s", r.isLowerBound)
+            assertEquals("at $mps m/s", "5.0", r.value)
+            assertEquals(SpeedUnit.KMH, r.unit)
+        }
+        // 1.4 m/s is 5.04 km/h, just over, and reads as a real measurement.
+        Format.speed(1.4f, DistanceUnits.METRIC).let {
+            assertFalse(it.isLowerBound)
+            assertEquals("5.0", it.value)
+        }
+    }
+
+    @Test
+    fun `speed converts and rounds the same way in every unit system`() {
+        assertEquals("7.2", Format.speed(2.0f, DistanceUnits.METRIC).value)
+        assertEquals("50.0", Format.speed(13.9f, DistanceUnits.METRIC).value)
+        assertEquals("100.1", Format.speed(27.8f, DistanceUnits.METRIC).value)
+
+        assertEquals("4.5", Format.speed(2.0f, DistanceUnits.IMPERIAL).value)
+        assertEquals(SpeedUnit.MPH, Format.speed(2.0f, DistanceUnits.IMPERIAL).unit)
+
+        assertEquals("3.9", Format.speed(2.0f, DistanceUnits.NAUTICAL).value)
+        assertEquals(SpeedUnit.KNOTS, Format.speed(2.0f, DistanceUnits.NAUTICAL).unit)
+
+        // The floor is expressed in each system's own units, not left as 5.0 everywhere.
+        assertEquals("3.1", Format.speed(0f, DistanceUnits.IMPERIAL).value)
+        assertEquals("2.7", Format.speed(0f, DistanceUnits.NAUTICAL).value)
+    }
+
+    @Test
+    fun `speed obeys the Latin-digit rule like everything else numeric`() {
+        listOf(Locale.forLanguageTag("ar-MR"), Locale.forLanguageTag("fa-IR"), Locale.FRANCE)
+            .forEach { locale ->
+                DistanceUnits.entries.forEach { units ->
+                    listOf(0f, 2f, 27.8f).forEach { mps ->
+                        val v = Format.speed(mps, units, locale).value
+                        assertTrue("$locale/$units gave $v", v.hasOnlyLatinDigits())
+                    }
+                }
+            }
+    }
+
     // ------------------------------------------------------------------ interchange formats
 
     @Test

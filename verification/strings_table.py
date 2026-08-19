@@ -7,6 +7,7 @@ STRINGS = [
     ("app_name", "GPS Arrow", "GPS Arrow", "GPS Arrow"),
     # Referenced from AndroidManifest.xml for the geo: intent filter's activity label.
     ("navigate_here", "Navigate here", "Naviguer jusqu\u2019ici", "\u0627\u0644\u062a\u0648\u062c\u0647 \u0625\u0644\u0649 \u0647\u0646\u0627"),
+    ("app_subtitle", "NAVIGATOR", "NAVIGATEUR", "الملاح"),
     ("tab_arrow", "Arrow", "Flèche", "السهم"),
     ("tab_destinations", "Destinations", "Destinations", "الوجهات"),
     ("tab_map", "Map", "Carte", "الخريطة"),
@@ -47,6 +48,17 @@ STRINGS = [
      "Cet appareil n’a pas de capteur de boussole utilisable. La flèche fonctionnera dès que vous commencerez à vous déplacer, en utilisant votre cap GPS.",
      "لا يحتوي هذا الجهاز على مستشعر بوصلة صالح. سيعمل السهم بمجرد أن تبدأ بالتحرك، مستخدماً اتجاه سيرك من GPS."),
 
+    ("SECTION", "Arrow screen corner readouts", None, None),
+    ("label_destination", "Destination", "Destination", "الوجهة"),
+    ("label_distance", "Distance", "Distance", "المسافة"),
+    ("label_speed", "Speed", "Vitesse", "السرعة"),
+    ("label_direction", "Direction", "Direction", "الاتجاه"),
+    ("no_destination_yet", "None chosen", "Aucune choisie", "لم تُختَر"),
+    ("value_unknown", "—", "—", "—"),
+    ("unit_kmh", "%1$s km/h", "%1$s km/h", "%1$s كم/س"),
+    ("unit_mph", "%1$s mph", "%1$s mph", "%1$s ميل/س"),
+    ("unit_knots", "%1$s kn", "%1$s nd", "%1$s عقدة"),
+
     ("SECTION", "Status chips", None, None),
     ("chip_accuracy", "±%1$s m", "±%1$s m", "±%1$s م"),
     ("chip_accuracy_weak", "weak ±%1$s m", "faible ±%1$s m", "ضعيف ±%1$s م"),
@@ -73,6 +85,7 @@ STRINGS = [
 
     ("SECTION", "Destinations list", None, None),
     ("destinations_title", "Destinations", "Destinations", "الوجهات"),
+    ("select_destination", "Select destination", "Choisissez une destination", "اختر وجهة"),
     ("search", "Search", "Rechercher", "بحث"),
     ("search_placeholder", "Name or note", "Nom ou note", "الاسم أو الملاحظة"),
     ("sort_needs_position", "needs a position fix", "nécessite une position",

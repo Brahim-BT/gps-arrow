@@ -42,3 +42,7 @@ signing.properties
 *.log
 !.github/**
 __pycache__/
+
+# Editor backups. The agent sandbox cannot delete files in this tree,
+# so a stray *.bak must at least never reach a commit.
+*.bak
