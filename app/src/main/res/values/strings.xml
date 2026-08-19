@@ -220,6 +220,10 @@
     <string name="areas_download">Download</string>
     <string name="areas_delete">Delete</string>
     <string name="areas_switch">Switch to this level</string>
+    <string name="metered_title">You’re on mobile data</string>
+    <string name="metered_body">This download will use %1$s of mobile data.</string>
+    <string name="metered_continue">Download anyway</string>
+    <string name="metered_wait">Wait for Wi-Fi</string>
     <string name="download_progress">%1$s of %2$s</string>
     <string name="download_verifying">Checking the file…</string>
     <string name="download_cancel">Cancel</string>

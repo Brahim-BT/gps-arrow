@@ -1,6 +1,5 @@
 package dev.gpsarrow.maps
 
-import android.os.StatFs
 import dev.gpsarrow.core.DownloadDecision
 import dev.gpsarrow.core.Downloads
 import dev.gpsarrow.core.Pmtiles
@@ -80,7 +79,7 @@ class RegionDownloader(private val regionsDirectory: File) {
         when (val decision = Downloads.decide(
             expectedTotalBytes = level.bytes,
             bytesOnDisk = if (part.exists()) part.length() else 0L,
-            freeSpaceBytes = freeSpaceBytes(),
+            freeSpaceBytes = freeSpaceOn(regionsDirectory),
         )) {
             is DownloadDecision.NotEnoughSpace ->
                 return@withContext DownloadOutcome.NotEnoughSpace(decision.neededBytes, decision.freeBytes)
@@ -247,12 +246,6 @@ class RegionDownloader(private val regionsDirectory: File) {
         digest.digest().joinToString("") { "%02x".format(it) }
     }
 
-    private fun freeSpaceBytes(): Long = try {
-        StatFs(regionsDirectory.path).availableBytes
-    } catch (_: IllegalArgumentException) {
-        // The directory may not exist yet on first run; the parent is what matters.
-        StatFs(regionsDirectory.parentFile?.path ?: regionsDirectory.path).availableBytes
-    }
 }
 
 /**

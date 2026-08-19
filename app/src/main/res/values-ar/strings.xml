@@ -220,6 +220,10 @@
     <string name="areas_download">تنزيل</string>
     <string name="areas_delete">حذف</string>
     <string name="areas_switch">التبديل إلى هذا المستوى</string>
+    <string name="metered_title">أنت تستخدم بيانات الجوال</string>
+    <string name="metered_body">سيستهلك هذا التنزيل %1$s من بيانات الجوال.</string>
+    <string name="metered_continue">التنزيل على أي حال</string>
+    <string name="metered_wait">الانتظار حتى توفر Wi-Fi</string>
     <string name="download_progress">%1$s من %2$s</string>
     <string name="download_verifying">جارٍ التحقق من الملف…</string>
     <string name="download_cancel">إلغاء</string>

@@ -41,7 +41,10 @@ fun AreasScreen(
     areas: List<AreaRow>,
     storageUsedLabel: String,
     freeSpaceLabel: String,
+    meteredPrompt: String?,
     onDownload: (MapArea, AreaLevel) -> Unit,
+    onConfirmMetered: () -> Unit,
+    onDismissMetered: () -> Unit,
     onCancel: (MapArea) -> Unit,
     onDelete: (MapArea) -> Unit,
     onBack: () -> Unit,
@@ -55,6 +58,17 @@ fun AreasScreen(
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         SectionHeader(stringResource(R.string.areas_title))
+
+        // Shown only when the platform says the active connection is actually metered — a
+        // capability check, not wifi-versus-cellular. A warning that appears regardless teaches
+        // people to tap past warnings, and then it protects nobody.
+        if (meteredPrompt != null) {
+            MeteredWarning(
+                sizeLabel = meteredPrompt,
+                onContinue = onConfirmMetered,
+                onDismiss = onDismissMetered,
+            )
+        }
 
         Text(
             stringResource(R.string.areas_one_level_note),
@@ -85,6 +99,42 @@ fun AreasScreen(
         }
 
         TextButton(onClick = onBack) { Text(stringResource(R.string.map_back_to_arrow)) }
+    }
+}
+
+/**
+ * A warning, not an obstacle.
+ *
+ * It names the actual megabytes rather than saying "large", and "Download anyway" is a real
+ * button rather than a buried option — the person walking into a desert with no wifi in reach is
+ * making the right call, and the app should not make them fight for it.
+ */
+@Composable
+private fun MeteredWarning(
+    sizeLabel: String,
+    onContinue: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            stringResource(R.string.metered_title),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Notice(stringResource(R.string.metered_body, sizeLabel), Tone.WARN)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Button(onClick = onContinue, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.metered_continue))
+            }
+            OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.metered_wait))
+            }
+        }
     }
 }
 

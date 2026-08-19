@@ -164,3 +164,21 @@ class RegionIndex(private val context: Context) {
         const val EXTENSION = ".pmtiles"
     }
 }
+
+/**
+ * Free space on the volume holding [directory].
+ *
+ * One implementation, in the module that owns the storage concern. There were briefly two — a
+ * private copy in RegionDownloader and a top-level one in the UI layer — which is how the same
+ * value ends up computed two subtly different ways. The static sweep flagged the collision.
+ */
+fun freeSpaceOn(directory: java.io.File): Long = try {
+    android.os.StatFs(directory.path).availableBytes
+} catch (_: IllegalArgumentException) {
+    // The directory may not exist yet on first run; the parent is what has the volume.
+    try {
+        android.os.StatFs(directory.parentFile?.path ?: directory.path).availableBytes
+    } catch (_: IllegalArgumentException) {
+        0L
+    }
+}

@@ -66,11 +66,20 @@ for src in walk(".kt"):
         re.M,
     ):
         declared[f"{pkg}.{m.group(2)}"] = src
-    # top-level functions and vals
-    for m in re.finditer(r"^(?:fun|val|const val)\s+(?:<[^>]+>\s+)?(\w+)", text, re.M):
+    # Top-level functions and vals.
+    #
+    # The modifier prefix is not optional decoration. This regex used to require the line to
+    # begin with `fun`, so `internal fun megabytes(...)` — legal, and importable anywhere in the
+    # same module — was never indexed, and any import of it was reported as unresolved. The class
+    # regex above already allowed modifiers; this one did not, so the two disagreed about what
+    # counts as a declaration. `internal` is used throughout this codebase, which made that a
+    # false positive waiting to happen rather than a theoretical gap.
+    MODS = r"^(?:@\w+\s+)*(?:public |internal |private |inline |suspend |external |tailrec )*"
+    for m in re.finditer(MODS + r"(?:fun|val|const val|lateinit var|var)\s+(?:<[^>]+>\s+)?(\w+)",
+                         text, re.M):
         declared[f"{pkg}.{m.group(1)}"] = src
     # extension functions declared at top level:  fun Foo.bar()
-    for m in re.finditer(r"^fun\s+[\w.<>]+\.(\w+)\s*\(", text, re.M):
+    for m in re.finditer(MODS + r"fun\s+[\w.<>]+\.(\w+)\s*\(", text, re.M):
         declared[f"{pkg}.{m.group(1)}"] = src
 
 for src in walk(".kt"):

@@ -220,6 +220,10 @@
     <string name="areas_download">Télécharger</string>
     <string name="areas_delete">Supprimer</string>
     <string name="areas_switch">Passer à ce niveau</string>
+    <string name="metered_title">Vous êtes en données mobiles</string>
+    <string name="metered_body">Ce téléchargement utilisera %1$s de données mobiles.</string>
+    <string name="metered_continue">Télécharger quand même</string>
+    <string name="metered_wait">Attendre le Wi-Fi</string>
     <string name="download_progress">%1$s sur %2$s</string>
     <string name="download_verifying">Vérification du fichier…</string>
     <string name="download_cancel">Annuler</string>

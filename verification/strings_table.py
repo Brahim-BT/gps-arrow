@@ -358,6 +358,17 @@ STRINGS = [
     ("areas_delete", "Delete", "Supprimer", "حذف"),
     ("areas_switch", "Switch to this level", "Passer à ce niveau", "التبديل إلى هذا المستوى"),
 
+    # Metered-data warning. Names the real number, because "a large download" is not actionable
+    # and "133 MB" is. It warns and lets them proceed: it is their data, and someone deliberately
+    # downloading a map before heading somewhere with no signal is the case that matters most.
+    ("metered_title", "You’re on mobile data", "Vous êtes en données mobiles",
+     "أنت تستخدم بيانات الجوال"),
+    ("metered_body", "This download will use %1$s of mobile data.",
+     "Ce téléchargement utilisera %1$s de données mobiles.",
+     "سيستهلك هذا التنزيل %1$s من بيانات الجوال."),
+    ("metered_continue", "Download anyway", "Télécharger quand même", "التنزيل على أي حال"),
+    ("metered_wait", "Wait for Wi-Fi", "Attendre le Wi-Fi", "الانتظار حتى توفر Wi-Fi"),
+
     ("download_progress", "%1$s of %2$s", "%1$s sur %2$s", "%1$s من %2$s"),
     ("download_verifying", "Checking the file…", "Vérification du fichier…",
      "جارٍ التحقق من الملف…"),

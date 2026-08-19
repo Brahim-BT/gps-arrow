@@ -35,6 +35,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.gpsarrow.maps.AreaLevel
+import dev.gpsarrow.maps.MapArea
+import dev.gpsarrow.maps.RegionIndex
+import dev.gpsarrow.service.MapDownloadService
+import dev.gpsarrow.service.MapDownloads
+import dev.gpsarrow.ui.AreasScreen
+import dev.gpsarrow.ui.rememberAreaRows
+import dev.gpsarrow.ui.megabytes
+import dev.gpsarrow.maps.freeSpaceOn
+import dev.gpsarrow.ui.isMeteredConnection
 import dev.gpsarrow.core.Destination
 import dev.gpsarrow.core.DestinationParser
 import dev.gpsarrow.core.CoordinateFormat
@@ -227,6 +237,14 @@ private fun AppRoot(
     var mapEverOpened by rememberSaveable { mutableStateOf(false) }
     if (tab == AppTab.MAP) mapEverOpened = true
 
+    // The areas list presents over the Map tab, the way the editor presents over Destinations.
+    // Saveable so a rotation mid-download does not drop the user back to the map.
+    var showAreas by rememberSaveable { mutableStateOf(false) }
+    val regionIndex = remember { RegionIndex(context.applicationContext) }
+    val downloadState by MapDownloads.state.collectAsStateWithLifecycle()
+    // Pending confirmation for a download over a metered connection: the level awaiting a yes.
+    var meteredPrompt by remember { mutableStateOf<Pair<MapArea, AreaLevel>?>(null) }
+
     val snackbarHost = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val units = DistanceUnits.METRIC   // wire to a settings store in v0.2
@@ -249,6 +267,18 @@ private fun AppRoot(
     // and a confirmation on every press.
     val backAction: (() -> Unit)? = when {
         showDiagnostics && editor == null && tab == AppTab.ARROW -> ({ showDiagnostics = false })
+        // The metered-data prompt is inline rather than a Dialog window, so unlike the delete
+        // AlertDialog it does NOT consume back itself and has to be listed here. It comes before
+        // the areas case: a press with it open must dismiss the prompt, not the list underneath.
+        //
+        // `&& showAreas` is not redundant. The prompt is only reachable from the areas list, but
+        // it is plain state — nothing stops it outliving a tab switch, and a back press then
+        // dismissing an invisible prompt would look like a swallowed press. Gating on the screen
+        // that can show it makes that unrepresentable.
+        meteredPrompt != null && showAreas -> ({ meteredPrompt = null })
+        // The areas list presents over the Map tab, so closing it lands on the map by
+        // construction — the tab underneath is already MAP.
+        showAreas -> ({ showAreas = false; meteredPrompt = null })
         // The editor always presents over Destinations, so closing it lands there by
         // construction — the tab underneath is already DESTINATIONS.
         editor != null -> ({ editor = null })
@@ -516,12 +546,59 @@ private fun AppRoot(
                     )
 
                     AppTab.MAP -> if (mapEverOpened) {
-                        MapScreen(
-                            tier = viewModel.mapTier(),
-                            onBack = { tab = AppTab.ARROW },
-                            onOpenRegions = { /* v1: region browser */ },
-                            onRemindWhenOnline = { /* v1: WorkManager job */ },
-                        )
+                        if (showAreas) {
+                            val rows = rememberAreaRows(
+                                context = context,
+                                index = regionIndex,
+                                download = downloadState,
+                                position = state.fix?.position,
+                                locale = context.numberLocale(),
+                            )
+                            AreasScreen(
+                                areas = rows,
+                                storageUsedLabel = megabytes(
+                                    regionIndex.bytesUsed(),
+                                    context.numberLocale(),
+                                ),
+                                freeSpaceLabel = megabytes(
+                                    freeSpaceOn(regionIndex.regionsDirectory),
+                                    context.numberLocale(),
+                                ),
+                                meteredPrompt = meteredPrompt?.let { (_, level) ->
+                                    megabytes(level.bytes, context.numberLocale())
+                                },
+                                onDownload = { area, level ->
+                                    // Warn, do not block. Someone deliberately downloading a map
+                                    // before heading somewhere with no signal is the most
+                                    // important case this app has, and it is their data.
+                                    if (isMeteredConnection(context)) {
+                                        meteredPrompt = area to level
+                                    } else {
+                                        MapDownloadService.start(context, area, level)
+                                    }
+                                },
+                                onConfirmMetered = {
+                                    meteredPrompt?.let { (area, level) ->
+                                        MapDownloadService.start(context, area, level)
+                                    }
+                                    meteredPrompt = null
+                                },
+                                onDismissMetered = { meteredPrompt = null },
+                                onCancel = { MapDownloadService.cancel(context) },
+                                onDelete = { area ->
+                                    regionIndex.delete(area.id)
+                                    MapDownloads.clear()
+                                },
+                                onBack = { showAreas = false; meteredPrompt = null },
+                            )
+                        } else {
+                            MapScreen(
+                                tier = viewModel.mapTier(),
+                                onBack = { tab = AppTab.ARROW },
+                                onOpenRegions = { showAreas = true },
+                                onRemindWhenOnline = { /* v1: WorkManager job */ },
+                            )
+                        }
                     }
                 }
             }
