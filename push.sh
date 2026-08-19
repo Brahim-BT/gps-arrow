@@ -58,6 +58,22 @@ if [ -n "$LITTER" ]; then
     echo "$LITTER" | xargs rm -f
 fi
 
+# ---------------------------------------------------------------- executable bits
+#
+# A shell script committed without its executable bit is one that fails for whoever clones next,
+# with a "permission denied" that looks like their problem rather than ours. The agent's sandbox
+# creates files without it, so this is a recurring shape rather than a one-off: verification's
+# hosted-asset check went in as 100644 and had to be chmod'd by hand on the other side.
+#
+# Every .sh in this repo is meant to be run, so the invariant is simple enough to enforce.
+while IFS= read -r script; do
+    [ -n "$script" ] || continue
+    if [ ! -x "$script" ]; then
+        echo "Marking $script executable (it is a script and was not)."
+        chmod +x "$script"
+    fi
+done < <(find . -name '*.sh' -not -path './.git/*' 2>/dev/null)
+
 # ---------------------------------------------------------------- stage
 git add -A
 

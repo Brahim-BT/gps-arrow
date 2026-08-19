@@ -21,6 +21,10 @@ Array List MutableList Map MutableMap Set MutableSet Collection Iterable Sequenc
 IntArray LongArray FloatArray DoubleArray BooleanArray CharArray ByteArray ShortArray
 Pair Triple Comparable Number Enum Throwable Exception RuntimeException Error
 IllegalArgumentException IllegalStateException NumberFormatException
+UnsupportedOperationException IndexOutOfBoundsException ClassCastException
+ArithmeticException NullPointerException InterruptedException SecurityException
+UnsatisfiedLinkError NoClassDefFoundError OutOfMemoryError StackOverflowError
+LinkageError AssertionError
 StringBuilder Regex RegexOption MatchResult Result Lazy Function
 Math System Thread Runnable Object Class Void Character Integer
 Suppress Deprecated Volatile JvmStatic JvmField JvmOverloads Throws OptIn

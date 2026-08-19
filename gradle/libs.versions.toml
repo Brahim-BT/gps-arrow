@@ -19,7 +19,10 @@ junit = "4.13.2"
 # --- v1 (maps) -------------------------------------------------------------
 # MapLibre >= 11.5.0 is required for 16 KB page-size support (Play mandate),
 # and >= 11.7.0 for the pmtiles:// protocol used by the offline region design.
-maplibre = "11.11.0"
+# 11.13.5: latest stable. >= 11.5.0 is required for 16 KB page support (Play
+# mandate) and >= 11.7.0 for the pmtiles:// protocol. The 11.13 line has five
+# patch releases behind it, which is why it is preferred over the newer minor.
+maplibre = "11.13.5"
 
 # --- v2 (routing) ----------------------------------------------------------
 brouter = "1.7.8"

@@ -69,6 +69,9 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
 
+    // v1 map renderer. Native .so per ABI — ship an App Bundle, not a universal APK.
+    implementation(libs.maplibre.android.sdk)
+
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.junit)
