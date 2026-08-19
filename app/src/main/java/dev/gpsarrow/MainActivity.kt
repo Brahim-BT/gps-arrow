@@ -400,7 +400,7 @@ private fun AppRoot(
                 when (tab) {
                     AppTab.ARROW -> ArrowScreen(
                         state = state,
-                        locationEnabled = gnss.locationEnabled,
+                        locationState = gnss.location,
                         satellitesUsed = gnss.satellitesUsed,
                         satellitesVisible = gnss.satellitesVisible,
                         degraded = degraded,

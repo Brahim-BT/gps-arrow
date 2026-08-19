@@ -25,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.gpsarrow.R
+import dev.gpsarrow.location.LocationEngine
 import dev.gpsarrow.core.FixQuality
 import dev.gpsarrow.core.CoordinateFormat
 import dev.gpsarrow.core.Format
@@ -50,7 +51,7 @@ import dev.gpsarrow.ui.theme.AppTheme
 @Composable
 fun PositionStatus(
     state: NavigationState,
-    locationEnabled: Boolean,
+    locationState: LocationEngine.LocationAvailability,
     satellitesUsed: Int,
     satellitesVisible: Int,
     format: CoordinateFormat,
@@ -62,7 +63,12 @@ fun PositionStatus(
     val numberLocale = rememberNumberLocale()
     val tokens = AppTheme.tokens
     when {
-        !locationEnabled -> Column(
+        // ONLY on a determined DISABLED. UNKNOWN falls through to the ordinary acquiring state,
+        // which says nothing it cannot stand behind. Asserting a problem from "we have not looked
+        // yet" is what sent every new user to a settings screen they did not need — and someone
+        // who follows that instruction, finds the setting already on, and comes back to the same
+        // message concludes the app is broken.
+        locationState == LocationEngine.LocationAvailability.DISABLED -> Column(
             modifier = modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp),

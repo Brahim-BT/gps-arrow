@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import dev.gpsarrow.Degradation
 import dev.gpsarrow.Diagnostic
 import dev.gpsarrow.R
+import dev.gpsarrow.location.LocationEngine
 import dev.gpsarrow.core.ArrowMode
 import dev.gpsarrow.core.CoordinateFormat
 import dev.gpsarrow.core.DistanceUnits
@@ -61,7 +62,7 @@ import kotlin.math.min
 fun ArrowScreen(
     state: NavigationState,
     /** The OS location master switch. Distinct from this app's permission — see PositionStatus. */
-    locationEnabled: Boolean,
+    locationState: LocationEngine.LocationAvailability,
     satellitesUsed: Int,
     satellitesVisible: Int,
     /** Subsystems that failed but did not take the app down. Empty in the normal case. */
@@ -92,7 +93,7 @@ fun ArrowScreen(
         if (!showDiagnostics) {
             PositionStatus(
                 state = state,
-                locationEnabled = locationEnabled,
+                locationState = locationState,
                 satellitesUsed = satellitesUsed,
                 satellitesVisible = satellitesVisible,
                 format = positionFormat,

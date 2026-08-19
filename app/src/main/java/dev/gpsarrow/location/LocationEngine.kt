@@ -43,12 +43,31 @@ class LocationEngine(private val context: Context) {
     private val locationManager: LocationManager? =
         ContextCompat.getSystemService(context, LocationManager::class.java)
 
+    /**
+     * The OS location master switch — three states, not two.
+     *
+     * [UNKNOWN] is the whole point. A Boolean cannot distinguish "we have not looked yet" from
+     * "we looked and it is off", and every place that conflated them produced the same bug: the
+     * app telling a user to enable something that was already enabled. That is worse than saying
+     * nothing, because someone who follows the instruction finds the setting already on and
+     * concludes the app is broken.
+     *
+     * The rule that follows: **never assert a problem from [UNKNOWN]**. Showing nothing for a
+     * moment is fine; showing a false instruction is not.
+     */
+    enum class LocationAvailability { UNKNOWN, ENABLED, DISABLED }
+
     data class Status(
         /** The OS location master switch, not this app's permission. */
-        val locationEnabled: Boolean,
+        val location: LocationAvailability,
         val satellitesVisible: Int,
         val satellitesUsed: Int,
-    )
+    ) {
+        companion object {
+            /** What to show before anything has been determined. Asserts nothing. */
+            val UNKNOWN = Status(LocationAvailability.UNKNOWN, 0, 0)
+        }
+    }
 
     enum class Rate(val intervalMs: Long, val minDistanceM: Float) {
         /** Active navigation. */
@@ -74,16 +93,24 @@ class LocationEngine(private val context: Context) {
      * `isLocationEnabled` (API 28+) is the real master switch. Below that, GPS_PROVIDER being
      * enabled is the closest available proxy.
      */
-    fun isLocationEnabled(): Boolean {
-        val lm = locationManager ?: return false
+    fun locationAvailability(): LocationAvailability {
+        val lm = locationManager ?: return LocationAvailability.UNKNOWN
         return runCatching {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val on = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 lm.isLocationEnabled
             } else {
                 lm.isProviderEnabled(LocationManager.GPS_PROVIDER)
             }
-        }.getOrDefault(false)
+            if (on) LocationAvailability.ENABLED else LocationAvailability.DISABLED
+        }.getOrDefault(LocationAvailability.UNKNOWN)   // a throw means we do not know, not "off"
     }
+
+    /**
+     * Note this needs **no permission**. `isLocationEnabled` reports a device setting, not
+     * anything about this app's access, and gating it behind `hasPermission()` is what made the
+     * first launch report location as off while the permission dialog was still on screen.
+     */
+    fun isLocationEnabled(): Boolean = locationAvailability() == LocationAvailability.ENABLED
 
     /**
      * Best available position with no waiting — used to render something the instant the app
@@ -198,13 +225,24 @@ class LocationEngine(private val context: Context) {
     @SuppressLint("MissingPermission")
     fun status(): Flow<Status> = callbackFlow {
         val lm = locationManager
-        if (lm == null || !hasPermission()) {
-            trySend(Status(locationEnabled = false, satellitesVisible = 0, satellitesUsed = 0))
+        if (lm == null) {
+            // No LocationManager at all: we genuinely cannot tell, so say so rather than
+            // reporting "off" and sending the user to a settings screen that will not help.
+            trySend(Status.UNKNOWN)
             awaitClose { }
             return@callbackFlow
         }
 
-        trySend(Status(isLocationEnabled(), 0, 0))
+        // The master-switch answer, emitted immediately and unconditionally.
+        //
+        // This used to sit behind `!hasPermission()`, which returned early with
+        // `locationEnabled = false` AND terminated the flow. On a first launch `startSensors()`
+        // runs from onStart() while the permission dialog is still up, so the app latched
+        // "location is off" before it had looked, and nothing re-emitted afterwards because the
+        // flow had already completed. Every new user was told to enable a setting that was
+        // already on. `isLocationEnabled` needs no permission, so there was never a reason to
+        // gate it.
+        trySend(Status(locationAvailability(), 0, 0))
 
         val callback = object : GnssStatus.Callback() {
             override fun onSatelliteStatusChanged(status: GnssStatus) {
@@ -213,7 +251,7 @@ class LocationEngine(private val context: Context) {
                     for (i in 0 until status.satelliteCount) if (status.usedInFix(i)) used++
                     satellitesVisible = status.satelliteCount
                     satellitesUsed = used
-                    trySend(Status(isLocationEnabled(), status.satelliteCount, used))
+                    trySend(Status(locationAvailability(), status.satelliteCount, used))
                 }.onFailure { Log.w(TAG, "dropped a GNSS status update", it) }
             }
         }
@@ -224,7 +262,7 @@ class LocationEngine(private val context: Context) {
         // PROVIDERS_CHANGED_ACTION is a protected system broadcast, so NOT_EXPORTED is correct.
         val providerChanges = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
-                trySend(Status(isLocationEnabled(), satellitesVisible, satellitesUsed))
+                trySend(Status(locationAvailability(), satellitesVisible, satellitesUsed))
             }
         }
         runCatching {
@@ -236,9 +274,17 @@ class LocationEngine(private val context: Context) {
             )
         }.onFailure { Log.w(TAG, "could not observe provider changes", it) }
 
-        runCatching { lm.registerGnssStatusCallback(callback, android.os.Handler(Looper.getMainLooper())) }
+        // Satellite counts are the ONLY part of this flow that needs the runtime permission.
+        // Registering it conditionally, rather than abandoning the flow when permission is
+        // absent, is what lets the master-switch state keep updating while the user is still
+        // deciding on the dialog — and keeps it correct the moment they grant it.
+        if (hasPermission()) {
+            runCatching {
+                lm.registerGnssStatusCallback(callback, android.os.Handler(Looper.getMainLooper()))
+            }.onFailure { Log.w(TAG, "could not observe GNSS status", it) }
+        }
         awaitClose {
-            runCatching { lm.unregisterGnssStatusCallback(callback) }
+            runCatching { if (hasPermission()) lm.unregisterGnssStatusCallback(callback) }
             runCatching { context.unregisterReceiver(providerChanges) }
         }
     }

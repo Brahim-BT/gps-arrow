@@ -77,7 +77,10 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow(NavigationState())
     val state: StateFlow<NavigationState> = _state.asStateFlow()
 
-    private val _gnss = MutableStateFlow(LocationEngine.Status(false, 0, 0))
+    // Starts UNKNOWN, not "off". The previous initial value asserted that location was
+    // disabled before anything had looked, so the very first frame of a first launch showed
+    // "turn on location" to a user whose location was already on.
+    private val _gnss = MutableStateFlow(LocationEngine.Status.UNKNOWN)
     val gnss: StateFlow<LocationEngine.Status> = _gnss.asStateFlow()
 
     private val _powerSaving = MutableStateFlow(false)
@@ -426,7 +429,7 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
                 latin("%d", locale, _gnss.value.satellitesUsed) + "/" +
                     latin("%d", locale, _gnss.value.satellitesVisible),
             ),
-            Diagnostic(R.string.diag_gps_enabled, _gnss.value.locationEnabled.toString()),
+            Diagnostic(R.string.diag_gps_enabled, _gnss.value.location.name),
             Diagnostic(R.string.diag_location_job, (locationJob?.isActive == true).toString()),
             Diagnostic(R.string.diag_heading_job, (headingJob?.isActive == true).toString()),
             Diagnostic(R.string.diag_heading_updates, latin("%d", locale, headingUpdateCount)),
