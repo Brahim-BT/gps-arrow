@@ -14,6 +14,8 @@ build — once you have Android Studio open, `./gradlew :core:test` is the real 
 | `WmmReferenceTest.kt.template` | Skeleton the above fills in. Not a script. |
 | `resolve_check.py` | Every capitalised identifier must resolve to something. Catches a symbol deleted out from under its uses, which the import-side check structurally cannot. Runnable alone. |
 | `exhaustive_check.py` | Every `when` over a project enum handles every constant or says `else`. Runnable alone. |
+| `sealed_check.py` | The same for sealed interfaces and classes, which `exhaustive_check.py` does not see. Added with the v1 map work, which introduced three sealed hierarchies at once. Runnable alone. |
+| `pmtiles_header_fixtures.py` | Builds PMTiles v3 headers from the spec's byte table and emits `PmtilesTest.kt`. An implementation independent of `Pmtiles.kt`, so the two agreeing means something. Re-run after changing either. |
 | `strings_table.py` | The single aligned table of every user-facing string in English, French and Arabic. |
 | `emit_strings.py` | Emits `values/`, `values-fr/` and `values-ar/` from it, then checks the three key sets and all format specifiers match. Run after editing the table; never hand-edit one language's file. |
 | `TRANSLATIONS.md` | The three languages side by side for review, with the safety-critical rows marked. |

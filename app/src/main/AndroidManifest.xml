@@ -2,9 +2,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
-      Tier 1 needs no internet at all. There is deliberately no INTERNET permission here:
-      it is added in the :maps module manifest at v1, so that a v0 build is provably offline.
+      INTERNET arrives with the v1 map download and nothing else. It is used by exactly one
+      class, RegionDownloader, to fetch region files the user explicitly asks for. The arrow,
+      the compass, the destination store and the declination model all still work with the radio
+      off, and no code path on the navigation side opens a socket.
+
+      (Until v1 this manifest carried a comment saying a v0 build is provably offline. That was
+      true and is worth not quietly losing: the guarantee is now "the arrow is offline", which is
+      narrower, and it is enforced by :maps sitting downstream with nothing on the arrow path
+      depending on it — see BUILD_PLAN.md 6.4.)
     -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
