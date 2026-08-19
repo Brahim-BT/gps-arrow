@@ -7,39 +7,21 @@ import java.io.File
 /**
  * The offline-first tiering logic, in one file.
  *
- * v0 ships this with no renderer behind it. That is deliberate: the arrow must never depend on
- * the map tier, so the tier resolution lives here as data and the :maps module (v1) supplies the
- * MapLibre view that consumes it. See BUILD_PLAN.md 6.4.
+ * The arrow must never depend on the map tier, so tier resolution lives here as data and the
+ * renderer consumes it. See BUILD_PLAN.md 6.4.
  */
 
-/** A region as advertised in the server catalogue. */
-data class RegionSummary(
-    val id: String,
-    val name: String,
-    val parentId: String?,
-    val bbox: BoundingBox,
-    val maxZoom: Int,
-    val bytes: Long,
-    val url: String,
-    val checksum: String?,
-) {
-    val approximateSizeLabel: String
-        get() = when {
-            bytes >= 1_000_000_000 -> String.format("%.1f GB", bytes / 1e9)
-            bytes >= 1_000_000 -> "${bytes / 1_000_000} MB"
-            else -> "${bytes / 1_000} kB"
-        }
-}
-
-/** A region that has been fully downloaded and verified on this device. */
-data class InstalledRegion(
-    val summary: RegionSummary,
+/** A level of an area that has been downloaded and verified on this device. */
+data class InstalledArea(
+    val area: MapArea,
+    val level: AreaLevel,
     val file: File,
     val installedAtMillis: Long,
-    val catalogueVersion: String,
 ) {
     /** The URI MapLibre reads directly. Requires MapLibre Android >= 11.7.0. */
     val pmtilesUri: String get() = "pmtiles://file://${file.absolutePath}"
+
+    val bytesOnDisk: Long get() = file.length()
 }
 
 data class BoundingBox(
@@ -51,79 +33,130 @@ data class BoundingBox(
     fun contains(p: LatLon): Boolean =
         p.lat in south..north && p.lon in west..east
 
-    /** Rough centre, good enough for "which region is nearest" ranking. */
+    /** Rough centre, good enough for "which area is nearest" ranking. */
     val center: LatLon get() = LatLon((south + north) / 2, (west + east) / 2)
 }
 
 /**
  * What the map view can show right now.
  *
- * The distinction between [ArrowOnly] and [NoDataHere] matters: the first means the feature
- * doesn't exist in this build, the second means the user can fix it by downloading something,
- * and the empty state should say which one it is.
+ * [NoDataHere] and [ArrowOnly] are kept apart deliberately: the first means the user can fix this
+ * by downloading something and [suggested] names which, the second means there is nothing to
+ * download that would help. The empty state must say which, because "download this area" is
+ * useless advice to someone standing outside every area we ship.
  */
 sealed interface MapTier {
 
-    /** No map module, or no regions installed at all. */
+    /** Nothing installed and nothing in the catalogue covers this position. */
     data object ArrowOnly : MapTier
 
-    /** Regions exist, but none covers where the user is. [suggested] names the fix. */
-    data class NoDataHere(val suggested: RegionSummary?) : MapTier
+    /** Not installed, but an area covers this position. [suggested] is that area. */
+    data class NoDataHere(val suggested: MapArea?) : MapTier
 
-    data class Available(val region: InstalledRegion) : MapTier
+    data class Available(val installed: InstalledArea) : MapTier
 }
 
 /**
  * Index of what is installed on this device.
  *
  * Scans the app-scoped external files directory: no storage permission needed, survives app
- * updates, and is removed cleanly on uninstall — which is what you want for multi-gigabyte
- * files. `MANAGE_EXTERNAL_STORAGE` would never survive Play review for this use case.
+ * updates, and is removed cleanly on uninstall — which is what you want for files this size.
+ * `MANAGE_EXTERNAL_STORAGE` would never survive Play review for this use case.
+ *
+ * **One level per area, ever.** [installFor] returns at most one entry per area id, and the
+ * downloader removes the previous file only after the replacement has verified. The invariant is
+ * enforced on disk by the filename carrying the level, so two levels of one area cannot silently
+ * coexist unnoticed — [scan] would find both and [prune] removes the stale one.
  */
 class RegionIndex(private val context: Context) {
 
-    private var installed: List<InstalledRegion> = emptyList()
-    private var catalogue: List<RegionSummary> = emptyList()
+    private var installed: List<InstalledArea> = emptyList()
+
+    /**
+     * Whether [scan] has run at least once.
+     *
+     * Without this, an index that has never scanned is indistinguishable from one that scanned
+     * and found nothing — and [tierFor] would confidently report "no map here" while a perfectly
+     * good archive sat on disk.
+     */
+    private var scanned = false
 
     val regionsDirectory: File
         get() = File(context.getExternalFilesDir(null) ?: context.filesDir, DIRECTORY)
             .apply { mkdirs() }
 
-    fun installedRegions(): List<InstalledRegion> = installed
+    fun installedAreas(): List<InstalledArea> = installed
+
+    fun installFor(areaId: String): InstalledArea? = installed.firstOrNull { it.area.id == areaId }
 
     /** Bytes used by downloaded map data — shown in the storage meter. */
     fun bytesUsed(): Long = regionsDirectory.listFiles()
         ?.filter { it.isFile && it.name.endsWith(EXTENSION) }
         ?.sumOf { it.length() } ?: 0L
 
-    fun tierFor(position: LatLon?): MapTier {
-        if (installed.isEmpty()) {
-            val suggested = position?.let { p -> catalogue.firstOrNull { it.bbox.contains(p) } }
-            return if (catalogue.isEmpty() && suggested == null) {
-                MapTier.ArrowOnly
-            } else {
-                MapTier.NoDataHere(suggested)
+    /**
+     * Rebuild the index from what is actually on disk.
+     *
+     * The filesystem is the source of truth, not a stored list: Android may delete files in
+     * `getExternalFilesDir` under storage pressure, and a remembered list would then claim a map
+     * that is gone. Re-reading is cheap and cannot disagree with reality.
+     */
+    fun scan(): List<InstalledArea> {
+        val files = regionsDirectory.listFiles().orEmpty()
+        val found = mutableListOf<InstalledArea>()
+        for (area in RegionCatalogue.ALL) {
+            for (level in area.levels) {
+                val f = files.firstOrNull { it.name == level.fileStem(area.id) + EXTENSION }
+                if (f != null && f.isFile) {
+                    found += InstalledArea(area, level, f, f.lastModified())
+                }
             }
         }
-        if (position == null) return MapTier.NoDataHere(null)
-
-        installed.firstOrNull { it.summary.bbox.contains(position) }?.let {
-            return MapTier.Available(it)
-        }
-        return MapTier.NoDataHere(catalogue.firstOrNull { it.bbox.contains(position) })
+        installed = found
+        scanned = true
+        return found
     }
 
-    /** Called by the v1 download manager once a file is verified and renamed into place. */
-    fun setInstalled(regions: List<InstalledRegion>) {
-        installed = regions
+    /** Scan once, lazily. A directory listing is cheap but not free enough to repeat per frame. */
+    private fun ensureScanned() {
+        if (!scanned) scan()
     }
 
     /**
-     * The catalogue is cached on disk so the region list stays browsable offline — a user
-     * with no signal can still see what they *would* download and how big it is.
+     * Delete any level of [areaId] other than [keep]. Called after a switch verifies.
+     *
+     * Never called before the replacement is in place: losing the old map to a download that then
+     * fails would leave the user with nothing, which is the one outcome worth designing against.
      */
-    fun setCatalogue(regions: List<RegionSummary>) {
-        catalogue = regions
+    fun prune(areaId: String, keep: AreaLevel): Int {
+        var removed = 0
+        for (entry in installed) {
+            if (entry.area.id == areaId && entry.level.detail != keep.detail) {
+                if (entry.file.delete()) removed++
+            }
+        }
+        if (removed > 0) scan()
+        return removed
+    }
+
+    fun delete(areaId: String): Boolean {
+        val entry = installFor(areaId) ?: return false
+        val ok = entry.file.delete()
+        if (ok) scan()
+        return ok
+    }
+
+    fun tierFor(position: LatLon?): MapTier {
+        ensureScanned()
+        if (position == null) {
+            return installed.firstOrNull()?.let { MapTier.Available(it) }
+                ?: MapTier.NoDataHere(null)
+        }
+        installed.firstOrNull { it.area.bbox.contains(position) }?.let {
+            return MapTier.Available(it)
+        }
+        val suggested = RegionCatalogue.covering(position)
+        return if (suggested == null) MapTier.ArrowOnly else MapTier.NoDataHere(suggested)
     }
 
     private companion object {

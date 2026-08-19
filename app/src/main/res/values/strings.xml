@@ -197,10 +197,37 @@
     <string name="map_back_to_arrow">Back to the arrow</string>
     <string name="map_none_title">No map for this area yet</string>
     <string name="map_none_arrow_works">The arrow still works — it doesn’t need maps.</string>
-    <string name="map_none_download">To see streets here, download %1$s next time you have Wi-Fi.</string>
-    <string name="map_none_download_sized">To see streets here, download %1$s (about %2$s) next time you have Wi-Fi.</string>
-    <string name="map_none_explanation">Map regions are downloaded once while you’re online, then work offline forever after.</string>
-    <string name="map_open_region_list">Open region list</string>
+    <string name="map_none_prompt">Download an offline area to see the map here.</string>
+    <string name="map_none_explanation">Areas are downloaded once while you’re online, then work offline forever after.</string>
+    <string name="map_open_region_list">Open the areas list</string>
+
+    <!-- Offline areas -->
+    <string name="areas_title">Offline areas</string>
+    <string name="area_larger_places">Tangier · Casablanca · Marrakech · Agadir · Dakhla</string>
+    <string name="area_smaller_places">Nouakchott · Nouadhibou · Zouérat · Néma</string>
+    <string name="area_covers_you">Your current position is inside this area</string>
+    <string name="area_position_unknown">No position fix yet, so coverage can’t be checked</string>
+    <string name="level_standard">Standard</string>
+    <string name="level_detailed">Detailed</string>
+    <string name="level_standard_summary">Roads, tracks, towns and villages</string>
+    <string name="level_detailed_summary">Adds footpaths, isolated buildings and seasonal watercourses</string>
+    <string name="areas_one_level_note">One detail level per area. Choosing another replaces the one you have.</string>
+    <string name="areas_installed">Installed</string>
+    <string name="areas_storage_used">%1$s used by maps</string>
+    <string name="areas_free_space">%1$s free on this device</string>
+    <string name="areas_download">Download</string>
+    <string name="areas_delete">Delete</string>
+    <string name="areas_switch">Switch to this level</string>
+    <string name="download_progress">%1$s of %2$s</string>
+    <string name="download_verifying">Checking the file…</string>
+    <string name="download_cancel">Cancel</string>
+    <string name="download_resume">Resume</string>
+    <string name="download_not_published">Not available yet</string>
+    <string name="download_no_space">Not enough space — needs %1$s, %2$s free</string>
+    <string name="download_network_failed">Connection lost. Your progress is kept — resume when you have signal.</string>
+    <string name="download_corrupt">The file arrived damaged and was deleted. Nothing was installed.</string>
+    <string name="download_server_error">The server refused the download (%1$s).</string>
+    <string name="download_replacing">Your current level stays until this finishes</string>
     <string name="map_remind_when_online">Remind me when I’m online</string>
 
     <!-- Notification -->
@@ -217,8 +244,9 @@
     <string name="about_version">Version</string>
     <string name="about_declination_source">Magnetic model</string>
     <string name="about_declination_framework">Android built-in (WMM2020)</string>
-    <string name="about_declination_note">Magnetic declination across Morocco and Mauritania differs from the current model by under 0.2°, which is smaller than the model’s own uncertainty.</string>
-    <string name="about_offline">This app never uses the internet. It has no internet permission.</string>
+    <string name="about_declination_note">Across the area this app covers, magnetic declination differs from the current model by under 0.2°, which is smaller than the model’s own uncertainty.</string>
+    <string name="about_offline">Navigating never uses the internet. The only thing that does is downloading an offline area, and only when you ask for it.</string>
+    <string name="about_map_attribution">Map data: © OpenStreetMap contributors, ODbL.</string>
     <string name="about_attribution">Magnetic model: NOAA/NGA World Magnetic Model, public domain.</string>
 
     <!-- Language picker -->

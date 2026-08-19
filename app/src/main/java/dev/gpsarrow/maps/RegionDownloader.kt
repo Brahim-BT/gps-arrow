@@ -48,28 +48,37 @@ class RegionDownloader(private val regionsDirectory: File) {
     private val connectTimeoutMillis = 20_000
     private val readTimeoutMillis = 30_000
 
-    fun partialFile(region: RegionSummary) = File(regionsDirectory, "${region.id}.pmtiles.part")
-    fun finalFile(region: RegionSummary) = File(regionsDirectory, "${region.id}.pmtiles")
+    fun partialFile(area: MapArea, level: AreaLevel) =
+        File(regionsDirectory, level.fileStem(area.id) + ".pmtiles.part")
+
+    fun finalFile(area: MapArea, level: AreaLevel) =
+        File(regionsDirectory, level.fileStem(area.id) + ".pmtiles")
 
     /**
-     * Fetch [region], resuming if a partial is present.
+     * Fetch one level of one area, resuming if a partial is present.
      *
      * [onProgress] is called with (bytesDone, bytesTotal) roughly every buffer; the caller is
      * expected to throttle its own UI updates rather than have this guess at a sensible rate.
+     *
+     * **Switching levels is a download followed by a prune, in that order.** This function never
+     * touches the level the user already has. The caller removes it only once this returns
+     * [DownloadOutcome.Installed] — so a failed upgrade leaves the old map in place rather than
+     * leaving the user with nothing, which is the one outcome worth designing against.
      */
     suspend fun download(
-        region: RegionSummary,
+        area: MapArea,
+        level: AreaLevel,
         onProgress: (Long, Long) -> Unit,
     ): DownloadOutcome = withContext(Dispatchers.IO) {
-        val part = partialFile(region)
-        val target = finalFile(region)
+        val part = partialFile(area, level)
+        val target = finalFile(area, level)
 
         if (target.exists()) return@withContext DownloadOutcome.AlreadyInstalled(target)
 
         regionsDirectory.mkdirs()
 
         when (val decision = Downloads.decide(
-            expectedTotalBytes = region.bytes,
+            expectedTotalBytes = level.bytes,
             bytesOnDisk = if (part.exists()) part.length() else 0L,
             freeSpaceBytes = freeSpaceBytes(),
         )) {
@@ -84,7 +93,7 @@ class RegionDownloader(private val regionsDirectory: File) {
         }
 
         val transfer = try {
-            transfer(region, part, onProgress)
+            transfer(level, part, onProgress)
         } catch (e: IOException) {
             // The partial is kept: this is the ordinary "connection died" case and the whole
             // point of the .part file is that it survives to be resumed.
@@ -92,19 +101,19 @@ class RegionDownloader(private val regionsDirectory: File) {
         }
         if (transfer != null) return@withContext transfer
 
-        verifyAndInstall(region, part, target)
+        verifyAndInstall(level, part, target)
     }
 
     /** @return non-null when the transfer ended in an outcome the caller should see. */
     private suspend fun transfer(
-        region: RegionSummary,
+        level: AreaLevel,
         part: File,
         onProgress: (Long, Long) -> Unit,
     ): DownloadOutcome? {
         var from = if (part.exists()) part.length() else 0L
-        if (from >= region.bytes && part.exists()) return null   // nothing left to fetch
+        if (from >= level.bytes && part.exists()) return null   // nothing left to fetch
 
-        val connection = (URL(region.url).openConnection() as HttpURLConnection).apply {
+        val connection = (URL(level.url).openConnection() as HttpURLConnection).apply {
             connectTimeout = connectTimeoutMillis
             readTimeout = readTimeoutMillis
             instanceFollowRedirects = true
@@ -140,7 +149,7 @@ class RegionDownloader(private val regionsDirectory: File) {
             // Content-Length describes what is left to send, so the true total is what we already
             // hold plus that. The server is the authority here, not the catalogue estimate.
             val declaredRemaining = connection.contentLengthLong
-            val total = if (declaredRemaining > 0L) from + declaredRemaining else region.bytes
+            val total = if (declaredRemaining > 0L) from + declaredRemaining else level.bytes
 
             var done = from
             connection.inputStream.use { input ->
@@ -177,7 +186,7 @@ class RegionDownloader(private val regionsDirectory: File) {
      * that only happen when a phone is killed mid-download.
      */
     private suspend fun verifyAndInstall(
-        region: RegionSummary,
+        level: AreaLevel,
         part: File,
         target: File,
     ): DownloadOutcome = withContext(Dispatchers.IO) {
@@ -199,13 +208,12 @@ class RegionDownloader(private val regionsDirectory: File) {
             is PmtilesCheck.Valid -> Unit
         }
 
-        val expected = region.checksum
-        if (expected != null) {
-            val actual = sha256(part)
-            if (!actual.equals(expected, ignoreCase = true)) {
-                part.delete()
-                return@withContext DownloadOutcome.Corrupt("checksum mismatch")
-            }
+        // Not optional and not nullable: AreaLevel.sha256 is a required field precisely so
+        // that a level cannot be added without one, and so this branch cannot be skipped.
+        val actual = sha256(part)
+        if (!actual.equals(level.sha256, ignoreCase = true)) {
+            part.delete()
+            return@withContext DownloadOutcome.Corrupt("checksum mismatch")
         }
 
         // The atomic step. Same directory, so this is a rename within one filesystem and either

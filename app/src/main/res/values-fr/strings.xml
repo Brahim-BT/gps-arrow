@@ -197,10 +197,37 @@
     <string name="map_back_to_arrow">Retour à la flèche</string>
     <string name="map_none_title">Pas encore de carte pour cette zone</string>
     <string name="map_none_arrow_works">La flèche fonctionne toujours — elle n’a pas besoin de cartes.</string>
-    <string name="map_none_download">Pour voir les rues ici, téléchargez %1$s la prochaine fois que vous aurez du Wi-Fi.</string>
-    <string name="map_none_download_sized">Pour voir les rues ici, téléchargez %1$s (environ %2$s) la prochaine fois que vous aurez du Wi-Fi.</string>
-    <string name="map_none_explanation">Les régions cartographiques se téléchargent une fois en ligne, puis fonctionnent hors ligne pour toujours.</string>
-    <string name="map_open_region_list">Ouvrir la liste des régions</string>
+    <string name="map_none_prompt">Téléchargez une zone hors ligne pour voir la carte ici.</string>
+    <string name="map_none_explanation">Les zones se téléchargent une fois en ligne, puis fonctionnent hors ligne pour toujours.</string>
+    <string name="map_open_region_list">Ouvrir la liste des zones</string>
+
+    <!-- Offline areas -->
+    <string name="areas_title">Zones hors ligne</string>
+    <string name="area_larger_places">Tanger · Casablanca · Marrakech · Agadir · Dakhla</string>
+    <string name="area_smaller_places">Nouakchott · Nouadhibou · Zouérate · Néma</string>
+    <string name="area_covers_you">Votre position actuelle se trouve dans cette zone</string>
+    <string name="area_position_unknown">Position non acquise : impossible de vérifier la couverture</string>
+    <string name="level_standard">Standard</string>
+    <string name="level_detailed">Détaillé</string>
+    <string name="level_standard_summary">Routes, pistes, villes et villages</string>
+    <string name="level_detailed_summary">Ajoute les sentiers, les bâtiments isolés et les cours d’eau saisonniers</string>
+    <string name="areas_one_level_note">Un seul niveau de détail par zone. En choisir un autre remplace celui que vous avez.</string>
+    <string name="areas_installed">Installée</string>
+    <string name="areas_storage_used">%1$s utilisés par les cartes</string>
+    <string name="areas_free_space">%1$s libres sur cet appareil</string>
+    <string name="areas_download">Télécharger</string>
+    <string name="areas_delete">Supprimer</string>
+    <string name="areas_switch">Passer à ce niveau</string>
+    <string name="download_progress">%1$s sur %2$s</string>
+    <string name="download_verifying">Vérification du fichier…</string>
+    <string name="download_cancel">Annuler</string>
+    <string name="download_resume">Reprendre</string>
+    <string name="download_not_published">Pas encore disponible</string>
+    <string name="download_no_space">Espace insuffisant — il faut %1$s, %2$s libres</string>
+    <string name="download_network_failed">Connexion perdue. Votre progression est conservée — reprenez dès que vous aurez du réseau.</string>
+    <string name="download_corrupt">Le fichier est arrivé endommagé et a été supprimé. Rien n’a été installé.</string>
+    <string name="download_server_error">Le serveur a refusé le téléchargement (%1$s).</string>
+    <string name="download_replacing">Votre niveau actuel reste en place jusqu’à la fin</string>
     <string name="map_remind_when_online">Me le rappeler quand je serai en ligne</string>
 
     <!-- Notification -->
@@ -217,8 +244,9 @@
     <string name="about_version">Version</string>
     <string name="about_declination_source">Modèle magnétique</string>
     <string name="about_declination_framework">Intégré à Android (WMM2020)</string>
-    <string name="about_declination_note">Au Maroc et en Mauritanie, la déclinaison magnétique s’écarte du modèle actuel de moins de 0,2°, soit moins que l’incertitude propre au modèle.</string>
-    <string name="about_offline">Cette application n’utilise jamais Internet. Elle n’en a pas l’autorisation.</string>
+    <string name="about_declination_note">Sur la zone couverte par cette application, la déclinaison magnétique s’écarte du modèle actuel de moins de 0,2°, soit moins que l’incertitude propre au modèle.</string>
+    <string name="about_offline">La navigation n’utilise jamais Internet. Seul le téléchargement d’une zone hors ligne l’utilise, et uniquement à votre demande.</string>
+    <string name="about_map_attribution">Données cartographiques : © les contributeurs d’OpenStreetMap, ODbL.</string>
     <string name="about_attribution">Modèle magnétique : World Magnetic Model de la NOAA/NGA, domaine public.</string>
 
     <!-- Language picker -->

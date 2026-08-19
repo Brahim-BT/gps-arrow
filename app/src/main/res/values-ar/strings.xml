@@ -197,10 +197,37 @@
     <string name="map_back_to_arrow">العودة إلى السهم</string>
     <string name="map_none_title">لا توجد خريطة لهذه المنطقة بعد</string>
     <string name="map_none_arrow_works">لا يزال السهم يعمل — فهو لا يحتاج إلى خرائط.</string>
-    <string name="map_none_download">لرؤية الشوارع هنا، نزّل %1$s في المرة القادمة التي يتوفر فيها Wi-Fi.</string>
-    <string name="map_none_download_sized">لرؤية الشوارع هنا، نزّل %1$s (حوالي %2$s) في المرة القادمة التي يتوفر فيها Wi-Fi.</string>
-    <string name="map_none_explanation">تُنزَّل مناطق الخريطة مرة واحدة أثناء الاتصال، ثم تعمل بدون اتصال إلى الأبد.</string>
+    <string name="map_none_prompt">نزّل منطقة للاستخدام دون اتصال لرؤية الخريطة هنا.</string>
+    <string name="map_none_explanation">تُنزَّل المناطق مرة واحدة أثناء الاتصال، ثم تعمل بدون اتصال إلى الأبد.</string>
     <string name="map_open_region_list">فتح قائمة المناطق</string>
+
+    <!-- Offline areas -->
+    <string name="areas_title">المناطق دون اتصال</string>
+    <string name="area_larger_places">طنجة · الدار البيضاء · مراكش · أكادير · الداخلة</string>
+    <string name="area_smaller_places">نواكشوط · نواذيبو · الزويرات · النعمة</string>
+    <string name="area_covers_you">موقعك الحالي داخل هذه المنطقة</string>
+    <string name="area_position_unknown">لم يُحدَّد الموقع بعد، لذا يتعذّر التحقق من التغطية</string>
+    <string name="level_standard">قياسي</string>
+    <string name="level_detailed">مفصّل</string>
+    <string name="level_standard_summary">الطرق والمسالك والمدن والقرى</string>
+    <string name="level_detailed_summary">يضيف المسارات والمباني المعزولة والأودية الموسمية</string>
+    <string name="areas_one_level_note">مستوى تفصيل واحد لكل منطقة. اختيار مستوى آخر يستبدل المستوى الحالي.</string>
+    <string name="areas_installed">مثبَّتة</string>
+    <string name="areas_storage_used">%1$s تستخدمها الخرائط</string>
+    <string name="areas_free_space">%1$s متاحة على هذا الجهاز</string>
+    <string name="areas_download">تنزيل</string>
+    <string name="areas_delete">حذف</string>
+    <string name="areas_switch">التبديل إلى هذا المستوى</string>
+    <string name="download_progress">%1$s من %2$s</string>
+    <string name="download_verifying">جارٍ التحقق من الملف…</string>
+    <string name="download_cancel">إلغاء</string>
+    <string name="download_resume">استئناف</string>
+    <string name="download_not_published">غير متاح بعد</string>
+    <string name="download_no_space">المساحة غير كافية — يلزم %1$s، والمتاح %2$s</string>
+    <string name="download_network_failed">انقطع الاتصال. تم حفظ تقدّمك — استأنف عند توفر الشبكة.</string>
+    <string name="download_corrupt">وصل الملف تالفًا وتم حذفه. لم يُثبَّت أي شيء.</string>
+    <string name="download_server_error">رفض الخادم التنزيل (%1$s).</string>
+    <string name="download_replacing">يبقى مستواك الحالي حتى ينتهي هذا</string>
     <string name="map_remind_when_online">ذكّرني عند الاتصال بالإنترنت</string>
 
     <!-- Notification -->
@@ -217,8 +244,9 @@
     <string name="about_version">الإصدار</string>
     <string name="about_declination_source">النموذج المغناطيسي</string>
     <string name="about_declination_framework">‏مدمج في أندرويد (WMM2020)</string>
-    <string name="about_declination_note">يختلف الانحراف المغناطيسي في المغرب وموريتانيا عن النموذج الحالي بأقل من 0.2 درجة، وهو أقل من هامش عدم اليقين في النموذج نفسه.</string>
-    <string name="about_offline">لا يستخدم هذا التطبيق الإنترنت إطلاقاً، ولا يملك إذناً بذلك.</string>
+    <string name="about_declination_note">في المنطقة التي يغطيها هذا التطبيق، يختلف الانحراف المغناطيسي عن النموذج الحالي بأقل من 0.2 درجة، وهو أقل من هامش عدم اليقين في النموذج نفسه.</string>
+    <string name="about_offline">لا يستخدم التوجّه الإنترنت إطلاقاً. الشيء الوحيد الذي يستخدمه هو تنزيل منطقة للاستخدام دون اتصال، وذلك فقط عندما تطلب ذلك.</string>
+    <string name="about_map_attribution">بيانات الخريطة: © مساهمو OpenStreetMap، رخصة ODbL.</string>
     <string name="about_attribution">النموذج المغناطيسي: World Magnetic Model من NOAA/NGA، ملكية عامة.</string>
 
     <!-- Language picker -->

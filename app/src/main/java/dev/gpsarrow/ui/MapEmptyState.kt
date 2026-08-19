@@ -25,8 +25,12 @@ import dev.gpsarrow.maps.MapTier
  *
  * Three rules (BUILD_PLAN.md 7):
  *  1. Lead with the fact that the arrow is unaffected — the core feature has not failed.
- *  2. Name the region and its size, so the dead end becomes an action.
+ *  2. Name the area by the places it covers and give its size, so the dead end becomes an action.
  *  3. Never block going back.
+ *
+ * Nothing here renders a file path, a URL or a filename. An earlier version printed
+ * `tier.installed.pmtilesUri` on screen, which showed the user a `pmtiles://file:///…` path — an
+ * internal detail they cannot act on, and one that leaked the internal area id into the UI.
  */
 @Composable
 fun MapScreen(
@@ -45,26 +49,31 @@ fun MapScreen(
     ) {
         when (tier) {
             is MapTier.Available -> {
-                // v1: replace this with the MapLibre MapView wrapped in AndroidView, reading
-                // tier.region.pmtilesUri  ->  "pmtiles://file:///.../regions/fr.pmtiles"
-                Text(stringResource(R.string.map_ready, tier.region.summary.name))
+                // The renderer replaces this branch. Until then, say what is installed in the
+                // same vocabulary the areas list uses — places and a detail level, never a path.
                 Text(
-                    tier.region.pmtilesUri,
+                    stringResource(
+                        R.string.map_ready,
+                        stringResource(tier.installed.area.placesRes),
+                    ),
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    stringResource(tier.installed.level.detail.labelRes),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
             is MapTier.NoDataHere -> NoDataCard(
-                regionName = tier.suggested?.name,
-                sizeLabel = tier.suggested?.approximateSizeLabel,
+                placesRes = tier.suggested?.placesRes,
                 onOpenRegions = onOpenRegions,
                 onRemindWhenOnline = onRemindWhenOnline,
             )
 
             MapTier.ArrowOnly -> NoDataCard(
-                regionName = null,
-                sizeLabel = null,
+                placesRes = null,
                 onOpenRegions = onOpenRegions,
                 onRemindWhenOnline = onRemindWhenOnline,
             )
@@ -78,8 +87,7 @@ fun MapScreen(
 
 @Composable
 private fun NoDataCard(
-    regionName: String?,
-    sizeLabel: String?,
+    placesRes: Int?,
     onOpenRegions: () -> Unit,
     onRemindWhenOnline: () -> Unit,
 ) {
@@ -100,12 +108,28 @@ private fun NoDataCard(
                 color = MaterialTheme.colorScheme.secondary,
                 textAlign = TextAlign.Center,
             )
+
+            // When an area covers this position, showing its place list is the most useful thing
+            // on the screen: it answers "would downloading that help me?" without a country name
+            // and without the user having to know what the area is called.
+            if (placesRes != null) {
+                Text(
+                    stringResource(placesRes),
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    stringResource(R.string.area_covers_you),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.secondary,
+                    textAlign = TextAlign.Center,
+                )
+            }
+
             Text(
-                when {
-                    regionName == null -> stringResource(R.string.map_none_explanation)
-                    sizeLabel == null -> stringResource(R.string.map_none_download, regionName)
-                    else -> stringResource(R.string.map_none_download_sized, regionName, sizeLabel)
-                },
+                stringResource(
+                    if (placesRes == null) R.string.map_none_explanation else R.string.map_none_prompt
+                ),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

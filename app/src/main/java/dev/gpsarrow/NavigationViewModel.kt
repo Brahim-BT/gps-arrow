@@ -457,8 +457,12 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
     // ---------------------------------------------------------------- map tiering (v1 hook)
 
     /**
-     * What the map button should do. In a v0 build this is always [MapTier.ArrowOnly] because
-     * the :maps module isn't present — which is the point of the module boundary.
+     * What the map button should do.
+     *
+     * Wrapped in `runCatching` and defaulting to [MapTier.ArrowOnly] on purpose: this is the one
+     * place the arrow path touches anything map-related, and a failure here — unreadable storage,
+     * a directory that vanished — must degrade to "no map" rather than propagate. The arrow does
+     * not need a map and must not be able to fail because of one.
      */
     fun mapTier(): MapTier =
         runCatching { regionIndex.tierFor(_state.value.fix?.position) }
