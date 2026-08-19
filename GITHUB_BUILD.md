@@ -83,6 +83,41 @@ It stops on the first error rather than pressing on. If the push is rejected bec
 
 Running it with nothing to commit is fine: it says so and exits without an error.
 
+## 2b. Why the debug APK is large, and why the release will not be
+
+Adding MapLibre took the debug APK from 18 MB to 68 MB. That is expected and it is **not** what
+users will download.
+
+`assembleDebug` with no `splits` or `abiFilters` produces a **universal APK**: one file carrying
+the native `.so` libraries for every architecture MapLibre ships — `arm64-v8a`, `armeabi-v7a`,
+`x86` and `x86_64`. Only one of those ever executes on a given device. The other three are dead
+weight, and two of them (`x86`, `x86_64`) exist essentially for emulators.
+
+The debug variant is now restricted to `arm64-v8a`, which is what the target device uses. That is
+a one-line `ndk { abiFilters += "arm64-v8a" }` inside `buildTypes.debug` and it touches nothing
+else. To test on an emulator or a 32-bit device, add that ABI there.
+
+**The release path is unaffected and needs no equivalent.** Ship an **App Bundle** (`bundleRelease`,
+producing `.aab`) and Play generates a per-device APK containing exactly one ABI. A user installing
+from Play gets roughly a quarter of the native payload. So:
+
+| | size |
+|---|---|
+| Universal debug APK, all four ABIs | ~68 MB |
+| Debug APK after the ABI filter | expect ~30 MB |
+| What Play actually delivers per device | roughly a quarter of the native portion |
+
+Write this down rather than remembering it: "the app is 68 MB" is exactly the sort of figure that
+gets repeated later as though it were the shipping size.
+
+**To see the real per-ABI split** on any built APK:
+
+```bash
+unzip -l app/build/outputs/apk/debug/*.apk | awk '/lib\// {
+    split($4, p, "/"); size[p[2]] += $1
+} END { for (a in size) printf "  %-14s %8.1f MB\n", a, size[a]/1048576 }'
+```
+
 ## 3. Watch the build
 
 The push triggers the workflow automatically.

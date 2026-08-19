@@ -27,6 +27,22 @@ android {
         }
         debug {
             applicationIdSuffix = ".debug"
+
+            // Debug APKs are downloaded by hand from a GitHub Actions artifact every round, so
+            // three quarters of a universal APK is native code for architectures that will never
+            // run it — including x86 builds that exist only for emulators. Restricting the debug
+            // variant to the target device's ABI cuts roughly 37 MB off each download.
+            //
+            // This affects the debug variant ONLY. Release ships as an App Bundle, where Play
+            // splits per device anyway, so the release path is untouched and there is nothing to
+            // keep in sync.
+            //
+            // Testing on an emulator or a 32-bit device means adding its ABI here:
+            //   arm64-v8a (most phones since ~2017), armeabi-v7a (older 32-bit),
+            //   x86_64 (most emulators), x86 (very old emulators).
+            ndk {
+                abiFilters += "arm64-v8a"
+            }
         }
     }
 
