@@ -2,6 +2,9 @@ package dev.gpsarrow.maps
 
 import android.content.Context
 import dev.gpsarrow.core.LatLon
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 
 /**
@@ -70,7 +73,10 @@ sealed interface MapTier {
  */
 class RegionIndex(private val context: Context) {
 
-    private var installed: List<InstalledArea> = emptyList()
+    /** Reads and writes the process-wide flow; this class holds no list of its own. */
+    private var installed: List<InstalledArea>
+        get() = shared.value
+        set(value) { shared.value = value }
 
     /**
      * Whether [scan] has run at least once.
@@ -117,6 +123,29 @@ class RegionIndex(private val context: Context) {
         return found
     }
 
+    companion object {
+        private const val DIRECTORY = "regions"
+        private const val EXTENSION = ".pmtiles"
+
+        /**
+         * What is installed, shared across every [RegionIndex] in the process.
+         *
+         * Three instances of this class are alive at once — one in the ViewModel, one in the
+         * areas screen, one created by the download service — and each used to hold a private
+         * list behind a private `scanned` flag. So the service could finish an install, scan,
+         * and update *its* copy, while the ViewModel's copy stayed empty and its `scanned` flag
+         * said there was no reason to look again. The map only appeared after a restart, when
+         * fresh instances scanned for the first time.
+         *
+         * One StateFlow on the companion fixes both halves at once: a single source of truth,
+         * and the UI recomposes when it changes rather than having to be asked.
+         */
+        internal val shared = MutableStateFlow<List<InstalledArea>>(emptyList())
+
+        /** Read-only view for observers. */
+        val sharedFlow: StateFlow<List<InstalledArea>> = shared.asStateFlow()
+    }
+
     /** Scan once, lazily. A directory listing is cheap but not free enough to repeat per frame. */
     private fun ensureScanned() {
         if (!scanned) scan()
@@ -159,11 +188,16 @@ class RegionIndex(private val context: Context) {
         return if (suggested == null) MapTier.ArrowOnly else MapTier.NoDataHere(suggested)
     }
 
-    private companion object {
-        const val DIRECTORY = "regions"
-        const val EXTENSION = ".pmtiles"
-    }
 }
+
+/**
+ * What is installed, observable, process-wide.
+ *
+ * A top-level val rather than a member so that the UI can collect it without holding a
+ * [RegionIndex]. Any instance's [RegionIndex.scan] updates it, which is what makes a finished
+ * download put a map on screen without a restart.
+ */
+val installedAreasFlow: StateFlow<List<InstalledArea>> get() = RegionIndex.sharedFlow
 
 /**
  * Free space on the volume holding [directory].

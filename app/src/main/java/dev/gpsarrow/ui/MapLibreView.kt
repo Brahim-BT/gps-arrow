@@ -12,6 +12,9 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.geometry.LatLng
+import dev.gpsarrow.maps.MapCamera
 import org.maplibre.android.MapLibre
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
@@ -51,8 +54,10 @@ import org.maplibre.android.maps.Style
 @Composable
 fun MapLibreView(
     styleJson: String,
+    camera: MapCamera?,
     modifier: Modifier = Modifier,
     onUnavailable: (String) -> Unit = {},
+    onCameraMoved: (MapCamera) -> Unit = {},
     onMapReady: (MapLibreMap) -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -110,6 +115,36 @@ fun MapLibreView(
         update = { view ->
             try {
                 view.getMapAsync { map ->
+                    // MapLibre draws its own logo and attribution badge bottom-left, on top of
+                    // ours. Ours has to stay — ODbL requires visible OpenStreetMap attribution —
+                    // so the duplicate chrome goes instead of the thing the licence mandates.
+                    map.uiSettings.isLogoEnabled = false
+                    map.uiSettings.isAttributionEnabled = false
+                    // Rotation and tilt are driven by heading, not fingers. Tilt in particular
+                    // makes a north-up reference meaningless and buys nothing here.
+                    map.uiSettings.isTiltGesturesEnabled = false
+
+                    if (camera != null) {
+                        map.cameraPosition = CameraPosition.Builder()
+                            .target(LatLng(camera.lat, camera.lon))
+                            .zoom(camera.zoom)
+                            .bearing(camera.bearingDeg)
+                            .build()
+                    }
+
+                    // Report where the user leaves it, so the camera survives a tab switch.
+                    map.addOnCameraIdleListener {
+                        val p = map.cameraPosition
+                        onCameraMoved(
+                            MapCamera(
+                                lat = p.target?.latitude ?: 0.0,
+                                lon = p.target?.longitude ?: 0.0,
+                                zoom = p.zoom,
+                                bearingDeg = p.bearing,
+                            ),
+                        )
+                    }
+
                     map.setStyle(Style.Builder().fromJson(styleJson)) {
                         onMapReady(map)
                     }

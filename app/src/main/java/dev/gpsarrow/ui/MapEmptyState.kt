@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.gpsarrow.R
 import dev.gpsarrow.maps.InstalledArea
+import dev.gpsarrow.maps.MapCamera
 import dev.gpsarrow.maps.MapStyle
 import dev.gpsarrow.maps.MapTier
 
@@ -45,6 +46,8 @@ import dev.gpsarrow.maps.MapTier
 @Composable
 fun MapScreen(
     tier: MapTier,
+    camera: MapCamera?,
+    onCameraMoved: (MapCamera) -> Unit,
     onBack: () -> Unit,
     onOpenRegions: () -> Unit,
     onRemindWhenOnline: () -> Unit,
@@ -57,6 +60,8 @@ fun MapScreen(
     when (tier) {
         is MapTier.Available -> InstalledMap(
             installed = tier.installed,
+            camera = camera,
+            onCameraMoved = onCameraMoved,
             onBack = onBack,
             onOpenRegions = onOpenRegions,
             modifier = modifier,
@@ -110,6 +115,8 @@ private fun EmptyStateColumn(
 @Composable
 private fun InstalledMap(
     installed: InstalledArea,
+    camera: MapCamera?,
+    onCameraMoved: (MapCamera) -> Unit,
     onBack: () -> Unit,
     onOpenRegions: () -> Unit,
     modifier: Modifier = Modifier,
@@ -132,8 +139,10 @@ private fun InstalledMap(
     Box(modifier = modifier.fillMaxSize()) {
         MapLibreView(
             styleJson = styleJson,
+            camera = camera,
             modifier = Modifier.fillMaxSize(),
             onUnavailable = { rendererFailed = true },
+            onCameraMoved = onCameraMoved,
         )
         // ODbL condition: attribution must be visible wherever the map is shown, not buried in
         // an About page. It sits over the map rather than beside it for exactly that reason.

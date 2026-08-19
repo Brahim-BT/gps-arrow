@@ -37,6 +37,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.gpsarrow.maps.AreaLevel
 import dev.gpsarrow.maps.MapArea
+import dev.gpsarrow.maps.MapCamera
+import dev.gpsarrow.maps.MapTier
 import dev.gpsarrow.maps.RegionIndex
 import dev.gpsarrow.service.MapDownloadService
 import dev.gpsarrow.service.MapDownloads
@@ -244,6 +246,17 @@ private fun AppRoot(
     val downloadState by MapDownloads.state.collectAsStateWithLifecycle()
     // Pending confirmation for a download over a metered connection: the level awaiting a yes.
     var meteredPrompt by remember { mutableStateOf<Pair<MapArea, AreaLevel>?>(null) }
+
+    // Installed areas, observed. Collecting the shared flow is what makes a finished download
+    // put a map on screen without a restart: the service's scan updates it and this recomposes.
+    val installedAreas by RegionIndex.sharedFlow.collectAsStateWithLifecycle()
+
+    // The camera, hoisted out of the map so it survives a tab switch, and saveable so it survives
+    // process death — the same treatment the half-typed coordinate draft gets, for the same
+    // reason: re-finding your place on a map is work the user already did once.
+    var mapCamera by rememberSaveable(stateSaver = MapCameraSaver) {
+        mutableStateOf<MapCamera?>(null)
+    }
 
     val snackbarHost = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -592,8 +605,19 @@ private fun AppRoot(
                                 onBack = { showAreas = false; meteredPrompt = null },
                             )
                         } else {
+                            // Computed from the observed list rather than asked for once, so it
+                            // tracks installs and deletions as they happen.
+                            val tier = remember(installedAreas, state.fix?.position) {
+                                viewModel.mapTier()
+                            }
                             MapScreen(
-                                tier = viewModel.mapTier(),
+                                tier = tier,
+                                camera = MapCamera.opening(
+                                    remembered = mapCamera,
+                                    position = state.fix?.position,
+                                    installed = (tier as? MapTier.Available)?.installed,
+                                ),
+                                onCameraMoved = { mapCamera = it },
                                 onBack = { tab = AppTab.ARROW },
                                 onOpenRegions = { showAreas = true },
                                 onRemindWhenOnline = { /* v1: WorkManager job */ },
@@ -621,6 +645,24 @@ private val CoordinateDraftSaver = listSaver<CoordinateDraft, String>(
             lonText = it[2],
             readAs = it[3].ifEmpty { null },
         )
+    },
+)
+
+/**
+ * Keeps the map camera across process death, not just across tab switches.
+ *
+ * Nullable because "no camera yet" is a real state and must not be confused with a camera at
+ * 0,0 zoom 0 — which is the null island in the middle of the Atlantic, and is exactly the view
+ * the map opened on before there was an opening-camera policy at all. The flag in slot 0 keeps
+ * those distinguishable through a save/restore round trip.
+ */
+private val MapCameraSaver = listSaver<MapCamera?, Double>(
+    save = {
+        if (it == null) listOf(0.0) else listOf(1.0, it.lat, it.lon, it.zoom, it.bearingDeg)
+    },
+    restore = {
+        if (it.isEmpty() || it[0] == 0.0) null
+        else MapCamera(lat = it[1], lon = it[2], zoom = it[3], bearingDeg = it[4])
     },
 )
 
