@@ -65,6 +65,46 @@ seconds — `pmtiles extract` reads local files, so no planet re-download is nee
 | z14 | **263,915,307** (264 MB) | **83,111,730** (83 MB) | **347 MB** | Individual building footprints (merged blobs instead) |
 | z15 | ~528 MB | ~166 MB | ~694 MB | Nothing — the maximum the planet build offers |
 
+### What each level actually contains
+
+Read from the basemap generator's source (`protomaps/basemaps`, `tiles/.../layers/*.java`), not
+from the prose docs. `pm:minzoom` is the level at which a feature first enters a tile.
+
+| Feature | minzoom | z12 | z13 | z14 |
+|---|---|---|---|---|
+| motorway / trunk / primary / secondary / tertiary | 3–9 | ✓ | ✓ | ✓ |
+| sand, bare rock, scree (`Landuse`, zoom range 7–15) | 7 | ✓ | ✓ | ✓ |
+| rivers and major wadis | 9–10 | ✓ | ✓ | ✓ |
+| village names | 10 | ✓ | ✓ | ✓ |
+| hamlet names, buildings (merged) | 11 | ✓ | ✓ | ✓ |
+| **`highway=track` — pistes and desert tracks** | **12** | ✓ | ✓ | ✓ |
+| residential, unclassified | 12 | ✓ | ✓ | ✓ |
+| small localities (population fallback) | 12 | ✓ | ✓ | ✓ |
+| **isolated dwellings, farms** | **13** | — | ✓ | ✓ |
+| **minor wadis (`waterway=stream`)** | **13** | — | ✓ | ✓ |
+| footway, path, cycleway, steps | 13 | — | ✓ | ✓ |
+| service roads, driveways, alleys | 13 | — | ✓ | ✓ |
+| sidewalks, crossings, tram/subway | 14 | — | — | ✓ |
+| individual building footprints | 15 | — | — | — |
+| drinking water, water points | 15 | — | — | — |
+
+Three things worth stating plainly because they are easy to assume otherwise:
+
+- **`highway=track` is *not* in the z13 bucket.** The rule promoting paths to 13 lists
+  `path, cycleway, bridleway, footway, steps` — `track` is absent, so it keeps `pm:minzoom 12`.
+  Desert pistes are present at every level we would ship.
+- **`surface` is not carried at any zoom.** The basemap has no paved/unpaved distinction, so the
+  map cannot tell anyone whether a route is sealed. True at z14 as much as at z12.
+- **Water sources are not usable data here.** `amenity=water_point` and `watering_place` fall to
+  the base POI rule at z15 (z16 if unnamed, then clamped to 15), so they are absent from every
+  level below z15 — and `man_made=water_well`, which is how traditional wells are usually tagged,
+  **is not carried by the schema at all.** Nothing in this map should be presented as showing
+  water, at any zoom. OSM's coverage of Saharan wells is sparse and unverified, and a navigation
+  aid that implies otherwise would be worse than one that says nothing.
+
+The consequence for the level choice: **z13 → z14 adds sidewalks, crossings and tram lines and
+nothing else.** For a user in open desert that is nothing at all.
+
 ### Which scaling rule survived
 
 Measured level-to-level ratios:
