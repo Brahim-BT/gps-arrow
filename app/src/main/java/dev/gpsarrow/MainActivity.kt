@@ -36,6 +36,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.gpsarrow.core.Destination
 import dev.gpsarrow.core.DestinationParser
+import dev.gpsarrow.core.CoordinateFormat
 import dev.gpsarrow.core.DistanceUnits
 import dev.gpsarrow.core.Format
 import dev.gpsarrow.core.ParseResult
@@ -216,6 +217,9 @@ private fun AppRoot(
         mutableStateOf(CoordinateDraft.EMPTY)
     }
     var searchQuery by rememberSaveable { mutableStateOf("") }
+    // Hoisted alongside the other view preferences so cycling the notation survives a tab
+    // switch and process death, like the half-typed coordinate does.
+    var positionFormat by rememberSaveable { mutableStateOf(CoordinateFormat.DECIMAL) }
     var favouritesOnly by rememberSaveable { mutableStateOf(false) }
 
     // The Map tab is the only expensive one (v1 puts a MapLibre surface here), so it is not
@@ -438,6 +442,15 @@ private fun AppRoot(
                         onAddDestination = {
                             tab = AppTab.DESTINATIONS
                             editor = Editor.New
+                        },
+                        positionFormat = positionFormat,
+                        onCyclePositionFormat = { positionFormat = positionFormat.next() },
+                        onPositionCopied = {
+                            scope.launch {
+                                snackbarHost.showSnackbar(
+                                    context.getString(R.string.position_copied),
+                                )
+                            }
                         },
                     )
 

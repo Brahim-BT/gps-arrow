@@ -49,6 +49,7 @@ import dev.gpsarrow.Degradation
 import dev.gpsarrow.Diagnostic
 import dev.gpsarrow.R
 import dev.gpsarrow.core.ArrowMode
+import dev.gpsarrow.core.CoordinateFormat
 import dev.gpsarrow.core.DistanceUnits
 import dev.gpsarrow.core.FixQuality
 import dev.gpsarrow.core.Format
@@ -83,6 +84,10 @@ fun ArrowScreen(
     onPickDestination: () -> Unit,
     onSaveMyLocation: () -> Unit,
     onAddDestination: () -> Unit,
+    /** Which notation the position band is showing. Hoisted so a tab switch does not reset it. */
+    positionFormat: CoordinateFormat,
+    onCyclePositionFormat: () -> Unit,
+    onPositionCopied: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -99,6 +104,18 @@ fun ArrowScreen(
             },
         ) {
             StatusRow(state, satellitesUsed, satellitesVisible, headingSourceLabel)
+        }
+
+        // Above the four-corner composition, not inside it: that layout is deliberate and
+        // dropping two more rows into its middle would wreck it. One line here costs the needle
+        // about 30dp of roughly 430 and leaves it comfortably dominant.
+        if (!showDiagnostics) {
+            PositionBand(
+                state = state,
+                format = positionFormat,
+                onCycleFormat = onCyclePositionFormat,
+                onCopied = onPositionCopied,
+            )
         }
 
         degraded.forEach { d ->

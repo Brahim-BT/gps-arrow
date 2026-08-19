@@ -44,6 +44,17 @@
     <string name="unit_mph">%1$s ميل/س</string>
     <string name="unit_knots">%1$s عقدة</string>
 
+    <!-- The user’s own position -->
+    <string name="my_position">موقعي</string>
+    <string name="position_none">لم يُحدَّد الموقع بعد</string>
+    <string name="position_stale">هذا مكانك السابق لا مكانك الحالي</string>
+    <string name="position_copied">تم نسخ الموقع</string>
+    <string name="cd_copy_position">نسخ موقعي</string>
+    <string name="coord_format_decimal">عشري</string>
+    <string name="coord_format_dms">درجات</string>
+    <string name="coord_format_plus_code">Plus code</string>
+    <string name="coord_format_mgrs">MGRS</string>
+
     <!-- Status chips -->
     <string name="chip_accuracy">±%1$s م</string>
     <string name="chip_accuracy_weak">ضعيف ±%1$s م</string>

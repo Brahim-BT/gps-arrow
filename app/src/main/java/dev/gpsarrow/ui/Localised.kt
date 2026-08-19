@@ -6,6 +6,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import dev.gpsarrow.R
 import dev.gpsarrow.core.BearingReadout
+import dev.gpsarrow.core.CoordinateFormat
 import dev.gpsarrow.core.DestinationSort
 import dev.gpsarrow.core.DistanceReadout
 import dev.gpsarrow.core.Format
@@ -118,6 +119,14 @@ fun DestinationSort.labelRes(): Int = when (this) {
     DestinationSort.ADDED_NEWEST -> R.string.sort_newest
     DestinationSort.ADDED_OLDEST -> R.string.sort_oldest
     DestinationSort.RECENTLY_USED -> R.string.sort_recently_used
+}
+
+/** Short mode label for the position band, e.g. "Plus code". */
+fun CoordinateFormat.labelRes(): Int = when (this) {
+    CoordinateFormat.DECIMAL -> R.string.coord_format_decimal
+    CoordinateFormat.DMS -> R.string.coord_format_dms
+    CoordinateFormat.PLUS_CODE -> R.string.coord_format_plus_code
+    CoordinateFormat.MGRS -> R.string.coord_format_mgrs
 }
 
 fun ParseResult.Format.labelRes(): Int = when (this) {

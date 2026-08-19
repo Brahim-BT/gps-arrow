@@ -434,3 +434,51 @@ object Format {
         return String.format(Locale.ROOT, "%d°%02d'%05.2f\"%s", d, m, s, hemi)
     }
 }
+
+/**
+ * How a position can be written for a human to read, say or copy.
+ *
+ * Four notations rather than one, and cheaply: every renderer already exists here because the
+ * parser has to accept all of them anyway. The reason to offer the choice is that decimal
+ * degrees are the worst of the four to say out loud — "thirty-one point six three zero" survives
+ * a bad phone line badly, and a listener who mishears one digit is put a hundred metres out with
+ * no way to tell. A plus code is drawn from a deliberately confusable-free alphabet, and MGRS is
+ * what search and rescue in the region actually uses on the radio.
+ *
+ * The order runs from most precise-looking to most speakable, so cycling moves towards something
+ * you can read to another person. Labels live in the UI layer, because they are translated.
+ */
+enum class CoordinateFormat {
+    DECIMAL,
+    DMS,
+    PLUS_CODE,
+    MGRS,
+    ;
+
+    fun next(): CoordinateFormat = entries[(ordinal + 1) % entries.size]
+
+    companion object {
+        /** See [render]: 11 chars is ~2.8 m, 10 would be ~14 m. */
+        const val PLUS_CODE_LENGTH = 11
+    }
+
+    /**
+     * The bare coordinate: no directional isolate, no accuracy, nothing but the position.
+     *
+     * This exact string goes on the clipboard as well as the screen, so it has to paste into
+     * another app — and back into this one — cleanly.
+     *
+     * MGRS is undefined above 84°N and below 80°S, where [Mgrs.toMgrs] returns null; that falls
+     * back to [DECIMAL] rather than rendering a dash, because when a *format* is unavailable the
+     * honest response is to show the position another way, not to hide the position.
+     */
+    fun render(position: LatLon): String = when (this) {
+        DECIMAL -> Format.decimal(position)
+        DMS -> Format.dms(position)
+        // Eleven characters, not the ten `encode` defaults to. Ten resolves to about 14 m,
+        // which is coarser than a good GNSS fix, and this string is what the user reads to
+        // somebody else — one more character to say buys five times the precision.
+        PLUS_CODE -> PlusCode.encode(position, codeLength = PLUS_CODE_LENGTH)
+        MGRS -> Mgrs.toMgrs(position, spaced = true) ?: Format.decimal(position)
+    }
+}

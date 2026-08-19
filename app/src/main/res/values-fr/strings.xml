@@ -44,6 +44,17 @@
     <string name="unit_mph">%1$s mph</string>
     <string name="unit_knots">%1$s nd</string>
 
+    <!-- The user’s own position -->
+    <string name="my_position">Ma position</string>
+    <string name="position_none">Position non acquise</string>
+    <string name="position_stale">C’est là où vous étiez, pas là où vous êtes</string>
+    <string name="position_copied">Position copiée</string>
+    <string name="cd_copy_position">Copier ma position</string>
+    <string name="coord_format_decimal">Décimal</string>
+    <string name="coord_format_dms">DMS</string>
+    <string name="coord_format_plus_code">Plus code</string>
+    <string name="coord_format_mgrs">MGRS</string>
+
     <!-- Status chips -->
     <string name="chip_accuracy">±%1$s m</string>
     <string name="chip_accuracy_weak">faible ±%1$s m</string>
