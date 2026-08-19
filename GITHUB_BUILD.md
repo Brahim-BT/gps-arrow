@@ -51,6 +51,38 @@ git push -u origin main
 
 You should end with something like `branch 'main' set up to track 'origin/main'`.
 
+## 2a. Every push after the first: `./push.sh`
+
+Once the remote exists, the whole sequence above collapses to one command:
+
+```bash
+./push.sh "what changed and why"
+```
+
+That stages everything, commits with your message, pushes, and prints the commit hash. Pushing
+stays a manual step on purpose — the agent working on this repo has no GitHub credentials and
+should not be given any — but it is one line rather than four.
+
+The message is required. If you leave it out the script stops and asks, rather than committing
+something generic: these messages are the only record of the work.
+
+Three things it does before committing, each of which it names on screen rather than doing
+silently:
+
+- **Clears a stale `.git/index.lock`, but only if no `git` process is running.** The agent's
+  sandbox cannot delete files inside `.git`, so an abandoned lock gets left behind and blocks
+  every later write with `File exists`. An orphaned lock is safe to remove; one belonging to a
+  running git process is not, and the script refuses in that case rather than risking two
+  processes writing the index at once.
+- **Removes `*.bak` and `.probe` files** the agent occasionally leaves and cannot clean up.
+- **Shows you the diffstat** of what it is about to commit.
+
+It stops on the first error rather than pressing on. If the push is rejected because
+`origin/main` has moved, it says so, tells you the commit exists locally, and deliberately does
+**not** merge or rebase for you — your tree is running on a phone and a bad merge is expensive.
+
+Running it with nothing to commit is fine: it says so and exits without an error.
+
 ## 3. Watch the build
 
 The push triggers the workflow automatically.

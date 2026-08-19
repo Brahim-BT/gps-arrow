@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -207,4 +208,32 @@ fun ScreenSurface(content: @Composable () -> Unit) {
     ) {
         content()
     }
+}
+
+/** How loud a [Notice] is. Colour only — the layout is identical, so nothing jumps. */
+enum class Tone { WARN, INFO, GOOD }
+
+/**
+ * A line of explanation under the arrow.
+ *
+ * Flat: coloured text on the black background rather than a tinted card. At this palette a card
+ * behind the text would be the only lifted surface on the screen and would compete with the
+ * needle, which is the thing that must dominate.
+ */
+@Composable
+fun Notice(text: String, tone: Tone = Tone.WARN) {
+    val tokens = AppTheme.tokens
+    Text(
+        text = text,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp),
+        style = MaterialTheme.typography.bodyMedium,
+        color = when (tone) {
+            Tone.WARN -> MaterialTheme.colorScheme.error
+            Tone.INFO -> tokens.label
+            Tone.GOOD -> tokens.good
+        },
+        textAlign = TextAlign.Center,
+    )
 }

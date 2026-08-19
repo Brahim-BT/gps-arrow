@@ -9,8 +9,13 @@ import re
 import sys
 from collections import defaultdict
 
-ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "GpsArrow")
-ROOT = os.path.normpath(ROOT)
+# The repo root is the parent of this directory. This used to be "../GpsArrow", which was right
+# only for a staging copy nested one level deeper — so the sweep silently ran against a copy and
+# never against the tree that gets committed. Anchor on a file that must exist, and stop loudly
+# if it doesn't, rather than reporting on whatever happens to be there.
+ROOT = os.path.normpath(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if not os.path.exists(os.path.join(ROOT, "settings.gradle.kts")):
+    sys.exit("no settings.gradle.kts under %s — this is not the repo root" % ROOT)
 problems = []
 notes = []
 

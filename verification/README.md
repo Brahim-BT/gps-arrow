@@ -18,7 +18,12 @@ build — once you have Android Studio open, `./gradlew :core:test` is the real 
 | `emit_strings.py` | Emits `values/`, `values-fr/` and `values-ar/` from it, then checks the three key sets and all format specifiers match. Run after editing the table; never hand-edit one language's file. |
 | `TRANSLATIONS.md` | The three languages side by side for review, with the safety-critical rows marked. |
 
-Run them with `python3 <script>`; only `wmm_reference.py` has a dependency.
+Run them with `python3 <script>` from anywhere; they locate the repo root from their own path
+and refuse to run if they cannot find it. Only `wmm_reference.py` has a dependency.
+
+**Read the file and enum counts they print.** They are there so that a scan of nothing cannot be
+mistaken for a clean scan — see "Two of the three checkers were passing without reading anything"
+below. At the time of writing the numbers are 37 Kotlin files and 14 enums.
 
 ## Superseded — and what it missed
 
@@ -108,6 +113,37 @@ read as type references, `Format` matching inside `CoordinateFormat`, single-lin
 by a regex that required a newline, and multi-constant branches (`ARRIVED, NORTH ->`) losing all
 but the last label. A check is not finished when it passes; it is finished when it fails on the
 thing it was written for and passes on everything else.
+
+## Two of the three checkers were passing without reading anything
+
+Found while running the sweep against the real tree for the first time. All three scripts
+resolved their root wrongly, in two different ways, and all three reported success:
+
+- `check_project.py` looked for `../GpsArrow` relative to itself. That was right only for a
+  staging copy nested one directory deeper — the layout it happened to be developed against. In
+  the actual repo that path does not exist, so it had **never once run against the tree that
+  gets committed**. It crashed rather than lying, which is the only reason this was noticed.
+- `resolve_check.py` and `exhaustive_check.py` defaulted their root to `"."`. Run standalone the
+  way this README tells you to run them, `.` is `verification/`, which contains no Kotlin. They
+  scanned zero files and printed `Every capitalised identifier resolves (0 files).` and
+  `Every `when` over a project enum is exhaustive (0 enums: ).` — green, instantly, on nothing.
+
+The second is the more dangerous shape and it is the same lesson as the WMM bound below, a third
+time: **a check that cannot fail still gets counted as one.** The fix is in two parts, and the
+second matters more than the first. All three now default to the repo root, anchored on
+`settings.gradle.kts` having to exist there; and an empty scan is now an **error**, not a pass.
+A checker that finds nothing to check has failed to run, and must say so.
+
+The counts are the tell, which is why they are printed: 37 files and 14 enums are load-bearing
+numbers, not decoration. `0 files` should have been read as a failure the moment it appeared.
+
+Re-verified after the change — the regression table above still holds, plus:
+
+| case | expected | result |
+|---|---|---|
+| root with no Kotlin files | fail | `refusing to report success on an empty scan` |
+| root with no enums | fail | `refusing to report success on an empty scan` |
+| not a repo root at all | fail | `no settings.gradle.kts under ... — this is not the repo root` |
 
 ## The WMM evaluator was 170 degrees wrong, and a green test said otherwise
 

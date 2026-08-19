@@ -99,8 +99,14 @@ def scan(root):
     return problems, len(files)
 
 if __name__ == "__main__":
-    root = sys.argv[1] if len(sys.argv) > 1 else "."
+    # Default to the repo root, not the cwd. Defaulting to "." meant running this from the
+    # directory it lives in scanned zero Kotlin files and printed a green line — a check that
+    # cannot fail, which is worse than no check because it gets counted as one.
+    root = sys.argv[1] if len(sys.argv) > 1 else \
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     problems, n = scan(root)
+    if n == 0:
+        sys.exit(f"no Kotlin files under {root} — refusing to report success on an empty scan")
     if problems:
         print(f"{len(problems)} unresolvable identifier(s) across {n} files:")
         for f, line, name in problems:
