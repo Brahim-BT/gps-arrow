@@ -55,17 +55,44 @@ So the real options are **z12, z13, z14, z15**.
 > scaling rules disagree and I have one data point. See "The size model was wrong" below for what
 > broke and why. The old numbers were: Morocco 183 MB, Mauritania 35 MB, both 218 MB at z14.
 
-| maxzoom | Morocco + W. Sahara | Mauritania | Both | What you give up |
-|---|---|---|---|---|
-| z12 | 46–66 MB | 9–21 MB | **55–87 MB** | Minor roads thin out; no useful street detail in towns |
-| z13 | 105–132 MB | 26–42 MB | **131–174 MB** | Street network present but sparse at walking scale |
-| **z14** | **264 MB** ✔ | **83 MB** ✔ | **347 MB** ✔ | Buildings are *merged blobs*, not individual footprints |
-| z15 | 528–741 MB | 166–293 MB | **694–1033 MB** | Nothing — this is the maximum available |
+All **measured** except z15. Every level below z14 was cut locally from the z14 archive in
+seconds — `pmtiles extract` reads local files, so no planet re-download is needed.
 
-✔ = measured from the built archive. Everything else is scaled from those two numbers by two
-different rules that disagree, hence the ranges. **The spread is ±14% combined at z13 but ±38% for
-Mauritania alone, and ±57% for Mauritania at z12** — so these are not good to ±20% and should not
-be quoted as though they were. Measure instead; it is nearly free (below).
+| maxzoom | Morocco + W. Sahara | Mauritania | Both | What is actually missing |
+|---|---|---|---|---|
+| z12 | **61,851,096** (62 MB) | **20,699,748** (21 MB) | **83 MB** | Service roads, footways, cycleways, steps. Residential streets *are* present. |
+| z13 | **133,209,973** (133 MB) | **42,919,292** (43 MB) | **176 MB** | Sidewalks, crossings, tram/subway lines |
+| z14 | **263,915,307** (264 MB) | **83,111,730** (83 MB) | **347 MB** | Individual building footprints (merged blobs instead) |
+| z15 | ~528 MB | ~166 MB | ~694 MB | Nothing — the maximum the planet build offers |
+
+### Which scaling rule survived
+
+Measured level-to-level ratios:
+
+| | z13/z12 | z14/z13 |
+|---|---|---|
+| Morocco | 2.154 | 1.981 |
+| Mauritania | 2.073 | 1.936 |
+
+**Rule (a) — Protomaps' "each additional zoom level roughly doubles the size" — is correct**, and
+holds to within 7% across both regions and both steps despite an 8:1 difference in OSM data
+density. Predicting from the z14 measurement alone: Morocco z13 −0.9%, z12 +6.7%; Mauritania
+z13 −3.2%, z12 +0.4%.
+
+**Rule (b) — my floor model — is refuted.** It predicted z14→z13 ratios of 2.51 (Morocco) and
+3.23 (Mauritania); the observed values are 1.98 and 1.94. The error I made was assuming the
+area-driven floor scales with *tile count*, so that dropping a level divides it by four. It does
+not. The floor is geometry covering a fixed area; slicing that area into four times fewer tiles
+does not remove it, it just partitions it differently.
+
+So the floor is real — it is why sizing from OSM data volume failed — but it does **not** change
+the zoom scaling. Those are two separate questions and I conflated them. The corrected position:
+*size scales cleanly as 2^zoom regardless of terrain density; only the constant of proportionality
+depends on the terrain.* That is simpler than either model I proposed, and it is the one the data
+supports.
+
+The z15 row is now an extrapolation from a rule tested twice per region rather than a guess,
+which is why it is a single figure again rather than a range.
 
 **If you want an exact z13 figure, it costs under a minute and no network.** `pmtiles extract`
 reads local archives, so a lower-zoom cut can be taken from the z14 file we already have rather
