@@ -22,8 +22,16 @@ release/
 # ---- Signing material: never commit these ----
 *.jks
 *.keystore
+*.p12
+*.pfx
+*.pem
 keystore.properties
 signing.properties
+# This repository is PUBLIC. Its history is permanent and cannot be scrubbed by deleting a file
+# in a later commit — a committed key is a leaked key from the moment it is pushed, and the only
+# real remedy is revoking and reissuing it. Release signing material must never be added here,
+# not even briefly, not even in a branch. Use Play App Signing, or keep the keystore off this
+# machine's repository entirely and pass it to CI as an encrypted secret.
 
 # ---- Android Studio / IntelliJ ----
 *.iml

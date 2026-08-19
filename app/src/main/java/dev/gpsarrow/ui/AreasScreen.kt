@@ -1,0 +1,288 @@
+package dev.gpsarrow.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import dev.gpsarrow.R
+import dev.gpsarrow.maps.AreaLevel
+import dev.gpsarrow.maps.Detail
+import dev.gpsarrow.maps.MapArea
+
+/**
+ * The offline areas list: what you can download, what you have, and what it costs.
+ *
+ * Three things this screen is trying to do, in order of importance:
+ *
+ *  1. **Answer "does this cover me?"** — the coverage line sits above everything else, because it
+ *     is the only question that matters and it makes the area's label almost decorative.
+ *  2. **Name areas by the places in them**, never by country or territory. Neutral about a
+ *     disputed frontier, and more useful anyway: a person recognises their own city instantly.
+ *  3. **Describe levels by content, not by zoom.** Nobody can act on "z12".
+ *
+ * Nothing here renders a filename, a path or a URL.
+ */
+@Composable
+fun AreasScreen(
+    areas: List<AreaRow>,
+    storageUsedLabel: String,
+    freeSpaceLabel: String,
+    onDownload: (MapArea, AreaLevel) -> Unit,
+    onCancel: (MapArea) -> Unit,
+    onDelete: (MapArea) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        SectionHeader(stringResource(R.string.areas_title))
+
+        Text(
+            stringResource(R.string.areas_one_level_note),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        for (row in areas) {
+            AreaCard(row, onDownload, onCancel, onDelete)
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                stringResource(R.string.areas_storage_used, storageUsedLabel),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                stringResource(R.string.areas_free_space, freeSpaceLabel),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                stringResource(R.string.about_map_attribution),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+
+        TextButton(onClick = onBack) { Text(stringResource(R.string.map_back_to_arrow)) }
+    }
+}
+
+@Composable
+private fun AreaCard(
+    row: AreaRow,
+    onDownload: (MapArea, AreaLevel) -> Unit,
+    onCancel: (MapArea) -> Unit,
+    onDelete: (MapArea) -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        // The coverage line comes first, deliberately. It is the answer to the only question the
+        // user is actually asking, and it needs no place name to be understood.
+        when (row.coverage) {
+            Coverage.INSIDE -> Notice(stringResource(R.string.area_covers_you), Tone.GOOD)
+            Coverage.NO_FIX -> Notice(stringResource(R.string.area_position_unknown), Tone.INFO)
+            Coverage.OUTSIDE -> Unit
+        }
+
+        Text(
+            stringResource(row.area.placesRes),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+
+        // An area with one level must not render a chooser: offering a choice of one implies
+        // there is a decision to make and there is not.
+        for (level in row.area.levels) {
+            LevelRow(
+                area = row.area,
+                level = level,
+                showLabel = row.area.hasChoice,
+                sizeLabel = row.sizeLabels[level.detail].orEmpty(),
+                state = row.stateFor(level.detail),
+                onDownload = onDownload,
+                onCancel = onCancel,
+                onDelete = onDelete,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LevelRow(
+    area: MapArea,
+    level: AreaLevel,
+    showLabel: Boolean,
+    sizeLabel: String,
+    state: LevelState,
+    onDownload: (MapArea, AreaLevel) -> Unit,
+    onCancel: (MapArea) -> Unit,
+    onDelete: (MapArea) -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.fillMaxWidth(0.6f)) {
+                if (showLabel) {
+                    Text(
+                        stringResource(level.detail.labelRes),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                }
+                Text(
+                    stringResource(level.detail.summaryRes),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(sizeLabel, style = MaterialTheme.typography.bodyMedium)
+        }
+
+        when (state) {
+            LevelState.Absent ->
+                Button(
+                    onClick = { onDownload(area, level) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.areas_download)) }
+
+            LevelState.Installed -> {
+                Notice(stringResource(R.string.areas_installed), Tone.GOOD)
+                OutlinedButton(
+                    onClick = { onDelete(area) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.areas_delete)) }
+            }
+
+            LevelState.Replaceable ->
+                OutlinedButton(
+                    onClick = { onDownload(area, level) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.areas_switch)) }
+
+            is LevelState.Downloading -> {
+                LinearProgressIndicator(
+                    progress = { state.fraction },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    stringResource(R.string.download_progress, state.doneLabel, state.totalLabel),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                // Said out loud so nobody fears they have already lost the level they had.
+                if (state.replacingInstalled) {
+                    Text(
+                        stringResource(R.string.download_replacing),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                TextButton(onClick = { onCancel(area) }) {
+                    Text(stringResource(R.string.download_cancel))
+                }
+            }
+
+            LevelState.Verifying -> {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Text(
+                    stringResource(R.string.download_verifying),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+
+            is LevelState.Paused -> {
+                Notice(state.reason, Tone.WARN)
+                Button(
+                    onClick = { onDownload(area, level) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.download_resume)) }
+            }
+
+            is LevelState.Failed -> {
+                Notice(state.reason, Tone.WARN)
+                Button(
+                    onClick = { onDownload(area, level) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.areas_download)) }
+            }
+
+            LevelState.Unavailable -> Notice(
+                stringResource(R.string.download_not_published),
+                Tone.INFO,
+            )
+        }
+    }
+}
+
+/** Whether the user's current position falls inside an area's bounds. */
+enum class Coverage { INSIDE, OUTSIDE, NO_FIX }
+
+/**
+ * One area as this screen needs it: already-resolved labels and states, no formatting logic here.
+ *
+ * Sizes arrive pre-formatted because number formatting has to go through the app's pinned
+ * Latin-digit locale, which lives in the caller. A composable reaching for `String.format` is how
+ * Arabic-Indic digits got into a size label once already.
+ */
+data class AreaRow(
+    val area: MapArea,
+    val coverage: Coverage,
+    val sizeLabels: Map<Detail, String>,
+    val states: Map<Detail, LevelState>,
+) {
+    fun stateFor(detail: Detail): LevelState = states[detail] ?: LevelState.Absent
+}
+
+sealed interface LevelState {
+    /** Not on disk, and no other level of this area is either. */
+    data object Absent : LevelState
+
+    data object Installed : LevelState
+
+    /** A different level of this area is installed; taking this one replaces it. */
+    data object Replaceable : LevelState
+
+    data class Downloading(
+        val fraction: Float,
+        val doneLabel: String,
+        val totalLabel: String,
+        val replacingInstalled: Boolean,
+    ) : LevelState
+
+    data object Verifying : LevelState
+
+    /** Stopped, resumable, with the reason already localised by the caller. */
+    data class Paused(val reason: String) : LevelState
+
+    data class Failed(val reason: String) : LevelState
+
+    /** The catalogue names a file the release does not carry. Not an error, and not the user's. */
+    data object Unavailable : LevelState
+}
