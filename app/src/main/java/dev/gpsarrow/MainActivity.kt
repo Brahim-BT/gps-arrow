@@ -2,6 +2,7 @@ package dev.gpsarrow
 
 import android.content.Context
 import android.content.Intent
+import android.provider.Settings
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -55,7 +56,6 @@ import dev.gpsarrow.ui.PermissionGate
 import dev.gpsarrow.ui.SettingsScreen
 // Top-level extension functions from another package need an explicit import, unlike the
 // members of an imported class. Omitting these is what broke CI run #7.
-import dev.gpsarrow.ui.headingChipRes
 import dev.gpsarrow.ui.numberLocale
 import dev.gpsarrow.ui.rememberNotificationPermissionRequest
 import dev.gpsarrow.ui.theme.GpsArrowTheme
@@ -370,7 +370,7 @@ private fun AppRoot(
                 when (tab) {
                     AppTab.ARROW -> ArrowScreen(
                         state = state,
-                        headingSourceLabel = stringResource(state.headingChipRes()),
+                        locationEnabled = gnss.locationEnabled,
                         satellitesUsed = gnss.satellitesUsed,
                         satellitesVisible = gnss.satellitesVisible,
                         degraded = degraded,
@@ -452,6 +452,11 @@ private fun AppRoot(
                                 )
                             }
                         },
+                        // Straight to the system location screen. Making the user find it
+                        // themselves is the difference between a working app and an uninstall,
+                        // and coming back is handled: LocationEngine watches
+                        // PROVIDERS_CHANGED_ACTION, so the toggle lands before they press back.
+                        onOpenLocationSettings = { context.openLocationSettings() },
                     )
 
                     AppTab.DESTINATIONS -> DestinationsScreen(
@@ -549,3 +554,13 @@ private val CoordinateDraftSaver = listSaver<CoordinateDraft, String>(
 private fun Context.versionName(): String = runCatching {
     packageManager.getPackageInfo(packageName, 0).versionName ?: "—"
 }.getOrDefault("—")
+
+/** The OS location master switch. Guarded: an OEM ROM without this screen must not crash us. */
+private fun Context.openLocationSettings() {
+    runCatching {
+        startActivity(
+            Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }
+}

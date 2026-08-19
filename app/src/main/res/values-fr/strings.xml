@@ -55,6 +55,13 @@
     <string name="coord_format_plus_code">Plus code</string>
     <string name="coord_format_mgrs">MGRS</string>
 
+    <!-- Location availability — three distinct problems, three remedies -->
+    <string name="location_off_title">La localisation est désactivée</string>
+    <string name="location_off_body">Vous avez autorisé cette application, mais la localisation de l’appareil est désactivée : aucune application ne peut obtenir de position. La flèche ne fonctionnera pas tant qu’elle n’est pas activée.</string>
+    <string name="location_off_button">Activer la localisation</string>
+    <string name="acquiring_title">Recherche de satellites</string>
+    <string name="acquiring_body">%1$s satellites sur %2$s en vue. Sans Internet, cela prend de 30 à 90 secondes à froid, parfois davantage. Sortez ou placez-vous là où vous voyez le ciel.</string>
+
     <!-- Status chips -->
     <string name="chip_accuracy">±%1$s m</string>
     <string name="chip_accuracy_weak">faible ±%1$s m</string>

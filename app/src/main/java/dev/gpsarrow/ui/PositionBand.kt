@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +30,91 @@ import dev.gpsarrow.core.CoordinateFormat
 import dev.gpsarrow.core.Format
 import dev.gpsarrow.core.NavigationState
 import dev.gpsarrow.ui.theme.AppTheme
+
+/**
+ * The position area, which is also where the app admits it has no position and why.
+ *
+ * Three genuinely different problems live here and the user can only act on the right one if it
+ * is named. The permission gate upstream handles the first; these are the other two:
+ *
+ *  - **Location switched off at the OS level.** Granting this app permission is not the same as
+ *    the device's location master switch being on, and when it is off `requestLocationUpdates`
+ *    succeeds and then silently never delivers. Saying "searching for satellites" here would be
+ *    a lie that costs the user minutes standing outside — which is exactly what it did. So this
+ *    state says so plainly and offers the one-tap route to the setting.
+ *  - **Enabled, permitted, but no fix yet.** A genuinely normal state for 30 to 90 seconds from
+ *    cold with no assistance data, and the satellite count is the reassurance that something is
+ *    happening. That count used to live in a status chip; with the chips gone this is its home,
+ *    and it is a better one, because it appears exactly when it is meaningful.
+ */
+@Composable
+fun PositionStatus(
+    state: NavigationState,
+    locationEnabled: Boolean,
+    satellitesUsed: Int,
+    satellitesVisible: Int,
+    format: CoordinateFormat,
+    onCycleFormat: () -> Unit,
+    onCopied: () -> Unit,
+    onOpenLocationSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val numberLocale = rememberNumberLocale()
+    val tokens = AppTheme.tokens
+    when {
+        !locationEnabled -> Column(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.location_off_title),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.error,
+            )
+            Text(
+                text = stringResource(R.string.location_off_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = tokens.label,
+            )
+            Button(
+                onClick = onOpenLocationSettings,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = stringResource(R.string.location_off_button),
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                )
+            }
+        }
+
+        state.fix == null -> Column(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.acquiring_title),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = stringResource(
+                    R.string.acquiring_body,
+                    Format.number("%d", numberLocale, satellitesUsed),
+                    Format.number("%d", numberLocale, satellitesVisible),
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = tokens.label,
+            )
+        }
+
+        else -> PositionBand(state, format, onCycleFormat, onCopied, modifier)
+    }
+}
 
 /**
  * The user's own position, always on screen above the arrow.
@@ -48,7 +135,7 @@ import dev.gpsarrow.ui.theme.AppTheme
  * different rules and would make the same spot render differently as accuracy wandered.
  */
 @Composable
-fun PositionBand(
+private fun PositionBand(
     state: NavigationState,
     format: CoordinateFormat,
     onCycleFormat: () -> Unit,

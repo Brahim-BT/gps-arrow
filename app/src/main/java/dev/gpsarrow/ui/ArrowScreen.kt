@@ -14,14 +14,12 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -32,11 +30,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
@@ -56,9 +51,7 @@ import dev.gpsarrow.core.Format
 import dev.gpsarrow.core.HeadingSource
 import dev.gpsarrow.core.NavigationState
 import dev.gpsarrow.ui.theme.AppTheme
-import kotlin.math.cos
 import kotlin.math.min
-import kotlin.math.sin
 
 /**
  * The home screen and the entire product in one view.
@@ -72,7 +65,8 @@ import kotlin.math.sin
 @Composable
 fun ArrowScreen(
     state: NavigationState,
-    headingSourceLabel: String,
+    /** The OS location master switch. Distinct from this app's permission — see PositionStatus. */
+    locationEnabled: Boolean,
     satellitesUsed: Int,
     satellitesVisible: Int,
     /** Subsystems that failed but did not take the app down. Empty in the normal case. */
@@ -88,6 +82,7 @@ fun ArrowScreen(
     positionFormat: CoordinateFormat,
     onCyclePositionFormat: () -> Unit,
     onPositionCopied: () -> Unit,
+    onOpenLocationSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -97,24 +92,18 @@ fun ArrowScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        // Long-press anywhere on the status row to open the diagnostics panel.
-        Box(
-            modifier = Modifier.pointerInput(Unit) {
-                detectTapGestures(onLongPress = { onToggleDiagnostics() })
-            },
-        ) {
-            StatusRow(state, satellitesUsed, satellitesVisible, headingSourceLabel)
-        }
-
         // Above the four-corner composition, not inside it: that layout is deliberate and
-        // dropping two more rows into its middle would wreck it. One line here costs the needle
-        // about 30dp of roughly 430 and leaves it comfortably dominant.
+        // dropping more rows into its middle would wreck it.
         if (!showDiagnostics) {
-            PositionBand(
+            PositionStatus(
                 state = state,
+                locationEnabled = locationEnabled,
+                satellitesUsed = satellitesUsed,
+                satellitesVisible = satellitesVisible,
                 format = positionFormat,
                 onCycleFormat = onCyclePositionFormat,
                 onCopied = onPositionCopied,
+                onOpenLocationSettings = onOpenLocationSettings,
             )
         }
 
@@ -137,7 +126,7 @@ fun ArrowScreen(
                 // NOTE: no `fix == null` gate here. The needle is driven by the heading, which
                 // exists indoors with no satellites at all. Gating the whole view on a fix was
                 // why the arrow looked dead on the first device test.
-                CompassFace(state, units, onPickDestination)
+                CompassFace(state, units, onPickDestination, onToggleDiagnostics)
             }
         }
 
@@ -229,6 +218,7 @@ private fun CompassFace(
     state: NavigationState,
     units: DistanceUnits,
     onPickDestination: () -> Unit,
+    onToggleDiagnostics: () -> Unit,
 ) {
     val context = LocalContext.current
     val numberLocale = rememberNumberLocale()
@@ -282,7 +272,13 @@ private fun CompassFace(
         Box(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                // The diagnostics long-press used to live on the status chips. With those gone
+                // it moves to the needle, which is the largest target on the screen and has no
+                // other gesture on it.
+                .pointerInput(Unit) {
+                    detectTapGestures(onLongPress = { onToggleDiagnostics() })
+                },
             contentAlignment = Alignment.Center,
         ) {
             BoxWithConstraints {
@@ -302,7 +298,10 @@ private fun CompassFace(
                             .size(side * 0.98f)
                             .aspectRatio(1f),
                     ) {
-                        drawCompassRose(tokens.divider)
+                        // No compass rose. It read as a clock face on the device, and the
+                        // reference screen is pure black behind the needle for the same reason:
+                        // at this size the arrow is the whole message and a faint ring behind it
+                        // is decoration competing with it.
                         val r = size.minDimension / 2f * 0.92f
                         val cy = size.height / 2f
                         val brush = mutedArrow?.let { SolidColor(it) }
@@ -406,6 +405,7 @@ private fun DiagnosticsPanel(rows: List<Diagnostic>, onClose: () -> Unit) {
                     Text(
                         text = when {
                             row.value.isEmpty() -> stringResource(R.string.diag_none)
+                            row.valueRes != null -> stringResource(row.valueRes)
                             row.unitRes != null -> stringResource(row.unitRes, row.value)
                             else -> row.value
                         },
@@ -416,23 +416,6 @@ private fun DiagnosticsPanel(rows: List<Diagnostic>, onClose: () -> Unit) {
                 }
             }
         }
-    }
-}
-
-private fun DrawScope.drawCompassRose(color: Color) {
-    val radius = size.minDimension / 2f * 0.92f
-    val center = Offset(size.width / 2f, size.height / 2f)
-    drawCircle(color = color, radius = radius, center = center, style = Stroke(width = 3f))
-    for (deg in 0 until 360 step 15) {
-        val rad = Math.toRadians(deg.toDouble() - 90.0)
-        val long = deg % 90 == 0
-        val inner = radius * if (long) 0.84f else 0.92f
-        drawLine(
-            color = color,
-            start = center + Offset((cos(rad) * inner).toFloat(), (sin(rad) * inner).toFloat()),
-            end = center + Offset((cos(rad) * radius).toFloat(), (sin(rad) * radius).toFloat()),
-            strokeWidth = if (long) 5f else 2f,
-        )
     }
 }
 
@@ -464,66 +447,6 @@ private fun DrawScope.drawArrow(brush: Brush) {
     drawPath(path, brush)
 }
 
-@Composable
-private fun StatusRow(
-    state: NavigationState,
-    used: Int,
-    visible: Int,
-    headingSourceLabel: String,
-) {
-    val numberLocale = rememberNumberLocale()
-    val accuracy = Format.number("%d", numberLocale, state.fix?.accuracyMeters?.toInt() ?: 0)
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Chip(
-            text = when (state.quality) {
-                FixQuality.GOOD -> stringResource(R.string.chip_accuracy, accuracy)
-                FixQuality.POOR -> stringResource(R.string.chip_accuracy_weak, accuracy)
-                FixQuality.STALE -> stringResource(R.string.chip_stale_fix)
-                FixQuality.NONE -> stringResource(R.string.chip_no_fix)
-            },
-            emphasised = state.quality == FixQuality.GOOD,
-        )
-        Chip(
-            text = stringResource(
-                R.string.chip_satellites,
-                Format.number("%d", numberLocale, used),
-                Format.number("%d", numberLocale, visible),
-            ),
-        )
-        Chip(text = headingSourceLabel)
-    }
-}
-
-@Composable
-private fun Chip(text: String, emphasised: Boolean = false) {
-    Surface(
-        shape = RoundedCornerShape(50),
-        color = if (emphasised) MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f)
-        else MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-        )
-    }
-}
-
-/** How loud a [Notice] is. Colour only — the layout is identical, so nothing jumps. */
-private enum class Tone { WARN, INFO, GOOD }
-
-/**
- * A line of explanation under the arrow.
- *
- * Flat: coloured text on the black background rather than a tinted card. At this palette a card
- * behind the text would be the only lifted surface on the screen and would compete with the
- * needle, which is the thing that must dominate.
- */
 @Composable
 private fun Notice(text: String, tone: Tone = Tone.WARN) {
     val tokens = AppTheme.tokens

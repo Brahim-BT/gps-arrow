@@ -156,11 +156,15 @@ fun SectionHeader(text: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * A corner readout on the arrow screen: a big value and a small grey label.
+ * A corner readout on the arrow screen: a value and its label, at the same size.
  *
- * [labelAbove] follows the reference exactly — the label sits above the value in the top corners
- * and below it in the bottom ones, so the small grey text always hugs the nearer screen edge and
- * the two large numbers are pulled towards the middle where the eye is.
+ * The value was `displayMedium` (34sp) to match the reference screenshots. On the device that
+ * proved too heavy, so value and label are now both `labelLarge` and the only thing separating
+ * them is colour — white against grey. That is what was asked for, deliberately and not as a
+ * compromise, because the person judging it was looking at a real screen.
+ *
+ * [labelAbove] follows the reference: the label sits above the value in the top corners and
+ * below it in the bottom ones, so the smaller grey text always hugs the nearer screen edge.
  *
  * Alignment is [Alignment.Start] / [Alignment.End], never left/right, so the whole block mirrors
  * correctly under RTL. The arrow between them does not — that is locked LTR elsewhere.
@@ -181,7 +185,7 @@ fun CornerReadout(
         }
         Text(
             text = value,
-            style = MaterialTheme.typography.displayMedium,
+            style = MaterialTheme.typography.labelLarge,
             color = valueColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

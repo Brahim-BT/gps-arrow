@@ -55,6 +55,13 @@
     <string name="coord_format_plus_code">Plus code</string>
     <string name="coord_format_mgrs">MGRS</string>
 
+    <!-- Location availability — three distinct problems, three remedies -->
+    <string name="location_off_title">Location is switched off</string>
+    <string name="location_off_body">You gave this app permission, but the device’s location switch is off, so no app can get a position. The arrow cannot work until you turn it on.</string>
+    <string name="location_off_button">Turn on location</string>
+    <string name="acquiring_title">Searching for satellites</string>
+    <string name="acquiring_body">%1$s of %2$s satellites in view. With no internet this takes 30 to 90 seconds from cold, sometimes longer. Go outside or stand where you can see sky.</string>
+
     <!-- Status chips -->
     <string name="chip_accuracy">±%1$s m</string>
     <string name="chip_accuracy_weak">weak ±%1$s m</string>

@@ -55,6 +55,13 @@
     <string name="coord_format_plus_code">Plus code</string>
     <string name="coord_format_mgrs">MGRS</string>
 
+    <!-- Location availability — three distinct problems, three remedies -->
+    <string name="location_off_title">خدمة الموقع معطّلة</string>
+    <string name="location_off_body">لقد منحت الإذن لهذا التطبيق، لكن مفتاح الموقع في الجهاز مطفأ، فلا يمكن لأي تطبيق أن يحدد الموقع. لن يعمل السهم حتى تفعّله.</string>
+    <string name="location_off_button">تفعيل الموقع</string>
+    <string name="acquiring_title">جارٍ البحث عن الأقمار الصناعية</string>
+    <string name="acquiring_body">%1$s من %2$s قمرًا في المدى. بدون إنترنت يستغرق ذلك من 30 إلى 90 ثانية عند البدء، وربما أكثر. اخرج إلى العراء أو قف حيث ترى السماء.</string>
+
     <!-- Status chips -->
     <string name="chip_accuracy">±%1$s م</string>
     <string name="chip_accuracy_weak">ضعيف ±%1$s م</string>

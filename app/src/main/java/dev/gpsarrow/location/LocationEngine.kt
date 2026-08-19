@@ -2,7 +2,10 @@ package dev.gpsarrow.location
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.location.GnssStatus
 import android.location.Location
@@ -41,7 +44,8 @@ class LocationEngine(private val context: Context) {
         ContextCompat.getSystemService(context, LocationManager::class.java)
 
     data class Status(
-        val gpsEnabled: Boolean,
+        /** The OS location master switch, not this app's permission. */
+        val locationEnabled: Boolean,
         val satellitesVisible: Int,
         val satellitesUsed: Int,
     )
@@ -58,8 +62,28 @@ class LocationEngine(private val context: Context) {
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
 
-    fun isGpsEnabled(): Boolean =
-        locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true
+    /**
+     * Whether the OS will give anyone a position at all.
+     *
+     * Distinct from having the runtime permission, and the distinction is the whole point: a
+     * user can grant this app location access while the device's location master switch is off,
+     * in which case `requestLocationUpdates` succeeds, no callback ever fires, and the app looks
+     * like it is searching for satellites forever. That cost a first-time user several minutes
+     * standing outside before they worked out what was wrong.
+     *
+     * `isLocationEnabled` (API 28+) is the real master switch. Below that, GPS_PROVIDER being
+     * enabled is the closest available proxy.
+     */
+    fun isLocationEnabled(): Boolean {
+        val lm = locationManager ?: return false
+        return runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                lm.isLocationEnabled
+            } else {
+                lm.isProviderEnabled(LocationManager.GPS_PROVIDER)
+            }
+        }.getOrDefault(false)
+    }
 
     /**
      * Best available position with no waiting — used to render something the instant the app
@@ -175,12 +199,12 @@ class LocationEngine(private val context: Context) {
     fun status(): Flow<Status> = callbackFlow {
         val lm = locationManager
         if (lm == null || !hasPermission()) {
-            trySend(Status(gpsEnabled = false, satellitesVisible = 0, satellitesUsed = 0))
+            trySend(Status(locationEnabled = false, satellitesVisible = 0, satellitesUsed = 0))
             awaitClose { }
             return@callbackFlow
         }
 
-        trySend(Status(isGpsEnabled(), 0, 0))
+        trySend(Status(isLocationEnabled(), 0, 0))
 
         val callback = object : GnssStatus.Callback() {
             override fun onSatelliteStatusChanged(status: GnssStatus) {
@@ -189,13 +213,34 @@ class LocationEngine(private val context: Context) {
                     for (i in 0 until status.satelliteCount) if (status.usedInFix(i)) used++
                     satellitesVisible = status.satelliteCount
                     satellitesUsed = used
-                    trySend(Status(isGpsEnabled(), status.satelliteCount, used))
+                    trySend(Status(isLocationEnabled(), status.satelliteCount, used))
                 }.onFailure { Log.w(TAG, "dropped a GNSS status update", it) }
             }
         }
 
+        // Without this, the enabled flag is sampled once at subscription and never again: no
+        // GNSS callback fires while location is off, so nothing would ever re-emit. That is
+        // precisely why switching GPS on used to require killing and relaunching the app.
+        // PROVIDERS_CHANGED_ACTION is a protected system broadcast, so NOT_EXPORTED is correct.
+        val providerChanges = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                trySend(Status(isLocationEnabled(), satellitesVisible, satellitesUsed))
+            }
+        }
+        runCatching {
+            ContextCompat.registerReceiver(
+                context,
+                providerChanges,
+                IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION),
+                ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
+        }.onFailure { Log.w(TAG, "could not observe provider changes", it) }
+
         runCatching { lm.registerGnssStatusCallback(callback, android.os.Handler(Looper.getMainLooper())) }
-        awaitClose { runCatching { lm.unregisterGnssStatusCallback(callback) } }
+        awaitClose {
+            runCatching { lm.unregisterGnssStatusCallback(callback) }
+            runCatching { context.unregisterReceiver(providerChanges) }
+        }
     }
 
     @Volatile

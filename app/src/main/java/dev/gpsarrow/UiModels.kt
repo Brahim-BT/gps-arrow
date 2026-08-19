@@ -40,4 +40,14 @@ data class Diagnostic(
      * in the app's language on API levels below 33.
      */
     @param:StringRes val unitRes: Int? = null,
+    /**
+     * A translated value, for rows whose value is prose rather than an identifier.
+     *
+     * Only the heading source uses it, and that is deliberate: the status chips carried which
+     * source was driving the needle — compass, GPS course, or compass-showing-magnetic-north —
+     * and when they were removed this became the only place that information survives. The
+     * loud half of it (an uncalibrated magnetometer, or magnetic north before the first fix)
+     * still has its own notice under the arrow; this is the quiet half.
+     */
+    @param:StringRes val valueRes: Int? = null,
 )

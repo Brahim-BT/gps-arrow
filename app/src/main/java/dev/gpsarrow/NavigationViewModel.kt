@@ -22,6 +22,7 @@ import dev.gpsarrow.location.FrameworkDeclination
 import dev.gpsarrow.location.HeadingEngine
 import dev.gpsarrow.location.LocationEngine
 import dev.gpsarrow.maps.MapTier
+import dev.gpsarrow.ui.headingChipRes
 import dev.gpsarrow.maps.RegionIndex
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -365,7 +366,11 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
         return rows(
             Diagnostic(R.string.diag_arrow_mode, s.arrowMode.name),
             degRow(R.string.diag_arrow_angle, s.arrowDeg),
-            Diagnostic(R.string.diag_arbiter_mode, s.headingSource.name),
+            Diagnostic(
+                R.string.diag_arbiter_mode,
+                s.headingSource.name,
+                valueRes = s.headingChipRes(),
+            ),
             degRow(R.string.diag_heading_smoothed, s.headingDeg),
             degRow(R.string.diag_compass_raw, rawCompassDeg),
             degRow(R.string.diag_compass_smoothed, smoothedCompassDeg),
@@ -421,7 +426,7 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
                 latin("%d", locale, _gnss.value.satellitesUsed) + "/" +
                     latin("%d", locale, _gnss.value.satellitesVisible),
             ),
-            Diagnostic(R.string.diag_gps_enabled, _gnss.value.gpsEnabled.toString()),
+            Diagnostic(R.string.diag_gps_enabled, _gnss.value.locationEnabled.toString()),
             Diagnostic(R.string.diag_location_job, (locationJob?.isActive == true).toString()),
             Diagnostic(R.string.diag_heading_job, (headingJob?.isActive == true).toString()),
             Diagnostic(R.string.diag_heading_updates, latin("%d", locale, headingUpdateCount)),
