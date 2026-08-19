@@ -148,6 +148,41 @@ for src, i in file_info.items():
                 f"used in {os.path.relpath(src, ROOT)}"
             )
 
+# ------------------------------------------- 2c/2d/2e: the checks 2b could not make
+#
+# 2b above asks a narrower question than it appears to: "is this *declared* symbol reachable
+# from where it is used?". It indexes only top-level FUNCTIONS, and — the deeper flaw — it can
+# only consider names that already exist somewhere in the project, because it iterates the
+# declaration index. A reference to a symbol declared nowhere at all is never a key in that
+# index, so the branch that would flag it never runs.
+#
+# Run #11 was exactly that: an enum was deleted along with the function above it by an
+# over-broad text edit, and eight references to it stayed invisible to a check whose entire
+# purpose was to see them. 2b stays, because it catches *lowercase* top-level functions used
+# without an import (run #7), which the capitalised-identifier scan does not.
+#
+# These live in their own files so each can be run, and broken deliberately, on its own — which
+# is how they were verified this time: against the failing commit before being trusted.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import resolve_check      # noqa: E402
+import exhaustive_check   # noqa: E402
+
+for _f, _line, _name in resolve_check.scan(ROOT)[0]:
+    problems.append(f"UNRESOLVED IDENTIFIER  '{_name}' in {_f}:{_line} resolves to nothing")
+
+# 2c can only be sound because every external symbol is named in an explicit import.
+for _src in walk(".kt"):
+    if re.search(r"^import\s+[\w.]+\.\*$", open(_src, encoding="utf-8").read(), re.M):
+        problems.append(
+            f"WILDCARD IMPORT  {os.path.relpath(_src, ROOT)} — 2c cannot resolve through it"
+        )
+
+for _f, _line, _enum, _missing in exhaustive_check.scan(ROOT)[0]:
+    problems.append(
+        f"NON-EXHAUSTIVE WHEN  {_f}:{_line} over {_enum}, no else, missing: {_missing}"
+    )
+
+
 # ---------------------------------------------------------------- 3. :core purity
 for src in walk(".kt", "core"):
     text = open(src, encoding="utf-8").read()

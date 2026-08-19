@@ -12,6 +12,8 @@ build — once you have Android Studio open, `./gradlew :core:test` is the real 
 | `run_core_tests.py` | The Kotlin in `core/src/main/kotlin` transpiled back to Python, run against the same assertions as `core/src/test/kotlin`. This is what catches transcription errors in the port. |
 | `wmm_reference.py` | `Wmm.kt` ported to Python and checked against NOAA's reference implementation over thousands of points; reports the declination across the deployment region; regenerates `WmmReferenceTest.kt`. Needs `pip install pygeomag` for the coefficient files, which this repo does not ship. |
 | `WmmReferenceTest.kt.template` | Skeleton the above fills in. Not a script. |
+| `resolve_check.py` | Every capitalised identifier must resolve to something. Catches a symbol deleted out from under its uses, which the import-side check structurally cannot. Runnable alone. |
+| `exhaustive_check.py` | Every `when` over a project enum handles every constant or says `else`. Runnable alone. |
 | `strings_table.py` | The single aligned table of every user-facing string in English, French and Arabic. |
 | `emit_strings.py` | Emits `values/`, `values-fr/` and `values-ar/` from it, then checks the three key sets and all format specifiers match. Run after editing the table; never hand-edit one language's file. |
 | `TRANSLATIONS.md` | The three languages side by side for review, with the safety-critical rows marked. |
@@ -59,6 +61,53 @@ verified by running it against the failing commit, where it reports both missing
 
 The general lesson, which is the same one twice now: a check that only ever looks in one
 direction will report clean on the half it cannot see.
+
+## The usage check passed on broken code too, for a different reason
+
+CI run #11 failed with ten errors in `ArrowScreen.kt`: eight unresolved references to an enum
+called `Tone`, and two knock-on errors from the `when` over it. Section 2b — added *specifically*
+to catch unresolved symbols, and verified against run #7's failing commit — reported clean.
+
+Two gaps, one shallow and one that invalidated the check's premise:
+
+1. **It indexed only top-level functions.** `Tone` is an enum class, so it was never a candidate.
+2. **It could only consider symbols that exist.** 2b iterates the declaration index and asks "is
+   this declared symbol reachable from where it is used?". A reference to something declared
+   *nowhere* is not a key in that index, so the branch that would flag it never executes. The
+   check could never have caught this, at any size of index.
+
+`Tone` was deleted by an over-broad text edit: removing two adjacent functions by slicing from
+one anchor to another took the enum sitting between them as well. **The file's size was not the
+cause and splitting it would not have prevented it** — the working rule that follows is to read
+what a range contains before deleting it, and to prefer deleting named declarations over slicing
+between anchors.
+
+Section 2c inverts the question: every capitalised identifier must resolve to a same-file
+declaration, a same-package declaration, an explicit import, or a Kotlin built-in. That is sound
+only because the project has no wildcard imports, which 2d now enforces. 2b stays — it catches
+*lowercase* top-level functions used without an import, which is run #7's shape and which 2c's
+capitalised-identifier scan does not see. The two are complementary, not redundant.
+
+Section 2e checks that a `when` over a project enum handles every constant or says `else`. That
+was not run #11's cause — the `when` error there was downstream of the deleted enum — but adding
+`ArrowMode.ARRIVED` in an earlier round meant updating a `when` in another file, and only the
+compiler would have noticed had it been missed.
+
+**All three were verified by running them against the failing commits before being trusted**,
+which is the discipline that was missing when 2b was reported working:
+
+| case | expected | result |
+|---|---|---|
+| current tree | pass | pass |
+| run #11 (`5fac6af`), `Tone` deleted | fail | `UNRESOLVED IDENTIFIER 'Tone'` |
+| run #7 shape, import removed | fail | `UNIMPORTED USAGE 'numberLocale'` |
+| a `when` branch deleted | fail | `NON-EXHAUSTIVE WHEN ... missing: MGRS` |
+
+Getting 2c and 2e to that table took four rounds of false positives — backtick-quoted test names
+read as type references, `Format` matching inside `CoordinateFormat`, single-line enums skipped
+by a regex that required a newline, and multi-constant branches (`ARRIVED, NORTH ->`) losing all
+but the last label. A check is not finished when it passes; it is finished when it fails on the
+thing it was written for and passes on everything else.
 
 ## The WMM evaluator was 170 degrees wrong, and a green test said otherwise
 

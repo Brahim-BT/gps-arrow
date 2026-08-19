@@ -447,6 +447,16 @@ private fun DrawScope.drawArrow(brush: Brush) {
     drawPath(path, brush)
 }
 
+/** How loud a [Notice] is. Colour only — the layout is identical, so nothing jumps. */
+private enum class Tone { WARN, INFO, GOOD }
+
+/**
+ * A line of explanation under the arrow.
+ *
+ * Flat: coloured text on the black background rather than a tinted card. At this palette a card
+ * behind the text would be the only lifted surface on the screen and would compete with the
+ * needle, which is the thing that must dominate.
+ */
 @Composable
 private fun Notice(text: String, tone: Tone = Tone.WARN) {
     val tokens = AppTheme.tokens
