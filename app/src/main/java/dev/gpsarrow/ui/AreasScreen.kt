@@ -173,8 +173,22 @@ private fun LevelRow(
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text(stringResource(R.string.areas_download)) }
 
-            LevelState.Installed -> {
+            is LevelState.Installed -> {
                 Notice(stringResource(R.string.areas_installed), Tone.GOOD)
+                // The diagnostic. The download path and the renderer are both exercised for the
+                // first time on the same device at the same moment, and "the map is blank" does
+                // not say which failed. This re-reads the archive's own header, so a green line
+                // here plus a blank map points squarely at the renderer, and a red line here
+                // points at the file.
+                when (val v = state.verification) {
+                    is FileVerification.Good ->
+                        Notice(stringResource(R.string.areas_file_ok, v.sizeLabel), Tone.GOOD)
+
+                    is FileVerification.Bad ->
+                        Notice(stringResource(R.string.areas_file_bad, v.problem), Tone.WARN)
+
+                    FileVerification.NotChecked -> Unit
+                }
                 OutlinedButton(
                     onClick = { onDelete(area) },
                     modifier = Modifier.fillMaxWidth(),
@@ -245,6 +259,19 @@ private fun LevelRow(
 enum class Coverage { INSIDE, OUTSIDE, NO_FIX }
 
 /**
+ * The result of re-reading an installed archive's PMTiles header.
+ *
+ * Cheap — 127 bytes and no CPU — and it is the one thing that separates "the download is broken"
+ * from "the renderer is broken" without a debugger. [Bad.problem] carries the parser's own reason,
+ * already turned into text by the caller.
+ */
+sealed interface FileVerification {
+    data object NotChecked : FileVerification
+    data class Good(val sizeLabel: String) : FileVerification
+    data class Bad(val problem: String) : FileVerification
+}
+
+/**
  * One area as this screen needs it: already-resolved labels and states, no formatting logic here.
  *
  * Sizes arrive pre-formatted because number formatting has to go through the app's pinned
@@ -264,7 +291,10 @@ sealed interface LevelState {
     /** Not on disk, and no other level of this area is either. */
     data object Absent : LevelState
 
-    data object Installed : LevelState
+    /** On disk. [verification] is the header re-check, which is the diagnostic. */
+    data class Installed(
+        val verification: FileVerification = FileVerification.NotChecked,
+    ) : LevelState
 
     /** A different level of this area is installed; taking this one replaces it. */
     data object Replaceable : LevelState

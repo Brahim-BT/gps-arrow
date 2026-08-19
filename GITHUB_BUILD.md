@@ -101,11 +101,16 @@ else. To test on an emulator or a 32-bit device, add that ABI there.
 producing `.aab`) and Play generates a per-device APK containing exactly one ABI. A user installing
 from Play gets roughly a quarter of the native payload. So:
 
-| | size |
-|---|---|
-| Universal debug APK, all four ABIs | ~68 MB |
-| Debug APK after the ABI filter | expect ~30 MB |
-| What Play actually delivers per device | roughly a quarter of the native portion |
+| | size | status |
+|---|---|---|
+| Universal debug APK, all four ABIs | 68 MB | measured |
+| Debug APK, `arm64-v8a` only | **33 MB** | measured |
+| What Play delivers per device from an App Bundle | ~33 MB or less | release path |
+
+The 35 MB removed for three ABIs works out at roughly **12 MB of native library per ABI**, which
+confirms the four are comparable in size. It also settles the earlier projection: 25–28 MB per ABI
+was right all along, and the 68 MB was purely universal packaging rather than anything unexpected
+about MapLibre's footprint.
 
 Write this down rather than remembering it: "the app is 68 MB" is exactly the sort of figure that
 gets repeated later as though it were the shipping size.

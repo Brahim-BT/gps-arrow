@@ -215,6 +215,8 @@
     <string name="areas_installed">Installée</string>
     <string name="areas_storage_used">%1$s utilisés par les cartes</string>
     <string name="areas_free_space">%1$s libres sur cet appareil</string>
+    <string name="areas_file_ok">Fichier vérifié · %1$s sur le disque</string>
+    <string name="areas_file_bad">Ce fichier a échoué à la vérification (%1$s). Supprimez-le et retéléchargez-le.</string>
     <string name="areas_download">Télécharger</string>
     <string name="areas_delete">Supprimer</string>
     <string name="areas_switch">Passer à ce niveau</string>

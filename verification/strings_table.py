@@ -346,6 +346,14 @@ STRINGS = [
      "%1$s تستخدمها الخرائط"),
     ("areas_free_space", "%1$s free on this device", "%1$s libres sur cet appareil",
      "%1$s متاحة على هذا الجهاز"),
+    # The diagnostic that tells a bad download apart from a bad renderer. Both are first exercised
+    # on the user's device at the same moment, and "the map is blank" does not distinguish them.
+    # This re-reads the installed archive's header and reports what it found.
+    ("areas_file_ok", "File verified · %1$s on disk", "Fichier vérifié · %1$s sur le disque",
+     "تم التحقق من الملف · %1$s على القرص"),
+    ("areas_file_bad", "This file failed its check (%1$s). Delete and download it again.",
+     "Ce fichier a échoué à la vérification (%1$s). Supprimez-le et retéléchargez-le.",
+     "فشل هذا الملف في التحقق (%1$s). احذفه ونزّله مرة أخرى."),
     ("areas_download", "Download", "Télécharger", "تنزيل"),
     ("areas_delete", "Delete", "Supprimer", "حذف"),
     ("areas_switch", "Switch to this level", "Passer à ce niveau", "التبديل إلى هذا المستوى"),

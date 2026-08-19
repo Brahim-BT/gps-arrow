@@ -215,6 +215,8 @@
     <string name="areas_installed">مثبَّتة</string>
     <string name="areas_storage_used">%1$s تستخدمها الخرائط</string>
     <string name="areas_free_space">%1$s متاحة على هذا الجهاز</string>
+    <string name="areas_file_ok">تم التحقق من الملف · %1$s على القرص</string>
+    <string name="areas_file_bad">فشل هذا الملف في التحقق (%1$s). احذفه ونزّله مرة أخرى.</string>
     <string name="areas_download">تنزيل</string>
     <string name="areas_delete">حذف</string>
     <string name="areas_switch">التبديل إلى هذا المستوى</string>

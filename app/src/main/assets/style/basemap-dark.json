@@ -1,0 +1,214 @@
+{
+  "version": 8,
+  "name": "GPS Arrow dark",
+  "glyphs": "asset://fonts/{fontstack}/{range}.pbf",
+  "sprite": "asset://sprites/dark",
+  "sources": {
+    "basemap": {
+      "type": "vector",
+      "url": "__PMTILES_URI__"
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": { "background-color": "#000000" }
+    },
+    {
+      "id": "earth",
+      "type": "fill",
+      "source": "basemap",
+      "source-layer": "earth",
+      "paint": { "fill-color": "#12100e" }
+    },
+    {
+      "id": "landcover-sand",
+      "type": "fill",
+      "source": "basemap",
+      "source-layer": "landuse",
+      "filter": ["in", "kind", "sand", "beach"],
+      "paint": { "fill-color": "#241d14", "fill-opacity": 0.9 }
+    },
+    {
+      "id": "landcover-rock",
+      "type": "fill",
+      "source": "basemap",
+      "source-layer": "landuse",
+      "filter": ["in", "kind", "bare_rock", "scree"],
+      "paint": { "fill-color": "#1b1917" }
+    },
+    {
+      "id": "landuse-green",
+      "type": "fill",
+      "source": "basemap",
+      "source-layer": "landuse",
+      "filter": ["in", "kind", "park", "forest", "wood", "grass", "national_park", "nature_reserve", "farmland", "meadow", "orchard"],
+      "paint": { "fill-color": "#101a10" }
+    },
+    {
+      "id": "landuse-urban",
+      "type": "fill",
+      "source": "basemap",
+      "source-layer": "landuse",
+      "filter": ["in", "kind", "residential", "commercial", "industrial", "military", "aerodrome"],
+      "paint": { "fill-color": "#161514" }
+    },
+    {
+      "id": "water",
+      "type": "fill",
+      "source": "basemap",
+      "source-layer": "water",
+      "paint": { "fill-color": "#0b1a24" }
+    },
+    {
+      "id": "waterway",
+      "type": "line",
+      "source": "basemap",
+      "source-layer": "water",
+      "filter": ["==", "$type", "LineString"],
+      "paint": {
+        "line-color": "#12303f",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 9, 0.4, 14, 1.6]
+      }
+    },
+    {
+      "id": "buildings",
+      "type": "fill",
+      "source": "basemap",
+      "source-layer": "buildings",
+      "minzoom": 13,
+      "paint": { "fill-color": "#1f1d1b" }
+    },
+    {
+      "id": "roads-path",
+      "type": "line",
+      "source": "basemap",
+      "source-layer": "roads",
+      "filter": ["==", "kind", "path"],
+      "minzoom": 13,
+      "paint": {
+        "line-color": "#4a4238",
+        "line-dasharray": [2, 2],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 13, 0.5, 17, 1.6]
+      }
+    },
+    {
+      "id": "roads-minor",
+      "type": "line",
+      "source": "basemap",
+      "source-layer": "roads",
+      "filter": ["==", "kind", "minor_road"],
+      "paint": {
+        "line-color": "#5a5248",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 11, 0.4, 14, 1.4, 17, 6]
+      }
+    },
+    {
+      "id": "roads-major",
+      "type": "line",
+      "source": "basemap",
+      "source-layer": "roads",
+      "filter": ["==", "kind", "major_road"],
+      "paint": {
+        "line-color": "#8a7a5e",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 7, 0.6, 12, 1.8, 17, 10]
+      }
+    },
+    {
+      "id": "roads-highway",
+      "type": "line",
+      "source": "basemap",
+      "source-layer": "roads",
+      "filter": ["==", "kind", "highway"],
+      "paint": {
+        "line-color": "#FF9800",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 5, 0.7, 10, 2.2, 17, 12]
+      }
+    },
+    {
+      "id": "roads-rail",
+      "type": "line",
+      "source": "basemap",
+      "source-layer": "roads",
+      "filter": ["==", "kind", "rail"],
+      "minzoom": 11,
+      "paint": {
+        "line-color": "#3d3a36",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 11, 0.5, 16, 2]
+      }
+    },
+    {
+      "id": "boundaries",
+      "type": "line",
+      "source": "basemap",
+      "source-layer": "boundaries",
+      "paint": {
+        "line-color": "#3a3a3a",
+        "line-dasharray": [3, 2],
+        "line-width": 0.8
+      }
+    },
+    {
+      "id": "road-labels",
+      "type": "symbol",
+      "source": "basemap",
+      "source-layer": "roads",
+      "minzoom": 13,
+      "filter": ["in", "kind", "highway", "major_road", "minor_road"],
+      "layout": {
+        "text-field": ["get", "name"],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": 11,
+        "symbol-placement": "line",
+        "text-rotation-alignment": "map",
+        "text-pitch-alignment": "viewport"
+      },
+      "paint": {
+        "text-color": "#9E9E9E",
+        "text-halo-color": "#000000",
+        "text-halo-width": 1.2
+      }
+    },
+    {
+      "id": "place-labels-small",
+      "type": "symbol",
+      "source": "basemap",
+      "source-layer": "places",
+      "filter": ["in", "kind_detail", "village", "hamlet", "isolated_dwelling", "farm", "locality"],
+      "layout": {
+        "text-field": ["get", "name"],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": 11,
+        "text-anchor": "top",
+        "text-offset": [0, 0.4],
+        "text-rotation-alignment": "viewport",
+        "text-pitch-alignment": "viewport"
+      },
+      "paint": {
+        "text-color": "#BDBDBD",
+        "text-halo-color": "#000000",
+        "text-halo-width": 1.4
+      }
+    },
+    {
+      "id": "place-labels-large",
+      "type": "symbol",
+      "source": "basemap",
+      "source-layer": "places",
+      "filter": ["in", "kind_detail", "city", "town", "state", "province", "country"],
+      "layout": {
+        "text-field": ["get", "name"],
+        "text-font": ["Noto Sans Medium"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 5, 12, 12, 17],
+        "text-rotation-alignment": "viewport",
+        "text-pitch-alignment": "viewport"
+      },
+      "paint": {
+        "text-color": "#FFFFFF",
+        "text-halo-color": "#000000",
+        "text-halo-width": 1.6
+      }
+    }
+  ]
+}

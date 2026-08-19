@@ -215,6 +215,8 @@
     <string name="areas_installed">Installed</string>
     <string name="areas_storage_used">%1$s used by maps</string>
     <string name="areas_free_space">%1$s free on this device</string>
+    <string name="areas_file_ok">File verified · %1$s on disk</string>
+    <string name="areas_file_bad">This file failed its check (%1$s). Delete and download it again.</string>
     <string name="areas_download">Download</string>
     <string name="areas_delete">Delete</string>
     <string name="areas_switch">Switch to this level</string>
