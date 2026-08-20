@@ -33,18 +33,28 @@ object MapMarkers {
      * @param fixAgeMillis how old the fix is; null when there is none.
      * @return GeoJSON for the position layers, or an empty collection.
      */
-    fun position(fix: Fix?, fixAgeMillis: Long?): String {
+    fun position(fix: Fix?, fixAgeMillis: Long?, smoothed: LatLon? = null): String {
         if (fix == null || !MapMarker.shouldDrawPosition(fixAgeMillis)) return EMPTY
 
+        // The ONLY place a smoothed coordinate is used, and only for drawing.
+        //
+        // The ring is centred on the same point as the dot — otherwise the dot would sit
+        // off-centre inside its own ring, which looks like a rendering bug. Note what that means:
+        // the ring's CENTRE is filtered while its RADIUS is the raw reported accuracy. That is
+        // the right split. The radius is the claim about uncertainty and stays untouched; the
+        // centre is cosmetic, and PositionSmoothing guarantees it never leaves the disc the raw
+        // fix already permitted. Do not "fix" the ring to track the raw fix — that reintroduces
+        // the off-centre dot and gains no honesty.
+        val drawAt = smoothed ?: fix.position
         val accuracy = fix.accuracyMeters
         val r0 = if (accuracy > 0.0 && accuracy <= NavigationState.REJECT_ACCURACY_M) {
-            MapMarker.accuracyRadiusAtZoomZero(accuracy, fix.position.lat)
+            MapMarker.accuracyRadiusAtZoomZero(accuracy, drawAt.lat)
         } else {
             // Either no accuracy at all, or one this app would not have accepted anyway. Drawing
             // a circle here would assert a precision nothing supports.
             0.0
         }
-        return feature(fix.position, JSONObject().put("r0", r0))
+        return feature(drawAt, JSONObject().put("r0", r0))
     }
 
     fun destination(target: LatLon?, name: String?): String {

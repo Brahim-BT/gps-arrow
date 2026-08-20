@@ -37,6 +37,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.gpsarrow.maps.AreaLevel
 import dev.gpsarrow.maps.MapArea
+import dev.gpsarrow.core.PositionSmoothing
+import dev.gpsarrow.core.SmoothedPosition
 import dev.gpsarrow.core.MapOrientation
 import dev.gpsarrow.core.OrientationState
 import dev.gpsarrow.maps.MapMarkers
@@ -267,6 +269,15 @@ private fun AppRoot(
     // the arrow jitter. MapOrientation adds the dwell times that stop it flapping at the
     // boundary between having a heading and not.
     var orientation by remember { mutableStateOf(OrientationState()) }
+
+    // Smoothed position for the MAP MARKER ONLY. state.fix stays raw everywhere else — the
+    // distance readout, the arrow bearing, saved destinations and diagnostics all read it
+    // directly, and must keep doing so.
+    var smoothed by remember { mutableStateOf<SmoothedPosition?>(null) }
+    LaunchedEffect(state.fix) {
+        val fix = state.fix ?: return@LaunchedEffect
+        smoothed = PositionSmoothing.update(smoothed, fix, System.currentTimeMillis())
+    }
 
     // One-shot camera requests. A counter rather than a boolean so that tapping "centre on me"
     // twice in a row works the second time — each tap is a distinct command.
@@ -634,8 +645,10 @@ private fun AppRoot(
                             }
                             MapScreen(
                                 tier = tier,
-                                positionGeoJson = remember(state.fix, state.fixAgeMillis) {
-                                    MapMarkers.position(state.fix, state.fixAgeMillis)
+                                positionGeoJson = remember(state.fix, state.fixAgeMillis, smoothed) {
+                                    MapMarkers.position(
+                                        state.fix, state.fixAgeMillis, smoothed?.position,
+                                    )
                                 },
                                 destinationGeoJson = remember(state.destination) {
                                     MapMarkers.destination(
