@@ -26,6 +26,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.gpsarrow.R
+import dev.gpsarrow.core.MapOrientation
+import dev.gpsarrow.core.OrientationState
 import dev.gpsarrow.maps.InstalledArea
 import dev.gpsarrow.maps.MapCamera
 import dev.gpsarrow.maps.MapStyle
@@ -47,7 +49,14 @@ import dev.gpsarrow.maps.MapTier
 fun MapScreen(
     tier: MapTier,
     camera: MapCamera?,
+    positionGeoJson: String,
+    destinationGeoJson: String,
+    orientation: OrientationState,
+    hasPosition: Boolean,
     onCameraMoved: (MapCamera) -> Unit,
+    onUserGesture: () -> Unit,
+    onFaceNorth: () -> Unit,
+    onCentreOnMe: () -> Unit,
     onBack: () -> Unit,
     onOpenRegions: () -> Unit,
     onRemindWhenOnline: () -> Unit,
@@ -61,7 +70,14 @@ fun MapScreen(
         is MapTier.Available -> InstalledMap(
             installed = tier.installed,
             camera = camera,
+            positionGeoJson = positionGeoJson,
+            destinationGeoJson = destinationGeoJson,
+            orientation = orientation,
+            hasPosition = hasPosition,
             onCameraMoved = onCameraMoved,
+            onUserGesture = onUserGesture,
+            onFaceNorth = onFaceNorth,
+            onCentreOnMe = onCentreOnMe,
             onBack = onBack,
             onOpenRegions = onOpenRegions,
             modifier = modifier,
@@ -116,7 +132,14 @@ private fun EmptyStateColumn(
 private fun InstalledMap(
     installed: InstalledArea,
     camera: MapCamera?,
+    positionGeoJson: String,
+    destinationGeoJson: String,
+    orientation: OrientationState,
+    hasPosition: Boolean,
     onCameraMoved: (MapCamera) -> Unit,
+    onUserGesture: () -> Unit,
+    onFaceNorth: () -> Unit,
+    onCentreOnMe: () -> Unit,
     onBack: () -> Unit,
     onOpenRegions: () -> Unit,
     modifier: Modifier = Modifier,
@@ -140,10 +163,38 @@ private fun InstalledMap(
         MapLibreView(
             styleJson = styleJson,
             camera = camera,
+            positionGeoJson = positionGeoJson,
+            destinationGeoJson = destinationGeoJson,
+            // Only drive the camera while we are following. Once the user has panned, sending a
+            // bearing would be the map fighting their finger.
+            bearingDeg = if (orientation.followingHeading) orientation.appliedBearingDeg else null,
             modifier = Modifier.fillMaxSize(),
             onUnavailable = { rendererFailed = true },
             onCameraMoved = onCameraMoved,
+            onUserGesture = onUserGesture,
         )
+
+        // Top-end: where north is, and one tap back to north-up and following.
+        if (MapOrientation.showNorthIndicator(orientation)) {
+            NorthIndicator(
+                northDegrees = MapOrientation.northIndicatorDegrees(orientation),
+                onTap = onFaceNorth,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(12.dp),
+            )
+        }
+
+        // Bottom-end: the way back to yourself after panning away. Without it, a user who pans
+        // off and cannot find their own position concludes the map is broken.
+        if (!orientation.followingHeading && hasPosition) {
+            Button(
+                onClick = onCentreOnMe,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(12.dp),
+            ) { Text(stringResource(R.string.map_centre_on_me)) }
+        }
         // ODbL condition: attribution must be visible wherever the map is shown, not buried in
         // an About page. It sits over the map rather than beside it for exactly that reason.
         Text(

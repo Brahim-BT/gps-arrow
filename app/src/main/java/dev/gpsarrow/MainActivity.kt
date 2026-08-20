@@ -37,6 +37,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.gpsarrow.maps.AreaLevel
 import dev.gpsarrow.maps.MapArea
+import dev.gpsarrow.core.MapOrientation
+import dev.gpsarrow.core.OrientationState
+import dev.gpsarrow.maps.MapMarkers
 import dev.gpsarrow.maps.MapCamera
 import dev.gpsarrow.maps.MapTier
 import dev.gpsarrow.maps.RegionIndex
@@ -256,6 +259,19 @@ private fun AppRoot(
     // reason: re-finding your place on a map is work the user already did once.
     var mapCamera by rememberSaveable(stateSaver = MapCameraSaver) {
         mutableStateOf<MapCamera?>(null)
+    }
+
+    // Which way the map points. Fed the arbiter's ALREADY-FILTERED heading, never the raw
+    // magnetometer: the smoothing exists upstream and duplicating or bypassing it is what made
+    // the arrow jitter. MapOrientation adds the dwell times that stop it flapping at the
+    // boundary between having a heading and not.
+    var orientation by remember { mutableStateOf(OrientationState()) }
+    LaunchedEffect(state.headingDeg, state.fix?.elapsedMillis) {
+        orientation = MapOrientation.update(
+            state = orientation,
+            headingDeg = state.headingDeg,
+            nowMillis = System.currentTimeMillis(),
+        )
     }
 
     val snackbarHost = remember { SnackbarHostState() }
@@ -612,6 +628,38 @@ private fun AppRoot(
                             }
                             MapScreen(
                                 tier = tier,
+                                positionGeoJson = remember(state.fix, state.fixAgeMillis) {
+                                    MapMarkers.position(state.fix, state.fixAgeMillis)
+                                },
+                                destinationGeoJson = remember(state.destination) {
+                                    MapMarkers.destination(
+                                        state.destination?.position,
+                                        state.destination?.name,
+                                    )
+                                },
+                                orientation = orientation,
+                                hasPosition = state.fix != null,
+                                onUserGesture = {
+                                    orientation = MapOrientation.afterUserGesture(orientation)
+                                },
+                                onFaceNorth = {
+                                    orientation = MapOrientation.afterNorthTap(
+                                        orientation, System.currentTimeMillis(),
+                                    )
+                                    mapCamera = mapCamera?.copy(bearingDeg = 0.0)
+                                },
+                                onCentreOnMe = {
+                                    state.fix?.position?.let { p ->
+                                        mapCamera = MapCamera(
+                                            lat = p.lat, lon = p.lon,
+                                            zoom = mapCamera?.zoom ?: MapCamera.ZOOM_AT_POSITION,
+                                            bearingDeg = mapCamera?.bearingDeg ?: 0.0,
+                                        )
+                                    }
+                                    orientation = MapOrientation.afterNorthTap(
+                                        orientation, System.currentTimeMillis(),
+                                    )
+                                },
                                 camera = MapCamera.opening(
                                     remembered = mapCamera,
                                     position = state.fix?.position,

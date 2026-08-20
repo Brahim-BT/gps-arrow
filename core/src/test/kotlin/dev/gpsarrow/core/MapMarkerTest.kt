@@ -20,19 +20,19 @@ class MapMarkerTest {
 
     @Test
     fun `radius doubles with every zoom level`() {
-        val r12 = MapMarker.radiusPixelsAt(12.0, 24.0, 12)
-        val r13 = MapMarker.radiusPixelsAt(12.0, 24.0, 13)
+        val r12 = MapMarker.radiusPixelsAt(12.0f, 24.0, 12)
+        val r13 = MapMarker.radiusPixelsAt(12.0f, 24.0, 13)
         assertEquals("exponential base 2 is what the style interpolates with", 2.0, r13 / r12, 1e-9)
     }
 
     @Test
     fun `radius matches the ground resolution at several zooms and latitudes`() {
         val cases = listOf(
-            Triple(12.0, 24.0, 12), Triple(12.0, 24.0, 16),
-            Triple(25.0, 33.6, 14), Triple(5.0, 18.0, 18),
+            Triple(12.0f, 24.0, 12), Triple(12.0f, 24.0, 16),
+            Triple(25.0f, 33.6, 14), Triple(5.0f, 18.0, 18),
         )
         for ((accuracy, lat, zoom) in cases) {
-            val expected = accuracy / metresPerPixel(lat, zoom)
+            val expected = accuracy.toDouble() / metresPerPixel(lat, zoom)
             assertEquals(
                 "accuracy $accuracy m at lat $lat, zoom $zoom",
                 expected, MapMarker.radiusPixelsAt(accuracy, lat, zoom), 1e-6,
@@ -46,8 +46,8 @@ class MapMarkerTest {
      */
     @Test
     fun `latitude changes the radius`() {
-        val equator = MapMarker.radiusPixelsAt(100.0, 0.0, 14)
-        val morocco = MapMarker.radiusPixelsAt(100.0, 33.6, 14)
+        val equator = MapMarker.radiusPixelsAt(100.0f, 0.0, 14)
+        val morocco = MapMarker.radiusPixelsAt(100.0f, 33.6, 14)
         assertTrue("higher latitude must give a LARGER pixel radius", morocco > equator)
         assertEquals(1.0 / Math.cos(Math.toRadians(33.6)), morocco / equator, 1e-9)
     }
@@ -55,15 +55,15 @@ class MapMarkerTest {
     /** A sub-pixel circle at low zoom is correct, not a bug — 12 m really is under a pixel. */
     @Test
     fun `a small accuracy is sub-pixel at low zoom and visible at high zoom`() {
-        assertTrue(MapMarker.radiusPixelsAt(12.0, 24.0, 12) < 1.0)
-        assertTrue(MapMarker.radiusPixelsAt(12.0, 24.0, 16) > 10.0)
+        assertTrue(MapMarker.radiusPixelsAt(12.0f, 24.0, 12) < 1.0)
+        assertTrue(MapMarker.radiusPixelsAt(12.0f, 24.0, 16) > 10.0)
     }
 
     @Test
     fun `unknown or nonsense accuracy draws no circle`() {
-        assertEquals(0.0, MapMarker.accuracyRadiusAtZoomZero(0.0, 24.0), 0.0)
-        assertEquals(0.0, MapMarker.accuracyRadiusAtZoomZero(-5.0, 24.0), 0.0)
-        assertEquals(0.0, MapMarker.accuracyRadiusAtZoomZero(Double.NaN, 24.0), 0.0)
+        assertEquals(0.0, MapMarker.accuracyRadiusAtZoomZero(0.0f, 24.0), 0.0)
+        assertEquals(0.0, MapMarker.accuracyRadiusAtZoomZero(-5.0f, 24.0), 0.0)
+        assertEquals(0.0, MapMarker.accuracyRadiusAtZoomZero(Float.NaN, 24.0), 0.0)
     }
 
     // ---- when to draw the dot at all ---------------------------------------------------

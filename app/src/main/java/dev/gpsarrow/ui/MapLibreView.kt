@@ -15,6 +15,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
 import dev.gpsarrow.maps.MapCamera
+import dev.gpsarrow.maps.MapMarkers
+import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.android.MapLibre
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
@@ -55,9 +57,13 @@ import org.maplibre.android.maps.Style
 fun MapLibreView(
     styleJson: String,
     camera: MapCamera?,
+    positionGeoJson: String,
+    destinationGeoJson: String,
+    bearingDeg: Double?,
     modifier: Modifier = Modifier,
     onUnavailable: (String) -> Unit = {},
     onCameraMoved: (MapCamera) -> Unit = {},
+    onUserGesture: () -> Unit = {},
     onMapReady: (MapLibreMap) -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -145,7 +151,21 @@ fun MapLibreView(
                         )
                     }
 
-                    map.setStyle(Style.Builder().fromJson(styleJson)) {
+                    // A gesture means the user has taken over. Only REASON_API_GESTURE counts:
+                    // the other reasons include our own programmatic camera moves, and treating
+                    // those as user intent would make the map suspend itself the moment it
+                    // followed the heading.
+                    map.addOnCameraMoveStartedListener { reason ->
+                        if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) {
+                            onUserGesture()
+                        }
+                    }
+
+                    map.setStyle(Style.Builder().fromJson(styleJson)) { style ->
+                        style.getSourceAs<GeoJsonSource>(MapMarkers.POSITION_SOURCE)
+                            ?.setGeoJson(positionGeoJson)
+                        style.getSourceAs<GeoJsonSource>(MapMarkers.DESTINATION_SOURCE)
+                            ?.setGeoJson(destinationGeoJson)
                         onMapReady(map)
                     }
                 }
@@ -155,6 +175,34 @@ fun MapLibreView(
             }
         },
     )
+
+    // Markers and bearing change many times a second; the style is built once. Pushing them
+    // through separate effects keyed on their own values means a new fix does not rebuild the
+    // style, and a style rebuild does not drop the markers.
+    LaunchedEffect(created, positionGeoJson, destinationGeoJson) {
+        runCatching {
+            created.getMapAsync { map ->
+                map.style?.let { style ->
+                    style.getSourceAs<GeoJsonSource>(MapMarkers.POSITION_SOURCE)
+                        ?.setGeoJson(positionGeoJson)
+                    style.getSourceAs<GeoJsonSource>(MapMarkers.DESTINATION_SOURCE)
+                        ?.setGeoJson(destinationGeoJson)
+                }
+            }
+        }.onFailure { Log.w(TAG, "could not update markers", it) }
+    }
+
+    LaunchedEffect(created, bearingDeg) {
+        val target = bearingDeg ?: return@LaunchedEffect
+        runCatching {
+            created.getMapAsync { map ->
+                val current = map.cameraPosition
+                // Only the bearing moves. Rebuilding target and zoom here would fight the user's
+                // own panning between heading samples.
+                map.cameraPosition = CameraPosition.Builder(current).bearing(target).build()
+            }
+        }.onFailure { Log.w(TAG, "could not apply bearing", it) }
+    }
 }
 
 /**

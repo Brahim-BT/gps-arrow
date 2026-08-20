@@ -16,6 +16,19 @@ import kotlin.math.cos
  * handled *here*, by computing the radius at zoom 0 for the fix's own latitude and shipping it as
  * a feature property. That keeps the style expression simple and, more usefully, keeps the
  * trigonometry somewhere it can be unit-tested.
+ *
+ * ## Float in, Double out, on purpose
+ *
+ * [accuracyRadiusAtZoomZero] takes accuracy as a **Float** and latitude as a **Double**, mirroring
+ * [Fix] exactly — because `Location.getAccuracy()` returns a Float and there is no sense
+ * pretending otherwise, while a latitude in Float loses about a metre of precision and coordinates
+ * are the one thing this app will not round.
+ *
+ * That is the whole Float/Double boundary for this path, in one signature. The alternative — a
+ * Double parameter and a `.toDouble()` at every call site — is the same conversion done in more
+ * places, each of which can be forgotten. It was forgotten once already: this function took a
+ * Double and CI caught the mismatch, which is the compiler doing the job the static checkers
+ * explicitly do not.
  */
 object MapMarker {
 
@@ -35,16 +48,17 @@ object MapMarker {
      * — which is correct and not a sign of an error: it becomes 0.7 px at zoom 12 and 11 px at
      * zoom 16. A sub-pixel circle at low zoom is an honest rendering of a 12 m claim.
      */
-    fun accuracyRadiusAtZoomZero(accuracyMeters: Double, latitudeDeg: Double): Double {
-        if (!accuracyMeters.isFinite() || accuracyMeters <= 0.0) return 0.0
+    fun accuracyRadiusAtZoomZero(accuracyMeters: Float, latitudeDeg: Double): Double {
+        if (!accuracyMeters.isFinite() || accuracyMeters <= 0f) return 0.0
+        val accuracy = accuracyMeters.toDouble()
         val metresPerPixel =
             EQUATOR_METRES_PER_PIXEL_256 * cos(Math.toRadians(latitudeDeg)) * (256.0 / TILE_PIXELS)
         if (metresPerPixel <= 0.0) return 0.0
-        return accuracyMeters / metresPerPixel
+        return accuracy / metresPerPixel
     }
 
     /** What the style would draw at [zoom], for checking against the direct computation. */
-    fun radiusPixelsAt(accuracyMeters: Double, latitudeDeg: Double, zoom: Int): Double =
+    fun radiusPixelsAt(accuracyMeters: Float, latitudeDeg: Double, zoom: Int): Double =
         accuracyRadiusAtZoomZero(accuracyMeters, latitudeDeg) * Math.pow(2.0, zoom.toDouble())
 
     /**
