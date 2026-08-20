@@ -147,6 +147,46 @@ Re-verified after the change — the regression table above still holds, plus:
 | root with no enums | fail | `refusing to report success on an empty scan` |
 | not a repo root at all | fail | `no settings.gradle.kts under ... — this is not the repo root` |
 
+## The two recurring shapes
+
+Enough bugs have now repeated that the shapes are worth naming. Neither is caught by any script
+here; both are caught by asking the right question of the code.
+
+### 1. A value that cannot say "I don't know"
+
+A Boolean, or a default, standing in for a state that has three possibilities: yes, no, and
+not-yet-determined. Every time, the code confidently asserted the negative case before it had
+looked.
+
+| where | what it claimed |
+|---|---|
+| `RegionIndex.scanned` | "no map installed" — before ever scanning the directory |
+| `LocationEngine.status()` | "location is off" — before the permission dialog was answered |
+| `_gnss` initial value | "location is off" — on the first frame, before any emission |
+| `MapCamera` restored as `0,0,0` | a real camera at null island, indistinguishable from none |
+
+The fix is always the same: make the third state representable, and never assert a problem from
+it. Showing nothing briefly is fine; showing a false instruction is not.
+
+### 2. Something runs at a rate you did not intend
+
+Code placed somewhere that executes far more often than its author pictured, so a
+once-per-event action becomes a once-per-frame or once-per-fix action.
+
+| where | intended | actually ran |
+|---|---|---|
+| `AndroidView`'s `update` lambda | once, to place the camera | **every recomposition** — so at the 1 Hz fix rate, yanking the camera back mid-gesture |
+| listeners registered inside `update` | once | every recomposition, accumulating hundreds of duplicates |
+| the arrow's `tween` | once per heading change | restarted on every sample, producing the 1 Hz flicker |
+| a bearing effect keyed on heading | when following | mid-gesture, cancelling the user's rotate |
+
+The tell is a symptom whose *period* matches a known rate. "Interrupted about once a second" was
+the fix rate showing through, and that timing was the fastest route to the cause — faster than
+reading any of the code.
+
+The working rule: for anything with side effects, ask **how often does this line actually
+execute**, not what it is for. In Compose specifically, `update` is not a setup hook.
+
 ## The WMM evaluator was 170 degrees wrong, and a green test said otherwise
 
 August 2026. `Wmm.kt` had two independent faults:

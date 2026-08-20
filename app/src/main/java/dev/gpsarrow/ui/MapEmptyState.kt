@@ -29,6 +29,7 @@ import dev.gpsarrow.R
 import dev.gpsarrow.core.MapOrientation
 import dev.gpsarrow.core.OrientationState
 import dev.gpsarrow.maps.InstalledArea
+import dev.gpsarrow.maps.CameraCommand
 import dev.gpsarrow.maps.MapCamera
 import dev.gpsarrow.maps.MapStyle
 import dev.gpsarrow.maps.MapTier
@@ -49,6 +50,7 @@ import dev.gpsarrow.maps.MapTier
 fun MapScreen(
     tier: MapTier,
     camera: MapCamera?,
+    cameraCommand: CameraCommand?,
     positionGeoJson: String,
     destinationGeoJson: String,
     orientation: OrientationState,
@@ -70,6 +72,7 @@ fun MapScreen(
         is MapTier.Available -> InstalledMap(
             installed = tier.installed,
             camera = camera,
+            cameraCommand = cameraCommand,
             positionGeoJson = positionGeoJson,
             destinationGeoJson = destinationGeoJson,
             orientation = orientation,
@@ -132,6 +135,7 @@ private fun EmptyStateColumn(
 private fun InstalledMap(
     installed: InstalledArea,
     camera: MapCamera?,
+    cameraCommand: CameraCommand?,
     positionGeoJson: String,
     destinationGeoJson: String,
     orientation: OrientationState,
@@ -162,12 +166,14 @@ private fun InstalledMap(
     Box(modifier = modifier.fillMaxSize()) {
         MapLibreView(
             styleJson = styleJson,
-            camera = camera,
+            initialCamera = camera,
+            cameraCommand = cameraCommand,
             positionGeoJson = positionGeoJson,
             destinationGeoJson = destinationGeoJson,
-            // Only drive the camera while we are following. Once the user has panned, sending a
-            // bearing would be the map fighting their finger.
-            bearingDeg = if (orientation.followingHeading) orientation.appliedBearingDeg else null,
+            // Null the moment following is suspended, so the view leaves the camera entirely
+            // alone rather than merely holding the bearing steady.
+            followBearingDeg =
+                if (orientation.followingHeading) orientation.appliedBearingDeg else null,
             modifier = Modifier.fillMaxSize(),
             onUnavailable = { rendererFailed = true },
             onCameraMoved = onCameraMoved,

@@ -56,3 +56,22 @@ data class MapCamera(
         }
     }
 }
+
+/**
+ * A one-shot instruction to move the camera.
+ *
+ * Deliberately a command rather than a value the view continuously applies. A value gets
+ * re-applied on every recomposition — which at the 1 Hz fix rate meant the map yanked itself back
+ * to the position dot once a second, cancelling whatever the user was doing. A command carries an
+ * [id] and fires exactly once per new id, so asking for the same place twice still works while
+ * nothing fires in between.
+ *
+ * Null [zoom] or [bearingDeg] mean "leave that alone".
+ */
+data class CameraCommand(
+    val id: Long,
+    val lat: Double,
+    val lon: Double,
+    val zoom: Double? = null,
+    val bearingDeg: Double? = null,
+)

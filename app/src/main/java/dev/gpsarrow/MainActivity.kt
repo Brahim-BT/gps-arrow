@@ -40,6 +40,7 @@ import dev.gpsarrow.maps.MapArea
 import dev.gpsarrow.core.MapOrientation
 import dev.gpsarrow.core.OrientationState
 import dev.gpsarrow.maps.MapMarkers
+import dev.gpsarrow.maps.CameraCommand
 import dev.gpsarrow.maps.MapCamera
 import dev.gpsarrow.maps.MapTier
 import dev.gpsarrow.maps.RegionIndex
@@ -266,6 +267,11 @@ private fun AppRoot(
     // the arrow jitter. MapOrientation adds the dwell times that stop it flapping at the
     // boundary between having a heading and not.
     var orientation by remember { mutableStateOf(OrientationState()) }
+
+    // One-shot camera requests. A counter rather than a boolean so that tapping "centre on me"
+    // twice in a row works the second time — each tap is a distinct command.
+    var cameraCommand by remember { mutableStateOf<CameraCommand?>(null) }
+    var commandCounter by remember { mutableStateOf(0L) }
     LaunchedEffect(state.headingDeg, state.fix?.elapsedMillis) {
         orientation = MapOrientation.update(
             state = orientation,
@@ -646,20 +652,31 @@ private fun AppRoot(
                                     orientation = MapOrientation.afterNorthTap(
                                         orientation, System.currentTimeMillis(),
                                     )
-                                    mapCamera = mapCamera?.copy(bearingDeg = 0.0)
+                                    // Turn to north where they are; do not move them.
+                                    val here = mapCamera
+                                    if (here != null) {
+                                        commandCounter += 1
+                                        cameraCommand = CameraCommand(
+                                            id = commandCounter,
+                                            lat = here.lat, lon = here.lon,
+                                            bearingDeg = 0.0,
+                                        )
+                                    }
                                 },
                                 onCentreOnMe = {
                                     state.fix?.position?.let { p ->
-                                        mapCamera = MapCamera(
+                                        commandCounter += 1
+                                        cameraCommand = CameraCommand(
+                                            id = commandCounter,
                                             lat = p.lat, lon = p.lon,
                                             zoom = mapCamera?.zoom ?: MapCamera.ZOOM_AT_POSITION,
-                                            bearingDeg = mapCamera?.bearingDeg ?: 0.0,
                                         )
                                     }
                                     orientation = MapOrientation.afterNorthTap(
                                         orientation, System.currentTimeMillis(),
                                     )
                                 },
+                                cameraCommand = cameraCommand,
                                 camera = MapCamera.opening(
                                     remembered = mapCamera,
                                     position = state.fix?.position,
