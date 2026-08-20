@@ -279,6 +279,25 @@ private fun AppRoot(
         smoothed = PositionSmoothing.update(smoothed, fix, System.currentTimeMillis())
     }
 
+    // The first fix after opening the map with no position deserves a zoom, not just a re-centre.
+    //
+    // MapCamera.opening falls back to the area centre at zoom 6 when there is no fix yet. Plain
+    // following only moves the target, so without this the user would end up centred on
+    // themselves while still zoomed out to the whole area — technically correct and useless.
+    // Guarded on the user not having moved the camera, so it cannot override a deliberate pan.
+    var zoomedToFirstFix by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(smoothed != null, mapCamera == null) {
+        val here = smoothed?.position ?: return@LaunchedEffect
+        if (zoomedToFirstFix || mapCamera != null) return@LaunchedEffect
+        zoomedToFirstFix = true
+        commandCounter += 1
+        cameraCommand = CameraCommand(
+            id = commandCounter,
+            lat = here.lat, lon = here.lon,
+            zoom = MapCamera.ZOOM_AT_POSITION,
+        )
+    }
+
     // One-shot camera requests. A counter rather than a boolean so that tapping "centre on me"
     // twice in a row works the second time — each tap is a distinct command.
     var cameraCommand by remember { mutableStateOf<CameraCommand?>(null) }
@@ -658,6 +677,9 @@ private fun AppRoot(
                                 },
                                 orientation = orientation,
                                 hasPosition = state.fix != null,
+                                // The smoothed position, so the camera drifts rather than
+                                // twitching at the fix rate.
+                                followTarget = smoothed?.position,
                                 onUserGesture = {
                                     orientation = MapOrientation.afterUserGesture(orientation)
                                 },

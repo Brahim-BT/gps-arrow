@@ -26,6 +26,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.gpsarrow.R
+import dev.gpsarrow.core.LatLon
 import dev.gpsarrow.core.MapOrientation
 import dev.gpsarrow.core.OrientationState
 import dev.gpsarrow.maps.InstalledArea
@@ -55,6 +56,8 @@ fun MapScreen(
     destinationGeoJson: String,
     orientation: OrientationState,
     hasPosition: Boolean,
+    /** Smoothed position to keep centred while following. */
+    followTarget: LatLon?,
     onCameraMoved: (MapCamera) -> Unit,
     onUserGesture: () -> Unit,
     onFaceNorth: () -> Unit,
@@ -77,6 +80,7 @@ fun MapScreen(
             destinationGeoJson = destinationGeoJson,
             orientation = orientation,
             hasPosition = hasPosition,
+            followTarget = followTarget,
             onCameraMoved = onCameraMoved,
             onUserGesture = onUserGesture,
             onFaceNorth = onFaceNorth,
@@ -140,6 +144,8 @@ private fun InstalledMap(
     destinationGeoJson: String,
     orientation: OrientationState,
     hasPosition: Boolean,
+    /** Smoothed position to keep centred while following. */
+    followTarget: LatLon?,
     onCameraMoved: (MapCamera) -> Unit,
     onUserGesture: () -> Unit,
     onFaceNorth: () -> Unit,
@@ -174,6 +180,9 @@ private fun InstalledMap(
             // alone rather than merely holding the bearing steady.
             followBearingDeg =
                 if (orientation.followingHeading) orientation.appliedBearingDeg else null,
+            // Same gate as the bearing: following stops the instant a gesture starts and stays
+            // stopped until "centre on me". Position and rotation are one intention, not two.
+            followTarget = if (orientation.followingHeading) followTarget else null,
             modifier = Modifier.fillMaxSize(),
             onUnavailable = { rendererFailed = true },
             onCameraMoved = onCameraMoved,

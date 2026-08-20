@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import dev.gpsarrow.core.LatLon
 import dev.gpsarrow.maps.CameraCommand
 import dev.gpsarrow.maps.MapCamera
 import dev.gpsarrow.maps.MapMarkers
@@ -58,8 +59,16 @@ fun MapLibreView(
     cameraCommand: CameraCommand?,
     positionGeoJson: String,
     destinationGeoJson: String,
-    /** Bearing to follow, or null to leave the camera entirely alone. */
+    /** Bearing to follow, or null to leave the camera's rotation alone. */
     followBearingDeg: Double?,
+    /**
+     * Position to keep centred, or null to leave the camera's target alone.
+     *
+     * Must be the SMOOTHED position. Following the raw fix would step the whole map by the
+     * jitter amplitude at the fix rate — reintroducing the 1 Hz stutter the smoothing round
+     * just removed, through a different door.
+     */
+    followTarget: LatLon?,
     modifier: Modifier = Modifier,
     onUnavailable: (String) -> Unit = {},
     onCameraMoved: (MapCamera) -> Unit = {},
@@ -218,11 +227,41 @@ fun MapLibreView(
         }.onFailure { Log.w(TAG, "could not apply bearing", it) }
     }
 
+    // Follow the user as they move. This is the default behaviour of a navigation map, and its
+    // absence was an over-correction: the rule is "nothing but the user moves the camera WHILE
+    // THEY ARE INTERACTING OR AFTER THEY HAVE PANNED", not "nothing ever follows the user".
+    //
+    // Deliberately a direct assignment rather than an animation. At 1 Hz the smoothed position
+    // moves 1.3 px per second at zoom 16 while walking and 5.1 px at zoom 18 — below the
+    // threshold of noticing. An animation would be smoother at driving speed, but a tween
+    // retargeted on every sample is precisely the shape that made the arrow unresponsive, and
+    // that risk is not worth 20 px of polish in a case the user is rarely in.
+    //
+    // Only the TARGET moves. Zoom is the user's intention exactly as their pan is, and bearing
+    // has its own effect above; rebuilding either here would fight them.
+    LaunchedEffect(mapRef.value, followTarget) {
+        val map = mapRef.value ?: return@LaunchedEffect
+        val target = followTarget ?: return@LaunchedEffect
+        if (interacting.get()) return@LaunchedEffect
+        runCatching {
+            map.cameraPosition = CameraPosition.Builder(map.cameraPosition)
+                .target(LatLng(target.lat, target.lon))
+                .build()
+        }.onFailure { Log.w(TAG, "could not follow position", it) }
+    }
+
     // The only other way the app moves the camera: an explicit, one-shot user request. Keyed on
     // the command's id so that asking twice for the same place works the second time too.
+    //
+    // Deliberately NOT gated on `interacting`, and that is the one exception in this file. A
+    // command only originates from a button tap, and `interacting` stays true until the camera
+    // settles — so a user who flings the map, lets go, and taps "centre on me" while it is still
+    // gliding would have their tap swallowed. The command also clears the flag, because asking
+    // to be centred is asking for the app to take the camera back.
     LaunchedEffect(mapRef.value, cameraCommand?.id) {
         val map = mapRef.value ?: return@LaunchedEffect
         val command = cameraCommand ?: return@LaunchedEffect
+        interacting.set(false)
         runCatching {
             val current = map.cameraPosition
             map.cameraPosition = CameraPosition.Builder(current)
