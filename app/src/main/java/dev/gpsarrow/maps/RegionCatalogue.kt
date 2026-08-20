@@ -101,9 +101,29 @@ object RegionCatalogue {
 
     fun byId(id: String): MapArea? = ALL.firstOrNull { it.id == id }
 
-    /** The area whose bounds contain [p], for "you need this one" prompts. */
-    fun covering(p: dev.gpsarrow.core.LatLon): MapArea? =
-        ALL.firstOrNull { it.bbox.contains(p) }
+    /**
+     * The area to recommend for [p], using the same rule that decides which one serves tiles.
+     *
+     * Deliberately the same function: recommending one area and then serving a different one
+     * would be the sort of inconsistency nobody notices until it confuses someone.
+     */
+    fun covering(p: dev.gpsarrow.core.LatLon): MapArea? {
+        val best = dev.gpsarrow.core.AreaChoice.serving(
+            p,
+            ALL.map { area ->
+                dev.gpsarrow.core.AreaChoice.Candidate(
+                    id = area.id,
+                    maxZoom = area.levels.maxOf { it.maxZoom },
+                    west = area.bbox.west,
+                    south = area.bbox.south,
+                    east = area.bbox.east,
+                    north = area.bbox.north,
+                    containsPosition = area.bbox.contains(p),
+                )
+            },
+        )
+        return ALL.firstOrNull { it.id == best }
+    }
 }
 
 /**

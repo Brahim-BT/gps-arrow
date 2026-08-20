@@ -206,6 +206,8 @@
     <string name="area_larger_places">طنجة · الدار البيضاء · مراكش · أكادير · الداخلة</string>
     <string name="area_smaller_places">نواكشوط · نواذيبو · الزويرات · النعمة</string>
     <string name="area_covers_you">موقعك الحالي داخل هذه المنطقة</string>
+    <string name="area_also_covers">تغطي موقعك أيضاً</string>
+    <string name="area_recommended">موصى بها لموقعك</string>
     <string name="area_position_unknown">لم يُحدَّد الموقع بعد، لذا يتعذّر التحقق من التغطية</string>
     <string name="level_standard">قياسي</string>
     <string name="level_detailed">مفصّل</string>

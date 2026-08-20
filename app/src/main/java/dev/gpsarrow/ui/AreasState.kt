@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import dev.gpsarrow.core.AreaChoice
 import dev.gpsarrow.core.Format
 import dev.gpsarrow.core.LatLon
 import dev.gpsarrow.core.Pmtiles
@@ -44,14 +45,39 @@ internal fun buildAreaRows(
     locale: Locale,
 ): List<AreaRow> {
     index.scan()
+
+    // Which area the map would actually use, by the same rule tierFor applies. The indicator has
+    // to describe behaviour, not geometry: two areas can both contain the user, and saying so
+    // twice leaves the real question — which one am I getting — unanswered.
+    val servingId = position?.let { p ->
+        val installedIds = index.installedAreas().map { it.area.id }.toSet()
+        // Prefer an installed area if one covers them; otherwise this becomes a recommendation.
+        val pool = RegionCatalogue.ALL.filter { installedIds.isEmpty() || it.id in installedIds }
+        AreaChoice.serving(
+            p,
+            pool.map { area ->
+                AreaChoice.Candidate(
+                    id = area.id,
+                    maxZoom = area.levels.maxOf { it.maxZoom },
+                    west = area.bbox.west, south = area.bbox.south,
+                    east = area.bbox.east, north = area.bbox.north,
+                    containsPosition = area.bbox.contains(p),
+                )
+            },
+        )
+    }
+    val anyInstalled = index.installedAreas().isNotEmpty()
+
     return RegionCatalogue.ALL.map { area ->
         val installed = index.installFor(area.id)
         AreaRow(
             area = area,
             coverage = when {
                 position == null -> Coverage.NO_FIX
-                area.bbox.contains(position) -> Coverage.INSIDE
-                else -> Coverage.OUTSIDE
+                !area.bbox.contains(position) -> Coverage.OUTSIDE
+                area.id != servingId -> Coverage.ALSO_COVERS
+                anyInstalled -> Coverage.SERVING
+                else -> Coverage.RECOMMENDED
             },
             sizeLabels = area.levels.associate { it.detail to megabytes(it.bytes, locale) },
             states = area.levels.associate { level ->

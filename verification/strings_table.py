@@ -324,6 +324,13 @@ STRINGS = [
     ("area_covers_you", "Your current position is inside this area",
      "Votre position actuelle se trouve dans cette zone",
      "موقعك الحالي داخل هذه المنطقة"),
+    # Two areas can legitimately both contain the user — the overlap band is the Atlantic coast
+    # road south, not an edge case. Saying "covers you" twice with nothing distinguishing them
+    # describes geometry rather than behaviour. These two say which one the app will actually use.
+    ("area_also_covers", "Also covers your position",
+     "Couvre aussi votre position", "تغطي موقعك أيضاً"),
+    ("area_recommended", "Recommended for your position",
+     "Recommandée pour votre position", "موصى بها لموقعك"),
     ("area_position_unknown", "No position fix yet, so coverage can’t be checked",
      "Position non acquise : impossible de vérifier la couverture",
      "لم يُحدَّد الموقع بعد، لذا يتعذّر التحقق من التغطية"),

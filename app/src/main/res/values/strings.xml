@@ -206,6 +206,8 @@
     <string name="area_larger_places">Tangier · Casablanca · Marrakech · Agadir · Dakhla</string>
     <string name="area_smaller_places">Nouakchott · Nouadhibou · Zouérat · Néma</string>
     <string name="area_covers_you">Your current position is inside this area</string>
+    <string name="area_also_covers">Also covers your position</string>
+    <string name="area_recommended">Recommended for your position</string>
     <string name="area_position_unknown">No position fix yet, so coverage can’t be checked</string>
     <string name="level_standard">Standard</string>
     <string name="level_detailed">Detailed</string>

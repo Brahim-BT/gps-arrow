@@ -206,6 +206,8 @@
     <string name="area_larger_places">Tanger · Casablanca · Marrakech · Agadir · Dakhla</string>
     <string name="area_smaller_places">Nouakchott · Nouadhibou · Zouérate · Néma</string>
     <string name="area_covers_you">Votre position actuelle se trouve dans cette zone</string>
+    <string name="area_also_covers">Couvre aussi votre position</string>
+    <string name="area_recommended">Recommandée pour votre position</string>
     <string name="area_position_unknown">Position non acquise : impossible de vérifier la couverture</string>
     <string name="level_standard">Standard</string>
     <string name="level_detailed">Détaillé</string>

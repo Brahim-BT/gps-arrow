@@ -1,6 +1,7 @@
 package dev.gpsarrow.maps
 
 import android.content.Context
+import dev.gpsarrow.core.AreaChoice
 import dev.gpsarrow.core.LatLon
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,6 +26,17 @@ data class InstalledArea(
     val pmtilesUri: String get() = "pmtiles://file://${file.absolutePath}"
 
     val bytesOnDisk: Long get() = file.length()
+
+    /** This area as the pure chooser sees it. */
+    fun candidate(position: LatLon) = AreaChoice.Candidate(
+        id = area.id,
+        maxZoom = level.maxZoom,
+        west = area.bbox.west,
+        south = area.bbox.south,
+        east = area.bbox.east,
+        north = area.bbox.north,
+        containsPosition = area.bbox.contains(position),
+    )
 }
 
 data class BoundingBox(
@@ -181,7 +193,11 @@ class RegionIndex(private val context: Context) {
             return installed.firstOrNull()?.let { MapTier.Available(it) }
                 ?: MapTier.NoDataHere(null)
         }
-        installed.firstOrNull { it.area.bbox.contains(position) }?.let {
+        // Deterministic, not list order. Where two areas overlap — which they do across the
+        // whole Atlantic coast band, 20.8N to 27.3N — this used to serve whichever appeared
+        // first in the catalogue, i.e. the order the constants happened to be written in.
+        val servingId = AreaChoice.serving(position, installed.map { it.candidate(position) })
+        installed.firstOrNull { it.area.id == servingId }?.let {
             return MapTier.Available(it)
         }
         val suggested = RegionCatalogue.covering(position)

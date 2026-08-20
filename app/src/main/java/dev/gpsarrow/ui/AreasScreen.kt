@@ -152,7 +152,10 @@ private fun AreaCard(
         // The coverage line comes first, deliberately. It is the answer to the only question the
         // user is actually asking, and it needs no place name to be understood.
         when (row.coverage) {
-            Coverage.INSIDE -> Notice(stringResource(R.string.area_covers_you), Tone.GOOD)
+            Coverage.SERVING -> Notice(stringResource(R.string.area_covers_you), Tone.GOOD)
+            Coverage.RECOMMENDED -> Notice(stringResource(R.string.area_recommended), Tone.GOOD)
+            // Quieter on purpose: true, but not the answer to "which one am I getting".
+            Coverage.ALSO_COVERS -> Notice(stringResource(R.string.area_also_covers), Tone.INFO)
             Coverage.NO_FIX -> Notice(stringResource(R.string.area_position_unknown), Tone.INFO)
             Coverage.OUTSIDE -> Unit
         }
@@ -305,8 +308,27 @@ private fun LevelRow(
     }
 }
 
-/** Whether the user's current position falls inside an area's bounds. */
-enum class Coverage { INSIDE, OUTSIDE, NO_FIX }
+/**
+ * What this area is to the user's current position.
+ *
+ * [SERVING] and [ALSO_COVERS] exist because two areas can legitimately both contain the user —
+ * the overlap band is the coast road south, where a real user actually was. Saying "covers your
+ * position" against both described geometry and left the obvious question unanswered: which one
+ * is the app using? These states answer it, and they follow the same rule that picks the tiles.
+ */
+enum class Coverage {
+    /** Contains the position, and is the one the map uses (or would, once installed). */
+    SERVING,
+
+    /** Contains the position, but another area is the one in use. */
+    ALSO_COVERS,
+
+    /** Contains the position, nothing installed yet, and this is the one to download. */
+    RECOMMENDED,
+
+    OUTSIDE,
+    NO_FIX,
+}
 
 /**
  * The result of re-reading an installed archive's PMTiles header.
