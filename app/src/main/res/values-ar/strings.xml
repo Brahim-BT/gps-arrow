@@ -194,6 +194,8 @@
 
     <!-- Map tab -->
     <string name="map_ready">الخريطة جاهزة: %1$s</string>
+    <string name="cd_face_north">التوجه نحو الشمال ومتابعة اتجاهي</string>
+    <string name="map_centre_on_me">التوسيط على موقعي</string>
     <string name="map_back_to_arrow">العودة إلى السهم</string>
     <string name="map_none_title">لا توجد خريطة لهذه المنطقة بعد</string>
     <string name="map_none_arrow_works">لا يزال السهم يعمل — فهو لا يحتاج إلى خرائط.</string>

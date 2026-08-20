@@ -194,6 +194,8 @@
 
     <!-- Map tab -->
     <string name="map_ready">Map ready: %1$s</string>
+    <string name="cd_face_north">Face north and follow my heading</string>
+    <string name="map_centre_on_me">Centre on me</string>
     <string name="map_back_to_arrow">Back to the arrow</string>
     <string name="map_none_title">No map for this area yet</string>
     <string name="map_none_arrow_works">The arrow still works — it doesn’t need maps.</string>

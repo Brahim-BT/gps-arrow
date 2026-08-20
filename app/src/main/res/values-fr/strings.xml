@@ -194,6 +194,8 @@
 
     <!-- Map tab -->
     <string name="map_ready">Carte prête : %1$s</string>
+    <string name="cd_face_north">Orienter vers le nord et suivre mon cap</string>
+    <string name="map_centre_on_me">Centrer sur moi</string>
     <string name="map_back_to_arrow">Retour à la flèche</string>
     <string name="map_none_title">Pas encore de carte pour cette zone</string>
     <string name="map_none_arrow_works">La flèche fonctionne toujours — elle n’a pas besoin de cartes.</string>

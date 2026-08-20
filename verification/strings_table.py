@@ -298,6 +298,11 @@ STRINGS = [
     # whose status is disputed, so any country name would be taking a position. Place names are
     # proper nouns and are given in each language's own form, not transliterated from English.
     ("map_ready", "Map ready: %1$s", "Carte prête : %1$s", "الخريطة جاهزة: %1$s"),
+    # One control, one meaning: face north and start following the heading again.
+    ("cd_face_north", "Face north and follow my heading",
+     "Orienter vers le nord et suivre mon cap",
+     "التوجه نحو الشمال ومتابعة اتجاهي"),
+    ("map_centre_on_me", "Centre on me", "Centrer sur moi", "التوسيط على موقعي"),
     ("map_back_to_arrow", "Back to the arrow", "Retour à la flèche", "العودة إلى السهم"),
     ("map_none_title", "No map for this area yet", "Pas encore de carte pour cette zone",
      "لا توجد خريطة لهذه المنطقة بعد"),
