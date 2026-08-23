@@ -15,6 +15,7 @@ lifecycle = "2.9.2"
 coroutines = "1.10.2"
 
 junit = "4.13.2"
+orgJson = "20240303"
 
 # --- v1 (maps) -------------------------------------------------------------
 # MapLibre >= 11.5.0 is required for 16 KB page-size support (Play mandate),
@@ -45,6 +46,7 @@ androidx-compose-material-icons-extended = { group = "androidx.compose.material"
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+org-json = { group = "org.json", name = "json", version.ref = "orgJson" }
 
 # v1 / v2 — not wired into any module yet.
 maplibre-android-sdk = { group = "org.maplibre.gl", name = "android-sdk", version.ref = "maplibre" }

@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -73,6 +74,12 @@ fun DestinationsScreen(
     onToggleFavourite: (Destination) -> Unit,
     onDelete: (Destination) -> Unit,
     onAdd: () -> Unit,
+    /**
+     * Whether public sharing exists in this build. Gates the badge rather than the data: a
+     * point can be flagged public while the backend is unconfigured, and a globe that means
+     * nothing to this install is noise.
+     */
+    sharingAvailable: Boolean = false,
     /** Hoisted: a search survives a trip to the arrow tab and back. */
     query: String,
     onQueryChange: (String) -> Unit,
@@ -236,6 +243,7 @@ fun DestinationsScreen(
                             selected = destination.id == selectedId,
                             highlighted = destination.id == highlightId,
                             units = units,
+                            sharingAvailable = sharingAvailable,
                             onSelect = { onSelect(destination) },
                             onEdit = { onEdit(destination) },
                             onToggleFavourite = { onToggleFavourite(destination) },
@@ -281,6 +289,7 @@ private fun DestinationRow(
     selected: Boolean,
     highlighted: Boolean,
     units: DistanceUnits,
+    sharingAvailable: Boolean,
     onSelect: () -> Unit,
     onEdit: () -> Unit,
     onToggleFavourite: () -> Unit,
@@ -393,6 +402,17 @@ private fun DestinationRow(
                 )
             }
             Spacer(Modifier.weight(1f))
+            // Status badge, not a control: sharing is changed where the point is edited, so
+            // there is exactly one place whose state has to stay honest. The globe marks the
+            // rows the user has published; its colour matches the map's teal dots.
+            if (sharingAvailable && destination.isPublic) {
+                Icon(
+                    imageVector = Icons.Filled.Public,
+                    contentDescription = stringResource(R.string.shared_badge),
+                    tint = tokens.accent,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
             Text(
                 text = formatTimestamp(context, destination.createdAtMillis),
                 style = MaterialTheme.typography.labelMedium,

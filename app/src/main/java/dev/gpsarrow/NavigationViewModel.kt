@@ -15,7 +15,13 @@ import dev.gpsarrow.core.Geo
 import dev.gpsarrow.core.HeadingArbiter
 import dev.gpsarrow.core.LatLon
 import dev.gpsarrow.core.NavigationState
+import dev.gpsarrow.core.SharedPoint
+import dev.gpsarrow.core.SharedPointJson
+import dev.gpsarrow.core.SharedPoints
 import dev.gpsarrow.data.DestinationStore
+import dev.gpsarrow.data.SharedPointCache
+import dev.gpsarrow.data.SharedPointsApi
+import dev.gpsarrow.data.SharedPointsConfig
 import dev.gpsarrow.location.Declination
 import dev.gpsarrow.location.DeclinationProvider
 import dev.gpsarrow.location.FrameworkDeclination
@@ -77,6 +83,148 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow(NavigationState())
     val state: StateFlow<NavigationState> = _state.asStateFlow()
 
+    // ---------------------------------------------------------------- shared points
+    //
+    // The public layer: what other users chose to publish, cached on disk and rendered on the
+    // map even offline. Everything network here is fail-soft — a failed refresh keeps the last
+    // feed, a failed publish is retried by the next successful one — because this feature must
+    // be as incapable of disturbing the arrow as the map download is.
+
+    private val sharedCache = SharedPointCache(appContext)
+    private val sharedApi = SharedPointsApi()
+
+    private val _sharedPoints = MutableStateFlow<List<SharedPoint>>(emptyList())
+    val sharedPoints: StateFlow<List<SharedPoint>> = _sharedPoints.asStateFlow()
+
+    private var sharedEtag: String? = null
+    private var sharedSyncJob: Job? = null
+
+    /**
+     * Refresh the feed if it is due. Called when the map tab opens; deliberately never from a
+     * timer, so the layer costs nothing while nobody is looking at it.
+     */
+    fun syncSharedPointsIfDue() {
+        if (!SharedPointsConfig.isConfigured) return
+        if (sharedSyncJob?.isActive == true) return
+        sharedSyncJob = viewModelScope.launch {
+            val snapshot = runCatching { sharedCache.load() }.getOrNull() ?: return@launch
+            if (!SharedPoints.shouldRefresh(snapshot.cachedAtMillis, System.currentTimeMillis())) {
+                sharedSyncJob = null
+                return@launch
+            }
+            when (val result = sharedApi.fetch(sharedEtag ?: snapshot.etag)) {
+                is SharedPointsApi.Fetch.Fresh -> {
+                    val points = SharedPointJson.decodeFeed(result.body)
+                    _sharedPoints.value = points
+                    sharedEtag = result.etag
+                    runCatching {
+                        sharedCache.save(points, result.etag, System.currentTimeMillis())
+                    }
+                    republishPending(points)
+                }
+
+                SharedPointsApi.Fetch.NotModified ->
+                    runCatching { sharedCache.touch(System.currentTimeMillis()) }
+
+                is SharedPointsApi.Fetch.Failed ->
+                    Log.w(TAG, "shared-points refresh failed: ${result.detail}")
+            }
+            sharedSyncJob = null
+        }
+    }
+
+    /**
+     * Publish again any local point marked public that the fresh feed does not know.
+     *
+     * This is the whole retry policy: a publish attempted offline, or refused once, is retried
+     * automatically the next time a sync succeeds — no queue file, no backoff state, nothing to
+     * get stuck. A point the user has un-shared still sits in the feed until its tombstone is
+     * drained, and being present in the feed means it correctly does NOT re-publish here.
+     */
+    private suspend fun republishPending(feed: List<SharedPoint>) {
+        val remoteIds = feed.map { it.id }.toSet()
+        val deviceId = sharedCache.deviceId()
+        store.destinations.value
+            .filter { it.isPublic && it.id !in remoteIds }
+            .filter { SharedPoints.canPublish(it.id, it.name, it.position.lat, it.position.lon, it.note) }
+            .forEach { destination ->
+                val result = sharedApi.publish(
+                    destination.id,
+                    destination.toSharedPoint(),
+                    deviceId,
+                )
+                if (result is SharedPointsApi.Publish.Failed) {
+                    Log.w(TAG, "publish of ${destination.id} failed: ${result.detail}")
+                }
+            }
+    }
+
+    /** Share or un-share a saved point. The local flag flips immediately; the network follows. */
+    fun setDestinationShared(destination: Destination, shared: Boolean) {
+        viewModelScope.launch {
+            store.setPublic(destination.id, shared)
+            if (_state.value.destination?.id == destination.id) {
+                _state.value =
+                    _state.value.copy(destination = destination.copy(isPublic = shared))
+            }
+            if (!SharedPointsConfig.isConfigured || shared == destination.isPublic) return@launch
+            if (shared) {
+                if (!SharedPoints.canPublish(
+                        destination.id,
+                        destination.name,
+                        destination.position.lat,
+                        destination.position.lon,
+                        destination.note,
+                    )
+                ) {
+                    return@launch
+                }
+                val result = sharedApi.publish(
+                    destination.id,
+                    destination.copy(isPublic = true).toSharedPoint(),
+                    sharedCache.deviceId(),
+                )
+                if (result is SharedPointsApi.Publish.Failed) {
+                    Log.w(TAG, "publish failed (will retry on next sync): ${result.detail}")
+                }
+            } else {
+                val result = sharedApi.queueRemoval(destination.id, sharedCache.deviceId())
+                if (result is SharedPointsApi.Publish.Failed) {
+                    Log.w(TAG, "removal queued failed: ${result.detail}")
+                }
+            }
+        }
+    }
+
+    /**
+     * Save someone else's shared point into the user's own list, KEEPING its id — which is what
+     * makes [SharedPoints.visibleFrom] hide the teal dot in favour of the now-editable local
+     * copy instead of drawing both.
+     */
+    fun saveSharedPointAsMine(point: SharedPoint, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            store.restore(
+                Destination(
+                    id = point.id,
+                    name = point.name,
+                    position = point.position,
+                    note = point.note,
+                    createdAtMillis = point.createdAtMillis,
+                    source = "shared",
+                ),
+            )
+            onDone()
+        }
+    }
+
+    private fun Destination.toSharedPoint() = SharedPoint(
+        id = id,
+        name = name,
+        position = position,
+        note = note,
+        createdAtMillis = createdAtMillis,
+    )
+
     // Starts UNKNOWN, not "off". The previous initial value asserted that location was
     // disabled before anything had looked, so the very first frame of a first launch showed
     // "turn on location" to a user whose location was already on.
@@ -110,6 +258,15 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
             runCatching { store.load() }.onFailure {
                 Log.w(TAG, "could not load saved destinations", it)
                 degrade(Degradation(R.string.degraded_store_read))
+            }
+        }
+
+        // The cached feed loads with everything else, so the map shows dots on the very first
+        // frame; a refresh only happens later, when the map tab is opened and the cache is due.
+        viewModelScope.launch {
+            runCatching { sharedCache.load() }.onSuccess { snapshot ->
+                _sharedPoints.value = snapshot.points
+                sharedEtag = snapshot.etag
             }
         }
 
@@ -244,9 +401,15 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
         destination?.let { viewModelScope.launch { store.markUsed(it.id) } }
     }
 
-    fun updateDestination(id: String, name: String, position: LatLon, onDone: () -> Unit = {}) {
+    fun updateDestination(
+        id: String,
+        name: String,
+        position: LatLon,
+        isPublic: Boolean? = null,
+        onDone: () -> Unit = {},
+    ) {
         viewModelScope.launch {
-            val updated = store.update(id, name, position)
+            val updated = store.update(id, name, position, isPublic = isPublic)
             // Keep the live navigation target in step with the edit.
             if (updated != null && _state.value.destination?.id == id) {
                 _state.value = _state.value.copy(destination = updated)
@@ -452,9 +615,12 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
         name: String,
         position: LatLon,
         source: String,
+        isPublic: Boolean = false,
         onDone: (Destination) -> Unit = {},
     ) {
-        viewModelScope.launch { onDone(store.add(name, position, source = source)) }
+        viewModelScope.launch {
+            onDone(store.add(name, position, source = source, isPublic = isPublic))
+        }
     }
 
     // ---------------------------------------------------------------- map tiering (v1 hook)

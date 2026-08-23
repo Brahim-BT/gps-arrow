@@ -59,9 +59,12 @@ import dev.gpsarrow.core.DestinationParser
 import dev.gpsarrow.core.CoordinateFormat
 import dev.gpsarrow.core.DistanceUnits
 import dev.gpsarrow.core.Format
+import dev.gpsarrow.core.Geo
 import dev.gpsarrow.core.ParseResult
+import dev.gpsarrow.core.SharedPoints
 import dev.gpsarrow.locale.AppLanguage
 import dev.gpsarrow.locale.AppLocale
+import dev.gpsarrow.data.SharedPointsConfig
 import dev.gpsarrow.service.NavigationService
 import dev.gpsarrow.ui.AddDestinationScreen
 import dev.gpsarrow.ui.AppBar
@@ -77,6 +80,7 @@ import dev.gpsarrow.ui.SettingsScreen
 // members of an imported class. Omitting these is what broke CI run #7.
 import dev.gpsarrow.ui.numberLocale
 import dev.gpsarrow.ui.rememberNotificationPermissionRequest
+import dev.gpsarrow.ui.text
 import dev.gpsarrow.ui.theme.GpsArrowTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -246,6 +250,19 @@ private fun AppRoot(
     var mapEverOpened by rememberSaveable { mutableStateOf(false) }
     if (tab == AppTab.MAP) mapEverOpened = true
 
+    // Shared public points. The feed refreshes when the map tab is entered and its cache is
+    // stale — keyed on the tab so it fires once per arrival, never per recomposition at the
+    // fix rate.
+    val sharedPoints by viewModel.sharedPoints.collectAsStateWithLifecycle()
+    LaunchedEffect(tab) {
+        if (tab == AppTab.MAP) viewModel.syncSharedPointsIfDue()
+    }
+
+    // Which shared dot is tapped. The selection holds only the ID: the feed can refresh under
+    // it, so holding the point itself could keep showing a copy that no longer exists.
+    var selectedSharedId by rememberSaveable { mutableStateOf<String?>(null) }
+    val selectedShared = selectedSharedId?.let { id -> sharedPoints.firstOrNull { it.id == id } }
+
     // The areas list presents over the Map tab, the way the editor presents over Destinations.
     // Saveable so a rotation mid-download does not drop the user back to the map.
     var showAreas by rememberSaveable { mutableStateOf(false) }
@@ -326,6 +343,21 @@ private fun AppRoot(
     val snackbarHost = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val units = DistanceUnits.METRIC   // wire to a settings store in v0.2
+
+    // Card facts for a tapped shared dot, derived rather than stored: the distance reformats on
+    // every fix, and "already saved" tracks the destination list live — saving one flips it and
+    // the button disappears without any extra state to keep honest.
+    val selectedDistanceText = selectedShared?.let { sel ->
+        state.fix?.position?.let { here ->
+            Format.distance(
+                Geo.distanceMeters(here, sel.position),
+                units,
+                context.numberLocale(),
+            ).text(context)
+        }
+    }
+    val selectedAlreadySaved =
+        selectedShared != null && destinations.any { it.id == selectedShared.id }
 
     // ---- Back handling ------------------------------------------------------------------
     //
@@ -440,8 +472,14 @@ private fun AppRoot(
                             onDraftChange = { editDraft = it },
                             currentPosition = state.fix?.position,
                             editing = open.destination,
-                            onSave = { name, position, _ ->
-                                viewModel.updateDestination(open.destination.id, name, position) {
+                            sharingAvailable = SharedPointsConfig.isConfigured,
+                            onSave = { name, position, _, isPublic ->
+                                viewModel.updateDestination(
+                                    open.destination.id,
+                                    name,
+                                    position,
+                                    isPublic = isPublic,
+                                ) {
                                     highlightId = open.destination.id
                                     editor = null
                                 }
@@ -456,8 +494,9 @@ private fun AppRoot(
                             draft = addDraft,
                             onDraftChange = { addDraft = it },
                             currentPosition = state.fix?.position,
-                            onSave = { name, position, source ->
-                                viewModel.saveDestination(name, position, source) { saved ->
+                            sharingAvailable = SharedPointsConfig.isConfigured,
+                            onSave = { name, position, source, isPublic ->
+                                viewModel.saveDestination(name, position, source, isPublic) { saved ->
                                     addDraft = CoordinateDraft.EMPTY
                                     // Clear the filters, or a new point that doesn't match the
                                     // active search would be saved into an invisible row.
@@ -574,6 +613,7 @@ private fun AppRoot(
                         selectedId = state.destination?.id,
                         sort = sort,
                         units = units,
+                        sharingAvailable = SharedPointsConfig.isConfigured,
                         query = searchQuery,
                         onQueryChange = { searchQuery = it },
                         favouritesOnly = favouritesOnly,
@@ -590,6 +630,7 @@ private fun AppRoot(
                                 name = it.name,
                                 latText = Format.coordinate(it.position.lat),
                                 lonText = Format.coordinate(it.position.lon),
+                                isPublic = it.isPublic,
                             )
                             editor = Editor.Existing(it)
                         },
@@ -688,6 +729,47 @@ private fun AppRoot(
                                         state.destination?.name,
                                     )
                                 },
+                                // Saved-from-shared points keep their original id, so
+                                // visibleFrom is what stops a dot and a local copy of the same
+                                // place from drawing on top of each other.
+                                sharedGeoJson = remember(sharedPoints, destinations) {
+                                    MapMarkers.shared(
+                                        SharedPoints.visibleFrom(
+                                            sharedPoints,
+                                            destinations.map { it.id }.toSet(),
+                                        ),
+                                    )
+                                },
+                                selectedShared = selectedShared,
+                                selectedDistanceText = selectedDistanceText,
+                                selectedAlreadySaved = selectedAlreadySaved,
+                                onSharedTap = { id -> selectedSharedId = id },
+                                // Navigate WITHOUT saving: the arrow aims at a transient
+                                // Destination carrying the shared point's own id, so the user's
+                                // list stays untouched until they separately choose "save as
+                                // mine".
+                                onNavigateShared = { point ->
+                                    viewModel.selectDestination(
+                                        Destination(
+                                            id = point.id,
+                                            name = point.name,
+                                            position = point.position,
+                                            note = point.note,
+                                            createdAtMillis = point.createdAtMillis,
+                                            source = "shared",
+                                        ),
+                                    )
+                                    tab = AppTab.ARROW
+                                },
+                                onSaveShared = { point ->
+                                    viewModel.saveSharedPointAsMine(point) {
+                                        scope.launch {
+                                            snackbarHost.showSnackbar(
+                                                context.getString(R.string.shared_saved_mine),
+                                            )
+                                        }
+                                    }
+                                },
                                 orientation = orientation,
                                 hasPosition = state.fix != null,
                                 // The smoothed position, so the camera drifts rather than
@@ -755,13 +837,16 @@ private fun AppRoot(
 
 /** Keeps a half-typed coordinate across process death, not just across tab switches. */
 private val CoordinateDraftSaver = listSaver<CoordinateDraft, String>(
-    save = { listOf(it.name, it.latText, it.lonText, it.readAs.orEmpty()) },
+    save = {
+        listOf(it.name, it.latText, it.lonText, it.readAs.orEmpty(), it.isPublic.toString())
+    },
     restore = {
         CoordinateDraft(
             name = it[0],
             latText = it[1],
             lonText = it[2],
             readAs = it[3].ifEmpty { null },
+            isPublic = it.getOrNull(4) == "true",
         )
     },
 )

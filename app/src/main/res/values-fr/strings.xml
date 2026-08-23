@@ -106,6 +106,8 @@
     <string name="cd_unstar">Retirer %1$s des favoris</string>
     <string name="cd_edit">Modifier %1$s</string>
     <string name="cd_delete">Supprimer %1$s</string>
+    <string name="shared_badge">Partagée publiquement</string>
+    <string name="menu_unshare_point">Ne plus partager</string>
     <string name="selected_destination">▸ %1$s</string>
     <string name="accuracy_suffix"> · ±%1$s m</string>
     <string name="delete_dialog_title">Supprimer ce point ?</string>
@@ -140,6 +142,8 @@
     <string name="read_as">Interprété comme %1$s et réparti dans les deux champs.</string>
     <string name="save_point">Enregistrer le point</string>
     <string name="save_changes">Enregistrer les modifications</string>
+    <string name="field_share_public">Partager publiquement</string>
+    <string name="field_share_public_caption">Toute personne utilisant GPS Arrow verra le nom, les coordonnées et la note de ce point.</string>
     <string name="plus_code_label">Plus code %1$s</string>
     <string name="mgrs_label">MGRS %1$s</string>
     <string name="pasteable_formats">Formats acceptés</string>
@@ -197,6 +201,9 @@
     <string name="cd_face_north">Orienter vers le nord et suivre mon cap</string>
     <string name="map_centre_on_me">Centrer sur moi</string>
     <string name="map_back_to_arrow">Retour à la flèche</string>
+    <string name="shared_card_label">Partagé par un autre utilisateur</string>
+    <string name="shared_card_save">Ajouter à mes points</string>
+    <string name="shared_saved_mine">Enregistré dans vos destinations</string>
     <string name="map_none_title">Pas encore de carte pour cette zone</string>
     <string name="map_none_arrow_works">La flèche fonctionne toujours — elle n’a pas besoin de cartes.</string>
     <string name="map_none_prompt">Téléchargez une zone hors ligne pour voir la carte ici.</string>

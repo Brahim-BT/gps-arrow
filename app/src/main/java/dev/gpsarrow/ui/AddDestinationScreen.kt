@@ -16,6 +16,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -48,7 +49,13 @@ fun AddDestinationScreen(
     draft: CoordinateDraft,
     onDraftChange: (CoordinateDraft) -> Unit,
     currentPosition: LatLon?,
-    onSave: (name: String, position: LatLon, source: String) -> Unit,
+    onSave: (name: String, position: LatLon, source: String, isPublic: Boolean) -> Unit,
+    /**
+     * Whether public sharing exists in this build. The toggle is hidden rather than disabled
+     * when it does not — a dead control for a backend that was never configured explains
+     * nothing and invites taps.
+     */
+    sharingAvailable: Boolean = false,
     /** null when shown as a tab (nothing to go back to); non-null in edit mode. */
     onBack: (() -> Unit)? = null,
     /** Non-null puts the screen in edit mode: same fields, same parser, different verb. */
@@ -179,6 +186,32 @@ fun AddDestinationScreen(
             )
         }
 
+        // The opt-in that publishes the point. The caption is the whole privacy policy: what
+        // exactly becomes visible, stated before the toggle, not after something goes out.
+        if (sharingAvailable) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.field_share_public),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(
+                        stringResource(R.string.field_share_public_caption),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = draft.isPublic,
+                    onCheckedChange = { onDraftChange(draft.copy(isPublic = it)) },
+                )
+            }
+        }
+
         position?.let { OtherFormats(it) }
 
         Button(
@@ -188,6 +221,7 @@ fun AddDestinationScreen(
                     name.ifBlank { Format.decimal(p) },
                     p,
                     pastedFormat ?: "manual",
+                    draft.isPublic,
                 )
             },
             enabled = position != null,

@@ -15,6 +15,11 @@ data class CoordinateDraft(
     val lonText: String = "",
     /** Which format a paste was recognised as, for the confirmation line. */
     val readAs: String? = null,
+    /**
+     * Opt-in to publishing this point, carried in the draft like every other field so a
+     * half-decided share survives the tab switch that took the user to check something.
+     */
+    val isPublic: Boolean = false,
 ) {
     val isEmpty: Boolean
         get() = name.isBlank() && latText.isBlank() && lonText.isBlank()

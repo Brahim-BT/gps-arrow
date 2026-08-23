@@ -146,6 +146,8 @@ STRINGS = [
     ("cd_unstar", "Unstar %1$s", "Retirer %1$s des favoris", "إزالة %1$s من المفضّلة"),
     ("cd_edit", "Edit %1$s", "Modifier %1$s", "تعديل %1$s"),
     ("cd_delete", "Delete %1$s", "Supprimer %1$s", "حذف %1$s"),
+    ("shared_badge", "Publicly shared", "Partagée publiquement", "منشورة للعموم"),
+    ("menu_unshare_point", "Stop sharing", "Ne plus partager", "إيقاف النشر"),
     ("selected_destination", "▸ %1$s", "▸ %1$s", "▸ %1$s"),
     ("accuracy_suffix", " · ±%1$s m", " · ±%1$s m", " · ±%1$s م"),
     ("delete_dialog_title", "Delete this point?", "Supprimer ce point ?", "حذف هذه النقطة؟"),
@@ -189,6 +191,14 @@ STRINGS = [
      "قُرئ بصيغة %1$s وقُسِّم على الحقلين."),
     ("save_point", "Save point", "Enregistrer le point", "حفظ النقطة"),
     ("save_changes", "Save changes", "Enregistrer les modifications", "حفظ التعديلات"),
+    # The opt-in that makes the point public. The caption states exactly what becomes visible,
+    # because a toggle without its consequence reads as private-by-default to the people who
+    # most need to know it is not.
+    ("field_share_public", "Share publicly", "Partager publiquement", "نشر للعموم"),
+    ("field_share_public_caption",
+     "Anyone using GPS Arrow will see this point’s name, coordinates and note.",
+     "Toute personne utilisant GPS Arrow verra le nom, les coordonnées et la note de ce point.",
+     "سيرى كل مستخدمو GPS Arrow اسم هذه النقطة وإحداثياتها وملاحظتها."),
     ("plus_code_label", "Plus code %1$s", "Plus code %1$s", "‏Plus code %1$s"),
     ("mgrs_label", "MGRS %1$s", "MGRS %1$s", "‏MGRS %1$s"),
     ("pasteable_formats", "Pasteable formats", "Formats acceptés", "الصيغ المقبولة"),
@@ -304,6 +314,13 @@ STRINGS = [
      "التوجه نحو الشمال ومتابعة اتجاهي"),
     ("map_centre_on_me", "Centre on me", "Centrer sur moi", "التوسيط على موقعي"),
     ("map_back_to_arrow", "Back to the arrow", "Retour à la flèche", "العودة إلى السهم"),
+    # The tap-inspect card for a shared dot, and the confirmation for saving one. The card's
+    # primary action reuses navigate_here; only the shared-specific strings live here.
+    ("shared_card_label", "Shared by another user", "Partagé par un autre utilisateur",
+     "منشور من مستخدم آخر"),
+    ("shared_card_save", "Save as mine", "Ajouter à mes points", "إضافة إلى نقاطي"),
+    ("shared_saved_mine", "Saved to your destinations", "Enregistré dans vos destinations",
+     "تم الحفظ في وجهاتك"),
     ("map_none_title", "No map for this area yet", "Pas encore de carte pour cette zone",
      "لا توجد خريطة لهذه المنطقة بعد"),
     ("map_none_arrow_works", "The arrow still works — it doesn’t need maps.",

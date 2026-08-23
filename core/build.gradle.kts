@@ -14,6 +14,13 @@ kotlin {
 
 dependencies {
     testImplementation(libs.junit)
+
+    // SharedPointJson speaks the Realtime Database REST shape. org.json is compile-only here:
+    // every Android device ships the same API at runtime, so the artifact adds nothing to the
+    // APK, and the Maven copy exists only so :core stays unit-testable on the JVM — which is
+    // exactly what the module header promises.
+    compileOnly(libs.org.json)
+    testImplementation(libs.org.json)
 }
 
 tasks.withType<Test>().configureEach {

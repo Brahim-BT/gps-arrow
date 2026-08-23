@@ -1,0 +1,45 @@
+name: Shared-points cleanup
+
+# Drains the tombstone queue once a day: for each queued id, if the stored point's deviceId
+# matches the device that queued the removal, the point is deleted and the tombstone cleared.
+# A mismatch is reported and left alone — that is a moderation case, not an automatic one.
+# Safe to re-run at any time; it only ever deletes what it can prove.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drain-tombstones:
+    runs-on: ubuntu-latest
+    steps:
+      # Needs no checkout: everything it touches lives in Firebase.
+      - uses: google-github-actions/auth@v2
+        id: auth
+        with:
+          credentials_json: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
+
+      - name: Drain tombstones
+        env:
+          # Paste your Realtime Database URL here (see SETUP_SHARED_POINTS.md step 1).
+          DB: https://YOUR-PROJECT-default-rtdb.YOUR-REGION.firebasedatabase.app
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          tombs=$(curl -sSf -H "Authorization: Bearer $TOKEN" "$DB/tombstones.json")
+          if [ "$tombs" = "null" ]; then echo "queue empty"; exit 0; fi
+          echo "$tombs" | jq -r 'to_entries[] | "\(.key)\t\(.value)"' |
+          while IFS=$'\t' read -r id owner; do
+            stored=$(curl -sSf -H "Authorization: Bearer $TOKEN" "$DB/sharedPoints/$id.json" \
+                     | jq -r '.deviceId // empty')
+            if [ "$stored" = "$owner" ]; then
+              curl -sSf -X DELETE -H "Authorization: Bearer $TOKEN" "$DB/sharedPoints/$id.json"
+              curl -sSf -X DELETE -H "Authorization: Bearer $TOKEN" "$DB/tombstones/$id.json"
+              echo "removed $id"
+            else
+              echo "::warning::kept $id (deviceId mismatch — review manually)"
+            fi
+          done

@@ -43,6 +43,7 @@ class DestinationStore(context: Context) {
         source: String = "manual",
         /** Accuracy of the fix this came from; null when it was typed, pasted or imported. */
         accuracyMeters: Float? = null,
+        isPublic: Boolean = false,
     ): Destination = withContext(Dispatchers.IO) {
         val destination = Destination(
             id = UUID.randomUUID().toString(),
@@ -52,6 +53,7 @@ class DestinationStore(context: Context) {
             createdAtMillis = System.currentTimeMillis(),
             source = source,
             accuracyMeters = accuracyMeters,
+            isPublic = isPublic,
         )
         _destinations.value = _destinations.value + destination
         write(_destinations.value)
@@ -71,6 +73,8 @@ class DestinationStore(context: Context) {
         name: String,
         position: LatLon,
         note: String? = null,
+        /** Tri-state: null leaves the sharing flag as it was. */
+        isPublic: Boolean? = null,
     ): Destination? = withContext(Dispatchers.IO) {
         var updated: Destination? = null
         _destinations.value = _destinations.value.map {
@@ -81,6 +85,7 @@ class DestinationStore(context: Context) {
                     name = name.ifBlank { it.name },
                     position = position,
                     note = note,
+                    isPublic = isPublic ?: it.isPublic,
                     // A hand-typed coordinate is no longer the fix it came from, so the fix's
                     // accuracy has stopped describing it. Keep the badge only if the position
                     // is byte-identical; otherwise drop it rather than let it vouch for a
@@ -91,6 +96,17 @@ class DestinationStore(context: Context) {
         }
         write(_destinations.value)
         updated
+    }
+
+    /**
+     * Flip only the sharing flag. A separate method rather than an [update] call because the
+     * list-row action must not need — or risk — the full edit payload.
+     */
+    suspend fun setPublic(id: String, public: Boolean) = withContext(Dispatchers.IO) {
+        _destinations.value = _destinations.value.map {
+            if (it.id == id) it.copy(isPublic = public) else it
+        }
+        write(_destinations.value)
     }
 
     suspend fun setFavourite(id: String, favourite: Boolean) = withContext(Dispatchers.IO) {
@@ -149,6 +165,7 @@ class DestinationStore(context: Context) {
                         } else {
                             null
                         },
+                        isPublic = o.optBoolean("public", false),
                     ),
                 )
             }
@@ -172,6 +189,7 @@ class DestinationStore(context: Context) {
                     // Omitted rather than written as 0 when unknown: absent and "perfect" must
                     // not collapse to the same thing on the way back in.
                     d.accuracyMeters?.let { put(KEY_ACCURACY, it.toDouble()) }
+                    if (d.isPublic) put("public", true)
                 },
             )
         }

@@ -106,6 +106,8 @@
     <string name="cd_unstar">إزالة %1$s من المفضّلة</string>
     <string name="cd_edit">تعديل %1$s</string>
     <string name="cd_delete">حذف %1$s</string>
+    <string name="shared_badge">منشورة للعموم</string>
+    <string name="menu_unshare_point">إيقاف النشر</string>
     <string name="selected_destination">▸ %1$s</string>
     <string name="accuracy_suffix"> · ±%1$s م</string>
     <string name="delete_dialog_title">حذف هذه النقطة؟</string>
@@ -140,6 +142,8 @@
     <string name="read_as">قُرئ بصيغة %1$s وقُسِّم على الحقلين.</string>
     <string name="save_point">حفظ النقطة</string>
     <string name="save_changes">حفظ التعديلات</string>
+    <string name="field_share_public">نشر للعموم</string>
+    <string name="field_share_public_caption">سيرى كل مستخدمو GPS Arrow اسم هذه النقطة وإحداثياتها وملاحظتها.</string>
     <string name="plus_code_label">‏Plus code %1$s</string>
     <string name="mgrs_label">‏MGRS %1$s</string>
     <string name="pasteable_formats">الصيغ المقبولة</string>
@@ -197,6 +201,9 @@
     <string name="cd_face_north">التوجه نحو الشمال ومتابعة اتجاهي</string>
     <string name="map_centre_on_me">التوسيط على موقعي</string>
     <string name="map_back_to_arrow">العودة إلى السهم</string>
+    <string name="shared_card_label">منشور من مستخدم آخر</string>
+    <string name="shared_card_save">إضافة إلى نقاطي</string>
+    <string name="shared_saved_mine">تم الحفظ في وجهاتك</string>
     <string name="map_none_title">لا توجد خريطة لهذه المنطقة بعد</string>
     <string name="map_none_arrow_works">لا يزال السهم يعمل — فهو لا يحتاج إلى خرائط.</string>
     <string name="map_none_prompt">نزّل منطقة للاستخدام دون اتصال لرؤية الخريطة هنا.</string>

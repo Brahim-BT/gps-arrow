@@ -259,4 +259,12 @@ data class Destination(
      * and the user is the only one who can decide whether ±40 m is good enough for the job.
      */
     val accuracyMeters: Float? = null,
+    /**
+     * Opted in to public sharing: its name and position are published for every user's map.
+     *
+     * A local flag about a REMOTE fact — it can be true while the publish request is still in
+     * flight or has failed, and false while a removal is still queued. The sync path reconciles
+     * both directions; nothing here may assume the flag matches the server.
+     */
+    val isPublic: Boolean = false,
 )
