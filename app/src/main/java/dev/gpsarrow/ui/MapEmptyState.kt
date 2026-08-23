@@ -3,6 +3,7 @@ package dev.gpsarrow.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -58,6 +60,11 @@ fun MapScreen(
     hasPosition: Boolean,
     /** Smoothed position to keep centred while following. */
     followTarget: LatLon?,
+    /**
+     * Whether the user is moving fast enough (MotionGate) to justify the forward-view dot
+     * offset while following.
+     */
+    moving: Boolean,
     onCameraMoved: (MapCamera) -> Unit,
     onUserGesture: () -> Unit,
     onFaceNorth: () -> Unit,
@@ -81,6 +88,7 @@ fun MapScreen(
             orientation = orientation,
             hasPosition = hasPosition,
             followTarget = followTarget,
+            moving = moving,
             onCameraMoved = onCameraMoved,
             onUserGesture = onUserGesture,
             onFaceNorth = onFaceNorth,
@@ -146,6 +154,11 @@ private fun InstalledMap(
     hasPosition: Boolean,
     /** Smoothed position to keep centred while following. */
     followTarget: LatLon?,
+    /**
+     * Whether the user is moving fast enough (MotionGate) to justify the forward-view dot
+     * offset while following.
+     */
+    moving: Boolean,
     onCameraMoved: (MapCamera) -> Unit,
     onUserGesture: () -> Unit,
     onFaceNorth: () -> Unit,
@@ -169,7 +182,14 @@ private fun InstalledMap(
         return
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    // The map's own height, in pixels, for the forward-view offset. Constraints rather than
+    // display metrics because the map does not fill the whole screen — the bar and tabs sit
+    // above it — and a fraction of the wrong height puts the dot noticeably off its mark.
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val dotOffsetPx = with(LocalDensity.current) {
+            maxHeight.toPx().toDouble() * MapCamera.DOT_OFFSET_TOP_FRACTION
+        }
+
         MapLibreView(
             styleJson = styleJson,
             initialCamera = camera,
@@ -177,12 +197,18 @@ private fun InstalledMap(
             positionGeoJson = positionGeoJson,
             destinationGeoJson = destinationGeoJson,
             // Null the moment following is suspended, so the view leaves the camera entirely
-            // alone rather than merely holding the bearing steady.
+            // alone rather than merely holding the bearing steady. It comes back by itself
+            // after MapOrientation's idle dwell, or immediately via "centre on me" / north.
             followBearingDeg =
                 if (orientation.followingHeading) orientation.appliedBearingDeg else null,
             // Same gate as the bearing: following stops the instant a gesture starts and stays
-            // stopped until "centre on me". Position and rotation are one intention, not two.
+            // stopped until the idle dwell expires or "centre on me" is tapped. Position and
+            // rotation are one intention, not two.
             followTarget = if (orientation.followingHeading) followTarget else null,
+            // The forward-view offset only makes sense while actively following AND actually
+            // moving; standing still it just buries part of the view.
+            dotOffsetTopPx =
+                if (orientation.followingHeading && moving) dotOffsetPx else null,
             modifier = Modifier.fillMaxSize(),
             onUnavailable = { rendererFailed = true },
             onCameraMoved = onCameraMoved,
@@ -200,8 +226,8 @@ private fun InstalledMap(
             )
         }
 
-        // Bottom-end: the way back to yourself after panning away. Without it, a user who pans
-        // off and cannot find their own position concludes the map is broken.
+        // Bottom-end: the way back to yourself after panning away. Auto-resume brings the map
+        // home on its own now, but nobody should have to wait eight seconds to be found.
         if (!orientation.followingHeading && hasPosition) {
             Button(
                 onClick = onCentreOnMe,

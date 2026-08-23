@@ -38,6 +38,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.gpsarrow.maps.AreaLevel
 import dev.gpsarrow.maps.MapArea
 import dev.gpsarrow.core.PositionSmoothing
+import dev.gpsarrow.core.MotionGate
 import dev.gpsarrow.core.SmoothedPosition
 import dev.gpsarrow.core.MapOrientation
 import dev.gpsarrow.core.OrientationState
@@ -274,9 +275,15 @@ private fun AppRoot(
     // distance readout, the arrow bearing, saved destinations and diagnostics all read it
     // directly, and must keep doing so.
     var smoothed by remember { mutableStateOf<SmoothedPosition?>(null) }
+
+    // Whether the user is moving fast enough for the camera to ride ahead of their dot. Folded
+    // into here because it is per-fix state with the same lifetime as `smoothed`; MotionGate's
+    // hysteresis stops the answer flapping around a single speed threshold.
+    var moving by remember { mutableStateOf(false) }
     LaunchedEffect(state.fix) {
         val fix = state.fix ?: return@LaunchedEffect
         smoothed = PositionSmoothing.update(smoothed, fix, System.currentTimeMillis())
+        moving = MotionGate.update(moving, fix.speedMps)
     }
 
     // One-shot camera requests. A counter rather than a boolean so that tapping "centre on me"
@@ -686,8 +693,13 @@ private fun AppRoot(
                                 // The smoothed position, so the camera drifts rather than
                                 // twitching at the fix rate.
                                 followTarget = smoothed?.position,
+                                moving = moving,
                                 onUserGesture = {
-                                    orientation = MapOrientation.afterUserGesture(orientation)
+                                    orientation =
+                                        MapOrientation.afterUserGesture(
+                                            orientation,
+                                            System.currentTimeMillis(),
+                                        )
                                 },
                                 onFaceNorth = {
                                     orientation = MapOrientation.afterNorthTap(

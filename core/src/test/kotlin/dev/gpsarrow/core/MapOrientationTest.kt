@@ -2,6 +2,7 @@ package dev.gpsarrow.core
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -16,6 +17,7 @@ class MapOrientationTest {
 
     private val rotateAfter = MapOrientation.ROTATE_AFTER_MILLIS   // 1500
     private val northAfter = MapOrientation.NORTH_UP_AFTER_MILLIS  // 700
+    private val resumeAfter = MapOrientation.RESUME_AFTER_MILLIS   // 8000
 
     @Test
     fun `startsNorthUpAndDoesNotRotateImmediately`() {
@@ -103,23 +105,83 @@ class MapOrientationTest {
         s = MapOrientation.update(s, 90.0, rotateAfter)
         assertEquals(90.0, s.appliedBearingDeg, 1e-9)
 
-        s = MapOrientation.afterUserGesture(s)
+        s = MapOrientation.afterUserGesture(s, rotateAfter)
         assertFalse(s.followingHeading)
+        assertEquals("the resume dwell is timed from the gesture", rotateAfter, s.lastGestureAtMillis)
 
         // Further samples must not move the camera while suspended.
-        s = MapOrientation.update(s, 270.0, rotateAfter + 5_000)
+        s = MapOrientation.update(s, 270.0, rotateAfter + 1_000)
         assertEquals("the map must not fight the user's finger", 90.0, s.appliedBearingDeg, 1e-9)
+    }
+
+    @Test
+    fun `followingResumesOnItsOwnAfterTheIdleDwell`() {
+        var s = MapOrientation.update(OrientationState(), 90.0, 0L)
+        s = MapOrientation.update(s, 90.0, rotateAfter)
+        s = MapOrientation.afterUserGesture(s, 10_000L)
+
+        // One millisecond short of the dwell: still suspended.
+        s = MapOrientation.update(s, null, 10_000L + resumeAfter - 1)
+        assertFalse("the idle dwell has not expired yet", s.followingHeading)
+
+        // At the threshold, the very next sample resumes following — no tap required.
+        s = MapOrientation.update(s, null, 10_000L + resumeAfter)
+        assertTrue("following must come back on its own", s.followingHeading)
+        assertNull("the gesture stamp is spent", s.lastGestureAtMillis)
+    }
+
+    /** Continuous browsing restamps the clock on every gesture and is never interrupted. */
+    @Test
+    fun `aSecondGestureRestartsTheIdleClock`() {
+        var s = MapOrientation.update(OrientationState(), 90.0, 0L)
+        s = MapOrientation.afterUserGesture(s, 1_000L)
+
+        // Seven seconds pass without another touch…
+        s = MapOrientation.update(s, null, 8_000L - 1)
+        assertFalse(s.followingHeading)
+
+        // …then the user pans again. The clock restarts from THAT gesture, not the first one —
+        // otherwise a long browsing session would be interrupted mid-read eight seconds in.
+        s = MapOrientation.afterUserGesture(s, 8_000L)
+        s = MapOrientation.update(s, null, 16_000L - 1)
+        assertFalse("the dwell restarted with the second gesture", s.followingHeading)
+
+        s = MapOrientation.update(s, null, 16_000L)
+        assertTrue(s.followingHeading)
+    }
+
+    /**
+     * Heading that stayed steady throughout the suspension takes over immediately at resume:
+     * availability was tracked all along, so making the user wait out the rotate dwell again
+     * would be a second, unearned delay.
+     */
+    @Test
+    fun `aResumeWithSteadyHeadingDoesNotWaitTwice`() {
+        var s = MapOrientation.update(OrientationState(), 90.0, 0L)
+        s = MapOrientation.update(s, 90.0, rotateAfter)
+        s = MapOrientation.afterUserGesture(s, 10_000L)
+
+        // Compass keeps reporting while the user browses…
+        s = MapOrientation.update(s, 90.0, 12_000L)
+        s = MapOrientation.update(s, 90.0, 18_000L - 1)
+        assertEquals("still suspended: no rotation while browsing", 90.0, s.appliedBearingDeg, 1e-9)
+
+        // …and at the dwell boundary the same sample both resumes and rotates.
+        s = MapOrientation.update(s, 90.0, 18_000L)
+        assertTrue(s.followingHeading)
+        assertEquals(90.0, s.appliedBearingDeg, 1e-9)
     }
 
     @Test
     fun `tappingNorthResumesAndFacesNorth`() {
         var s = MapOrientation.update(OrientationState(), 90.0, 0L)
         s = MapOrientation.update(s, 90.0, rotateAfter)
-        s = MapOrientation.afterUserGesture(s)
+        s = MapOrientation.afterUserGesture(s, rotateAfter)
         s = MapOrientation.afterNorthTap(s, 10_000L)
 
         assertTrue(s.followingHeading)
         assertEquals(0.0, s.appliedBearingDeg, 1e-9)
+        assertNull("an explicit resume is not subject to the idle dwell", s.lastGestureAtMillis)
 
         // And it must earn rotation again from scratch rather than snapping straight back.
         s = MapOrientation.update(s, 90.0, 10_000L + rotateAfter - 1)

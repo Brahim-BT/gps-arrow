@@ -20,6 +20,17 @@ data class MapCamera(
         /** Close enough to read street names, far enough to see where you are going. */
         const val ZOOM_AT_POSITION = 14.0
 
+        /**
+         * How far below screen centre the dot rides while following and moving, as camera top
+         * padding as a fraction of the map's height.
+         *
+         * Camera padding insets the viewport, and the target is drawn at the centre of what
+         * remains: a top inset T puts the dot at half the map height plus T/2. At 0.35 that is
+         * about two-thirds of the way down the screen — the standard navigating-map layout,
+         * which shows the road ahead instead of a screen half full of where you have just been.
+         */
+        const val DOT_OFFSET_TOP_FRACTION = 0.35
+
         /** An area at a glance, when we know the area but not the user. */
         const val ZOOM_AT_AREA = 6.0
 

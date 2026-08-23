@@ -26,13 +26,32 @@ object MapOrientation {
     const val NORTH_UP_AFTER_MILLIS = 700L
 
     /**
-     * Once the user pans or rotates by hand, the map stops following heading until they ask for
-     * it back. Fighting a user's finger is the classic failure of a rotating map, and there is no
-     * timeout here on purpose: auto-resuming after N seconds would yank the view out from under
-     * someone who is reading it.
+     * After a pan or rotation by hand, following resumes on its own once the map has been left
+     * alone this long.
+     *
+     * An earlier design suspended following until an explicit tap, and that was the "the dot
+     * moves but the map never does" complaint: one accidental drag during a drive silently killed
+     * following for the rest of the trip, and the small resume button went unnoticed. Eight
+     * seconds is long enough to read the map without being yanked, short enough that nobody has
+     * to wonder whether the app still knows where they are going. A second gesture restamps the
+     * clock, so continuous browsing is never interrupted.
      */
-    fun afterUserGesture(state: OrientationState): OrientationState =
-        state.copy(followingHeading = false, headingSinceMillis = null)
+    const val RESUME_AFTER_MILLIS = 8_000L
+
+    /**
+     * Suspend following because the user took the camera.
+     *
+     * Fighting a user's finger is the classic failure of a navigating map, so every gesture wins
+     * immediately and unconditionally. What changed from the first version of this rule is how
+     * suspension ends: it used to require an explicit tap, which users never discovered, and now
+     * it also ends by itself after [RESUME_AFTER_MILLIS] of idleness — see [update].
+     */
+    fun afterUserGesture(state: OrientationState, nowMillis: Long): OrientationState =
+        state.copy(
+            followingHeading = false,
+            headingSinceMillis = null,
+            lastGestureAtMillis = nowMillis,
+        )
 
     /** The north indicator was tapped: snap to north-up and resume following. */
     fun afterNorthTap(state: OrientationState, nowMillis: Long): OrientationState =
@@ -42,6 +61,7 @@ object MapOrientation {
             lastHeadingAtMillis = nowMillis,
             appliedBearingDeg = 0.0,
             northUp = true,
+            lastGestureAtMillis = null,
         )
 
     /**
@@ -56,14 +76,25 @@ object MapOrientation {
         headingDeg: Double?,
         nowMillis: Long,
     ): OrientationState {
-        if (!state.followingHeading) {
-            // Suspended by a gesture. Track availability so a later resume is not stale, but do
-            // not move the camera.
-            return state.copy(
-                headingSinceMillis = if (headingDeg == null) null
-                else state.headingSinceMillis ?: nowMillis,
-                lastHeadingAtMillis = if (headingDeg == null) state.lastHeadingAtMillis else nowMillis,
-            )
+        var s = state
+
+        if (!s.followingHeading) {
+            val gestureAt = s.lastGestureAtMillis
+            if (gestureAt == null || nowMillis - gestureAt < RESUME_AFTER_MILLIS) {
+                // Suspended by a gesture and still inside the idle dwell. Track availability so
+                // a later resume is not stale, but do not move the camera.
+                return s.copy(
+                    headingSinceMillis = if (headingDeg == null) null
+                    else s.headingSinceMillis ?: nowMillis,
+                    lastHeadingAtMillis =
+                        if (headingDeg == null) s.lastHeadingAtMillis else nowMillis,
+                )
+            }
+            // The dwell has expired: following resumes on its own, no tap required. Falling
+            // through lets this same sample be folded in by the normal path below — so a heading
+            // that stayed steady throughout the suspension takes over immediately instead of
+            // making the user wait for the rotate dwell a second time.
+            s = s.copy(followingHeading = true, lastGestureAtMillis = null)
         }
 
         if (headingDeg == null) {
@@ -71,25 +102,25 @@ object MapOrientation {
             // good sample — not from the first null one. Timing from the first null starts the
             // clock one sample interval late, which at a 700 ms dwell and a 100-200 ms sample
             // rate is a 15-30% error in the direction of holding a stale bearing too long.
-            val lostSince = state.lastHeadingAtMillis ?: nowMillis
+            val lostSince = s.lastHeadingAtMillis ?: nowMillis
             val absentLongEnough = nowMillis - lostSince >= NORTH_UP_AFTER_MILLIS
-            return state.copy(
+            return s.copy(
                 headingSinceMillis = null,
                 // Hold the last bearing until the dwell expires, then go north-up. Holding is
                 // right for a brief dropout and wrong for a long one, which is what the dwell is
                 // measuring.
-                appliedBearingDeg = if (absentLongEnough) 0.0 else state.appliedBearingDeg,
+                appliedBearingDeg = if (absentLongEnough) 0.0 else s.appliedBearingDeg,
                 northUp = absentLongEnough,
             )
         }
 
-        val since = state.headingSinceMillis ?: nowMillis
+        val since = s.headingSinceMillis ?: nowMillis
         val steadyLongEnough = nowMillis - since >= ROTATE_AFTER_MILLIS
-        return state.copy(
+        return s.copy(
             headingSinceMillis = since,
             lastHeadingAtMillis = nowMillis,
-            appliedBearingDeg = if (steadyLongEnough) Geo.normalizeDegrees(headingDeg) else state.appliedBearingDeg,
-            northUp = !steadyLongEnough && state.northUp,
+            appliedBearingDeg = if (steadyLongEnough) Geo.normalizeDegrees(headingDeg) else s.appliedBearingDeg,
+            northUp = !steadyLongEnough && s.northUp,
         )
     }
 
@@ -114,7 +145,10 @@ object MapOrientation {
  * @param appliedBearingDeg what the camera is actually set to, which is not the latest heading —
  *   it is the last heading that survived the dwell test.
  * @param northUp true when the map is pointing north because heading is unavailable.
- * @param followingHeading false once the user has panned or rotated by hand.
+ * @param followingHeading false once the user has panned or rotated by hand; true again either
+ *   after an explicit resume tap or once [MapOrientation.RESUME_AFTER_MILLIS] of idleness pass.
+ * @param lastGestureAtMillis when the user last took the camera. The auto-resume dwell is timed
+ *   from here; null when following is active or was resumed explicitly.
  */
 data class OrientationState(
     val appliedBearingDeg: Double = 0.0,
@@ -123,4 +157,5 @@ data class OrientationState(
     val headingSinceMillis: Long? = null,
     /** When heading was last available. The loss dwell is timed from here, not from first null. */
     val lastHeadingAtMillis: Long? = null,
+    val lastGestureAtMillis: Long? = null,
 )

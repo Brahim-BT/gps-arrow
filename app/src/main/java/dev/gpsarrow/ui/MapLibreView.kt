@@ -69,6 +69,12 @@ fun MapLibreView(
      * just removed, through a different door.
      */
     followTarget: LatLon?,
+    /**
+     * Camera top padding in pixels that rides the target below screen centre — the forward-view
+     * layout of a navigating map — or null to hold the geometry as it is. Callers null it while
+     * not following or standing still; see [MapCamera.DOT_OFFSET_TOP_FRACTION].
+     */
+    dotOffsetTopPx: Double?,
     modifier: Modifier = Modifier,
     onUnavailable: (String) -> Unit = {},
     onCameraMoved: (MapCamera) -> Unit = {},
@@ -248,6 +254,29 @@ fun MapLibreView(
                 .target(LatLng(target.lat, target.lon))
                 .build()
         }.onFailure { Log.w(TAG, "could not follow position", it) }
+    }
+
+    // The forward-view dot offset. Camera padding insets the viewport and the target renders at
+    // the centre of what remains, so a top inset puts the dot below centre — the driver sees the
+    // road ahead rather than a screen half full of where they have been.
+    //
+    // Padding persists through every other camera write here (they all rebuild from the current
+    // position), so it is set only when the requested inset changes, never per fix. Skipped
+    // while a finger is down for the same reason everything else is.
+    LaunchedEffect(mapRef.value, dotOffsetTopPx) {
+        val map = mapRef.value ?: return@LaunchedEffect
+        if (interacting.get()) return@LaunchedEffect
+        runCatching {
+            val current = map.cameraPosition
+            val top = dotOffsetTopPx ?: 0.0
+            val existing = current.padding
+            if (existing != null && existing.size == 4 && existing[1] == top) {
+                return@runCatching
+            }
+            map.cameraPosition = CameraPosition.Builder(current)
+                .padding(0.0, top, 0.0, 0.0)
+                .build()
+        }.onFailure { Log.w(TAG, "could not apply the forward-view offset", it) }
     }
 
     // The only other way the app moves the camera: an explicit, one-shot user request. Keyed on
