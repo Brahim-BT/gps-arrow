@@ -279,6 +279,17 @@ private fun AppRoot(
         smoothed = PositionSmoothing.update(smoothed, fix, System.currentTimeMillis())
     }
 
+    // One-shot camera requests. A counter rather than a boolean so that tapping "centre on me"
+    // twice in a row works the second time — each tap is a distinct command.
+    //
+    // Declared HERE, above every use. Kotlin locals are in scope only from their declaration
+    // onward, and an earlier version of this file had the first-fix effect below reaching back up
+    // for them — same function, eleven lines too early. The static sweep reads declarations
+    // file-wide with no notion of position, so it saw them as resolvable; only the compiler
+    // caught it.
+    var cameraCommand by remember { mutableStateOf<CameraCommand?>(null) }
+    var commandCounter by remember { mutableStateOf(0L) }
+
     // The first fix after opening the map with no position deserves a zoom, not just a re-centre.
     //
     // MapCamera.opening falls back to the area centre at zoom 6 when there is no fix yet. Plain
@@ -297,11 +308,6 @@ private fun AppRoot(
             zoom = MapCamera.ZOOM_AT_POSITION,
         )
     }
-
-    // One-shot camera requests. A counter rather than a boolean so that tapping "centre on me"
-    // twice in a row works the second time — each tap is a distinct command.
-    var cameraCommand by remember { mutableStateOf<CameraCommand?>(null) }
-    var commandCounter by remember { mutableStateOf(0L) }
     LaunchedEffect(state.headingDeg, state.fix?.elapsedMillis) {
         orientation = MapOrientation.update(
             state = orientation,

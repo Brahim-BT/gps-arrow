@@ -147,6 +147,32 @@ Re-verified after the change — the regression table above still holds, plus:
 | root with no enums | fail | `refusing to report success on an empty scan` |
 | not a repo root at all | fail | `no settings.gradle.kts under ... — this is not the repo root` |
 
+## What these checkers cannot see
+
+Read this before assuming more of them than they promise. Every entry here has reached CI at
+least once, and none of them is worth closing — the compiler already does it in ninety seconds.
+
+**Types.** No type checking of any kind. A stale reference against a renamed parameter, or a
+`Float` where a `Double` is wanted, resolves fine here and fails in `kotlinc`.
+
+**Position within a file.** The declaration index is built file-wide with no notion of *where* a
+name is declared. Kotlin locals are in scope only from their declaration onward, so a `var` used
+eleven lines above its own `var` line — same function, same file — is unresolvable to the
+compiler and perfectly resolvable to these scripts. That is not lexical scope and it is not a
+sibling-function problem: it is ordering, inside one body.
+
+**Lexical scope generally.** A name declared inside one function reads as available inside
+another. Tracking this properly needs a parser, not regular expressions.
+
+**Whether a substitution applied.** Several of these bugs came from an edit that silently matched
+nothing — wrong indentation, or an anchor that had already changed. The scripts check the file
+that exists, not the edit you thought you made. Print and read the result of a substitution.
+
+The division of labour that has actually held: these scripts catch missing resources, unresolved
+and unimported *symbols*, and non-exhaustive `when`s — the classes where the compiler's message is
+slow to reach or hard to read. The compiler catches everything above. Keeping rounds small is what
+makes that division cheap, because a red run then costs one line and ninety seconds.
+
 ## The two recurring shapes
 
 Enough bugs have now repeated that the shapes are worth naming. Neither is caught by any script
