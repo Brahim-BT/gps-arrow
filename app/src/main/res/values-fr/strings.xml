@@ -9,7 +9,7 @@
 <resources>
 
     <!-- Product name and tabs -->
-    <string name="app_name">GPS Arrow</string>
+    <string name="app_name">GPS Baibbat</string>
     <string name="navigate_here">Naviguer jusqu’ici</string>
     <string name="app_subtitle">NAVIGATEUR</string>
     <string name="tab_arrow">Flèche</string>
@@ -187,7 +187,7 @@
     <string name="permission_title_precise">Position précise requise</string>
     <string name="permission_title_location">Autorisation de localisation</string>
     <string name="permission_body_approximate">Vous avez accordé la localisation approximative. Une flèche qui pointe vers une destination a besoin du GPS précis : l’approximatif est précis à environ un kilomètre, ce qui vous enverrait dans la mauvaise direction.</string>
-    <string name="permission_body_initial">GPS Arrow lit votre position directement depuis les satellites GPS. Rien n’est envoyé nulle part : cette version n’a aucune autorisation d’accès à Internet.</string>
+    <string name="permission_body_initial">GPS Baibbat lit votre position directement depuis les satellites GPS. Rien n’est envoyé nulle part : cette version n’a aucune autorisation d’accès à Internet.</string>
     <string name="permission_grant_precise">Accorder la position précise</string>
     <string name="permission_continue">Continuer</string>
     <string name="permission_open_settings">Ouvrir les paramètres de l’application</string>
@@ -272,6 +272,11 @@
     <string name="diag_arrow_angle">angle de la flèche</string>
     <string name="diag_arbiter_mode">source du cap</string>
     <string name="diag_heading_smoothed">cap (lissé)</string>
+    <string name="diag_course_chip">cap du récepteur</string>
+    <string name="diag_course_derived">cap calculé par le déplacement</string>
+    <string name="diag_course_trust">confiance dans le cap du récepteur</string>
+    <string name="diag_course_trusted">fiable</string>
+    <string name="diag_course_distrusted">obsolète — cap calculé utilisé</string>
     <string name="diag_compass_raw">boussole brute</string>
     <string name="diag_compass_smoothed">boussole lissée</string>
     <string name="diag_raw_minus_smoothed">brut − lissé</string>

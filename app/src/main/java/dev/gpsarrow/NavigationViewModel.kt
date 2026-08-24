@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.gpsarrow.core.Destination
 import dev.gpsarrow.core.DestinationSort
+import dev.gpsarrow.core.CourseEstimator
 import dev.gpsarrow.core.FixQuality
 import dev.gpsarrow.core.Format
 import dev.gpsarrow.core.Fix
@@ -95,6 +96,13 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
     private var compassReliable = true
     private var locationJob: Job? = null
     private var headingJob: Job? = null
+
+    // Course-over-ground bookkeeping, fed one fix at a time. The estimate is computed BEFORE
+    // the new fix overwrites _state, because the estimator's whole job is comparing this fix
+    // against what came before it.
+    private var courseState: CourseEstimator.State? = null
+    private var derivedCourseDeg: Double? = null
+    private var chipCourseTrusted: Boolean = true
 
     // Diagnostics only. Counters are the fastest way to tell "sensor is dead" apart from
     // "sensor is alive but the value never reaches the UI".
@@ -209,6 +217,21 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun applyFix(fix: Fix, acquiring: Boolean) {
         fixUpdateCount++
+        // The estimator compares this fix with the previous one, so it runs before _state
+        // (still holding the previous fix) is overwritten. Wrapped like everything else that
+        // touches geometry: a failure here degrades to trusting the chip, never to a crash.
+        runCatching { CourseEstimator.update(courseState, fix) }
+            .onSuccess { estimate ->
+                courseState = estimate.state
+                derivedCourseDeg = estimate.derivedCourseDeg
+                chipCourseTrusted = estimate.chipTrusted
+            }
+            .onFailure {
+                Log.w(TAG, "course estimation failed; trusting the chip bearing", it)
+                derivedCourseDeg = null
+                chipCourseTrusted = true
+            }
+
         // Declination changes slowly with position; recompute per fix, it costs microseconds.
         val dec = runCatching {
             declination.declinationDegrees(fix.position, fix.altitudeMeters ?: 0.0)
@@ -230,6 +253,8 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
             compassDeg = compassDeg,
             magnetometerReliable = compassReliable,
             previousSource = current.headingSource,
+            derivedCourseDeg = derivedCourseDeg,
+            chipCourseTrusted = chipCourseTrusted,
         )
         if (heading != current.headingDeg || source != current.headingSource) {
             _state.value = current.copy(headingDeg = heading, headingSource = source)
@@ -375,6 +400,22 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
                 valueRes = s.headingChipRes(),
             ),
             degRow(R.string.diag_heading_smoothed, s.headingDeg),
+            // The course-over-ground story in three rows: what the chip claims, what geometry
+            // derived from consecutive positions says, and whether the chip is currently
+            // believed. A frozen-bearing device reports here as trusted=false with the two
+            // courses disagreeing — the exact signature of the driving freeze this panel exists
+            // to diagnose.
+            degRow(R.string.diag_course_chip, fix?.bearingDeg?.toDouble()),
+            degRow(R.string.diag_course_derived, derivedCourseDeg),
+            Diagnostic(
+                R.string.diag_course_trust,
+                chipCourseTrusted.toString(),
+                valueRes = if (chipCourseTrusted) {
+                    R.string.diag_course_trusted
+                } else {
+                    R.string.diag_course_distrusted
+                },
+            ),
             degRow(R.string.diag_compass_raw, rawCompassDeg),
             degRow(R.string.diag_compass_smoothed, smoothedCompassDeg),
             degRow(

@@ -193,6 +193,11 @@ data class NavigationState(
  * unaffected by the steel around you in a car, by a magnetic phone mount, or by the phone
  * being held at an angle. Below [HANDBACK_MPS] it is noise. The gap between the two is
  * hysteresis so the arrow does not flicker between sources at walking pace.
+ *
+ * The chip's course is only ever taken on the word of [CourseEstimator]'s watchdog
+ * ([chipCourseTrusted]); when it is distrusted, [derivedCourseDeg] — computed from consecutive
+ * positions — speaks for GPS instead, which is what keeps the arrow tracking through turns on
+ * devices whose reported bearing stalls at speed.
  */
 object HeadingArbiter {
 
@@ -214,11 +219,24 @@ object HeadingArbiter {
         compassDeg: Double?,
         magnetometerReliable: Boolean,
         previousSource: HeadingSource,
+        derivedCourseDeg: Double? = null,
+        chipCourseTrusted: Boolean = true,
     ): Pair<Double?, HeadingSource> {
         // A fix with no speed counts as stationary: something that cannot say how fast you are
         // moving cannot say which way you are facing either.
         val speed = fix?.speedMps ?: 0f
-        val course: Double? = fix?.bearingDeg?.toDouble()?.takeIf { speed >= STATIONARY_MPS }
+        val chip: Double? = fix?.bearingDeg?.toDouble()?.takeIf { speed >= STATIONARY_MPS }
+
+        // The chip's word is taken at face value only while [CourseEstimator] has not caught it
+        // repeating against contradicting geometry. A distrusted bearing never reaches the
+        // needle — not even as a last resort, because "the frozen number we know is wrong" is
+        // exactly the failure this exists to remove. While geometry has no fresh answer (the
+        // window refilling) the arbiter simply falls through to whatever is next.
+        val course: Double? = when {
+            chip != null && chipCourseTrusted -> chip
+            derivedCourseDeg != null && speed >= STATIONARY_MPS -> derivedCourseDeg
+            else -> null
+        }
 
         if (course != null) {
             val threshold =

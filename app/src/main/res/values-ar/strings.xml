@@ -9,7 +9,7 @@
 <resources>
 
     <!-- Product name and tabs -->
-    <string name="app_name">GPS Arrow</string>
+    <string name="app_name">GPS Baibbat</string>
     <string name="navigate_here">التوجه إلى هنا</string>
     <string name="app_subtitle">الملاح</string>
     <string name="tab_arrow">السهم</string>
@@ -187,7 +187,7 @@
     <string name="permission_title_precise">مطلوب تحديد دقيق للموقع</string>
     <string name="permission_title_location">إذن الوصول إلى الموقع</string>
     <string name="permission_body_approximate">لقد منحت إذن الموقع التقريبي. السهم الذي يشير إلى وجهة يحتاج إلى GPS دقيق — الموقع التقريبي دقته نحو كيلومتر واحد، وهو ما سيوجّهك في الاتجاه الخطأ.</string>
-    <string name="permission_body_initial">يقرأ GPS Arrow موقعك مباشرة من الأقمار الصناعية. لا يُرسل أي شيء إلى أي جهة — هذه النسخة لا تملك إذن الوصول إلى الإنترنت إطلاقاً.</string>
+    <string name="permission_body_initial">يقرأ GPS Baibbat موقعك مباشرة من الأقمار الصناعية. لا يُرسل أي شيء إلى أي جهة — هذه النسخة لا تملك إذن الوصول إلى الإنترنت إطلاقاً.</string>
     <string name="permission_grant_precise">منح إذن الموقع الدقيق</string>
     <string name="permission_continue">متابعة</string>
     <string name="permission_open_settings">فتح إعدادات التطبيق</string>
@@ -272,6 +272,11 @@
     <string name="diag_arrow_angle">زاوية السهم</string>
     <string name="diag_arbiter_mode">مصدر الاتجاه</string>
     <string name="diag_heading_smoothed">الاتجاه (بعد التنعيم)</string>
+    <string name="diag_course_chip">الاتجاه من المستقبِل</string>
+    <string name="diag_course_derived">الاتجاه من الحركة</string>
+    <string name="diag_course_trust">الثقة باتجاه المستقبِل</string>
+    <string name="diag_course_trusted">موثوق</string>
+    <string name="diag_course_distrusted">قديم — يُستخدم الاتجاه من الحركة</string>
     <string name="diag_compass_raw">البوصلة (خام)</string>
     <string name="diag_compass_smoothed">البوصلة (بعد التنعيم)</string>
     <string name="diag_raw_minus_smoothed">الخام − المنعَّم</string>

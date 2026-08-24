@@ -1,6 +1,6 @@
 {
   "version": 8,
-  "name": "GPS Arrow dark",
+  "name": "GPS Baibbat dark",
   "glyphs": "asset://fonts/{fontstack}/{range}.pbf",
   "sprite": "asset://sprites/dark",
   "sources": {

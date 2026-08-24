@@ -189,7 +189,7 @@ class DestinationStore(context: Context) {
     fun toGpx(list: List<Destination> = _destinations.value): String = buildString {
         appendLine("""<?xml version="1.0" encoding="UTF-8"?>""")
         appendLine(
-            """<gpx version="1.1" creator="GPS Arrow" xmlns="http://www.topografix.com/GPX/1/1">""",
+            """<gpx version="1.1" creator="GPS Baibbat" xmlns="http://www.topografix.com/GPX/1/1">""",
         )
         list.forEach { d ->
             appendLine("""  <wpt lat="${d.position.lat}" lon="${d.position.lon}">""")

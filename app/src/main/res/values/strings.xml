@@ -9,7 +9,7 @@
 <resources>
 
     <!-- Product name and tabs -->
-    <string name="app_name">GPS Arrow</string>
+    <string name="app_name">GPS Baibbat</string>
     <string name="navigate_here">Navigate here</string>
     <string name="app_subtitle">NAVIGATOR</string>
     <string name="tab_arrow">Arrow</string>
@@ -187,7 +187,7 @@
     <string name="permission_title_precise">Precise location needed</string>
     <string name="permission_title_location">Location permission</string>
     <string name="permission_body_approximate">You granted approximate location. An arrow pointing at a destination needs precise GPS — approximate is accurate to about a kilometre, which would point you the wrong way.</string>
-    <string name="permission_body_initial">GPS Arrow reads your position from the GPS satellites directly. Nothing is sent anywhere — this build has no internet permission at all.</string>
+    <string name="permission_body_initial">GPS Baibbat reads your position from the GPS satellites directly. Nothing is sent anywhere — this build has no internet permission at all.</string>
     <string name="permission_grant_precise">Grant precise location</string>
     <string name="permission_continue">Continue</string>
     <string name="permission_open_settings">Open app settings</string>
@@ -272,6 +272,11 @@
     <string name="diag_arrow_angle">arrow angle</string>
     <string name="diag_arbiter_mode">heading source</string>
     <string name="diag_heading_smoothed">heading (smoothed)</string>
+    <string name="diag_course_chip">course from receiver</string>
+    <string name="diag_course_derived">course from movement</string>
+    <string name="diag_course_trust">receiver course trust</string>
+    <string name="diag_course_trusted">trusted</string>
+    <string name="diag_course_distrusted">stale — using movement</string>
     <string name="diag_compass_raw">compass raw</string>
     <string name="diag_compass_smoothed">compass smoothed</string>
     <string name="diag_raw_minus_smoothed">raw − smoothed</string>
