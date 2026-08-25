@@ -21,7 +21,6 @@
     <string name="save_my_location">Save my location</string>
     <string name="save_my_location_no_fix">Save my location (no fix yet)</string>
     <string name="save_my_location_stale">Save my location (fix is stale)</string>
-    <string name="add_point">Add point</string>
     <string name="arrived_title">You’re here</string>
     <string name="arrived_explanation">Closer than this fix can measure, so the needle is showing north.</string>
     <string name="pointing_north_no_destination">Pointing north — no destination chosen yet</string>
@@ -216,6 +215,7 @@
 
     <!-- Offline areas -->
     <string name="areas_title">Offline areas</string>
+    <string name="areas_back_to_map">Back to the map</string>
     <string name="area_larger_places">Tangier · Casablanca · Marrakech · Agadir · Dakhla</string>
     <string name="area_smaller_places">Nouakchott · Nouadhibou · Zouérat · Néma</string>
     <string name="area_covers_you">Your current position is inside this area</string>

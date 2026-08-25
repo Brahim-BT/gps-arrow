@@ -16,6 +16,11 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarResult
@@ -46,8 +51,10 @@ import dev.gpsarrow.maps.MapMarkers
 import dev.gpsarrow.maps.CameraCommand
 import dev.gpsarrow.maps.MapCamera
 import dev.gpsarrow.maps.MapTier
+import dev.gpsarrow.maps.RegionCatalogue
 import dev.gpsarrow.maps.RegionIndex
 import dev.gpsarrow.service.MapDownloadService
+import dev.gpsarrow.service.MapDownloadState
 import dev.gpsarrow.service.MapDownloads
 import dev.gpsarrow.ui.AreasScreen
 import dev.gpsarrow.ui.rememberAreaRows
@@ -242,6 +249,11 @@ private fun AppRoot(
         mutableStateOf(CoordinateDraft.EMPTY)
     }
     var searchQuery by rememberSaveable { mutableStateOf("") }
+    // Whether the search field is showing at all. Hoisted next to the query it belongs to, for
+    // the same reason: a trip to the arrow tab and back must not close a search the user opened.
+    // It is only half the answer — DestinationsScreen also treats a non-blank query as open, so a
+    // filter can never be left applied behind a collapsed icon.
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
     // Hoisted alongside the other view preferences so cycling the notation survives a tab
     // switch and process death, like the half-typed coordinate does.
     var positionFormat by rememberSaveable { mutableStateOf(CoordinateFormat.DECIMAL) }
@@ -370,6 +382,56 @@ private fun AppRoot(
 
     val snackbarHost = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    // A finished download has to land the user on the map.
+    //
+    // Everything downstream of an install already works: the service scans, RegionIndex's
+    // process-wide flow updates, the tier recomputes and MapScreen would render. What was missing
+    // is that the areas list presents OVER the map and nothing ever closed it, so the user sat
+    // reading "Installed" with a working map behind it — and a relaunch appeared to fix the map
+    // only because it discarded `showAreas` along with the rest of the saved state.
+    //
+    // Keyed on the download state ALONE. Adding `showAreas` as a key would re-run this every time
+    // the list is re-entered and throw the user straight back out of it, which is why the flag is
+    // read inside the body instead.
+    //
+    // Declared here rather than beside the `downloadState` collector two hundred lines up: it
+    // reads `snackbarHost` and `scope`, and Kotlin locals are in scope only from their
+    // declaration onward. See the note on `cameraCommand` for the last time that bit this file.
+    LaunchedEffect(downloadState) {
+        val done = downloadState as? MapDownloadState.Installed ?: return@LaunchedEffect
+
+        // Consume the state, do not just read it.
+        //
+        // MapDownloads is process-wide and nothing else ever resets it, so it stays `Installed`
+        // for the life of the process. Without this line, ANY later recomposition that re-enters
+        // this effect while the list happens to be open — a rotation is the easy one — would fire
+        // the whole thing again and drop the user off a list they had deliberately reopened,
+        // which is the exact behaviour `showAreas` was made saveable to prevent.
+        //
+        // Clearing is invisible on the list itself: `levelState` reads the installed file off
+        // disk before it consults this state at all, so the "Installed" row is unaffected.
+        MapDownloads.clear()
+
+        if (!showAreas) return@LaunchedEffect
+        showAreas = false
+        meteredPrompt = null
+
+        // Launched on `scope`, not on this effect's own coroutine. The `clear()` above changes
+        // this effect's key, which cancels it — and `showSnackbar` suspends for the whole time
+        // the snackbar is up, so from a cancelled coroutine it would vanish the instant it
+        // appeared. Every other snackbar in this file is launched the same way.
+        //
+        // Named by the places it covers, never by country or id — the same rule the areas list
+        // itself follows.
+        RegionCatalogue.ALL.firstOrNull { it.id == done.areaId }?.let { area ->
+            scope.launch {
+                snackbarHost.showSnackbar(
+                    context.getString(R.string.map_ready, context.getString(area.placesRes)),
+                )
+            }
+        }
+    }
     val units = DistanceUnits.METRIC   // wire to a settings store in v0.2
 
     // Card facts for a tapped shared dot, derived rather than stored: the distance reformats on
@@ -482,7 +544,33 @@ private fun AppRoot(
     ) {
         Column(Modifier.fillMaxSize()) {
             if (editor == null) {
-                AppBar()
+                AppBar(
+                    actions = {
+                        // The only route to the offline areas used to be a button inside the
+                        // empty-state card, which meant that once a map was actually rendering
+                        // the list became unreachable and a second area could not be downloaded
+                        // at all. One icon, two states: it opens the list, and while the list is
+                        // open it closes it — so the list has a permanent exit at the top of the
+                        // screen as well as the one at the bottom of its scroll.
+                        if (tab == AppTab.MAP) {
+                            IconButton(
+                                onClick = {
+                                    showAreas = !showAreas
+                                    if (!showAreas) meteredPrompt = null
+                                },
+                            ) {
+                                Icon(
+                                    imageVector =
+                                        if (showAreas) Icons.Filled.Close else Icons.Filled.Layers,
+                                    contentDescription = stringResource(
+                                        if (showAreas) R.string.areas_back_to_map
+                                        else R.string.map_open_region_list,
+                                    ),
+                                )
+                            }
+                        }
+                    },
+                )
                 AppTabs(
                     titles = AppTab.entries.map { stringResource(it.labelRes) },
                     selectedIndex = tab.ordinal,
@@ -530,6 +618,7 @@ private fun AppRoot(
                                     // Clear the filters, or a new point that doesn't match the
                                     // active search would be saved into an invisible row.
                                     searchQuery = ""
+                                    searchOpen = false
                                     favouritesOnly = false
                                     highlightId = saved.id
                                     editor = null
@@ -615,10 +704,6 @@ private fun AppRoot(
                                 }
                             }
                         },
-                        onAddDestination = {
-                            tab = AppTab.DESTINATIONS
-                            editor = Editor.New
-                        },
                         positionFormat = positionFormat,
                         onCyclePositionFormat = { positionFormat = positionFormat.next() },
                         onPositionCopied = {
@@ -646,6 +731,8 @@ private fun AppRoot(
                         shareStatus = shareStatusOf,
                         query = searchQuery,
                         onQueryChange = { searchQuery = it },
+                        searchOpen = searchOpen,
+                        onSearchOpenChange = { searchOpen = it },
                         favouritesOnly = favouritesOnly,
                         onFavouritesOnlyChange = { favouritesOnly = it },
                         onSortChange = viewModel::setSort,

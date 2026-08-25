@@ -37,7 +37,6 @@ there, so an unmarked row means "not yet judged" as well as "not safety-carrying
 |  | `save_my_location` | Save my location | Enregistrer ma position | حفظ موقعي |
 | **!** | `save_my_location_no_fix` | Save my location (no fix yet) | Enregistrer ma position (position non acquise) | حفظ موقعي (لم يُحدَّد الموقع بعد) |
 | **!** | `save_my_location_stale` | Save my location (fix is stale) | Enregistrer ma position (position périmée) | حفظ موقعي (تحديد الموقع قديم) |
-|  | `add_point` | Add point | Ajouter un point | إضافة نقطة |
 |  | `arrived_title` | You’re here | Vous y êtes | أنت هنا |
 | **!** | `arrived_explanation` | Closer than this fix can measure, so the needle is showing north. | Plus près que ce que cette position peut mesurer : l’aiguille indique le nord. | أقرب مما يمكن لتحديد الموقع هذا قياسه، لذلك يشير المؤشر إلى الشمال. |
 |  | `pointing_north_no_destination` | Pointing north — no destination chosen yet | Pointe vers le nord — aucune destination choisie | يشير إلى الشمال — لم تُختَر وجهة بعد |
@@ -280,6 +279,7 @@ there, so an unmarked row means "not yet judged" as well as "not safety-carrying
 | | key | English | Français | العربية |
 |---|---|---|---|---|
 |  | `areas_title` | Offline areas | Zones hors ligne | المناطق دون اتصال |
+|  | `areas_back_to_map` | Back to the map | Retour à la carte | العودة إلى الخريطة |
 |  | `area_larger_places` | Tangier · Casablanca · Marrakech · Agadir · Dakhla | Tanger · Casablanca · Marrakech · Agadir · Dakhla | طنجة · الدار البيضاء · مراكش · أكادير · الداخلة |
 |  | `area_smaller_places` | Nouakchott · Nouadhibou · Zouérat · Néma | Nouakchott · Nouadhibou · Zouérate · Néma | نواكشوط · نواذيبو · الزويرات · النعمة |
 |  | `area_covers_you` | Your current position is inside this area | Votre position actuelle se trouve dans cette zone | موقعك الحالي داخل هذه المنطقة |

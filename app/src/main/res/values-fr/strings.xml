@@ -21,7 +21,6 @@
     <string name="save_my_location">Enregistrer ma position</string>
     <string name="save_my_location_no_fix">Enregistrer ma position (position non acquise)</string>
     <string name="save_my_location_stale">Enregistrer ma position (position périmée)</string>
-    <string name="add_point">Ajouter un point</string>
     <string name="arrived_title">Vous y êtes</string>
     <string name="arrived_explanation">Plus près que ce que cette position peut mesurer : l’aiguille indique le nord.</string>
     <string name="pointing_north_no_destination">Pointe vers le nord — aucune destination choisie</string>
@@ -216,6 +215,7 @@
 
     <!-- Offline areas -->
     <string name="areas_title">Zones hors ligne</string>
+    <string name="areas_back_to_map">Retour à la carte</string>
     <string name="area_larger_places">Tanger · Casablanca · Marrakech · Agadir · Dakhla</string>
     <string name="area_smaller_places">Nouakchott · Nouadhibou · Zouérate · Néma</string>
     <string name="area_covers_you">Votre position actuelle se trouve dans cette zone</string>

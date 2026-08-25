@@ -98,7 +98,12 @@ fun AreasScreen(
             )
         }
 
-        TextButton(onClick = onBack) { Text(stringResource(R.string.map_back_to_arrow)) }
+        // Its own string, not the map screen's. `onBack` here is `showAreas = false`, which
+        // lands on the MAP — the shared "Back to the arrow" label was describing a different
+        // button's destination. The app bar carries the same exit at the top of the screen,
+        // because this one sits below the storage meter and the attribution and is off-screen
+        // on a phone after a download.
+        TextButton(onClick = onBack) { Text(stringResource(R.string.areas_back_to_map)) }
     }
 }
 

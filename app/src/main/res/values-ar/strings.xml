@@ -21,7 +21,6 @@
     <string name="save_my_location">حفظ موقعي</string>
     <string name="save_my_location_no_fix">حفظ موقعي (لم يُحدَّد الموقع بعد)</string>
     <string name="save_my_location_stale">حفظ موقعي (تحديد الموقع قديم)</string>
-    <string name="add_point">إضافة نقطة</string>
     <string name="arrived_title">أنت هنا</string>
     <string name="arrived_explanation">أقرب مما يمكن لتحديد الموقع هذا قياسه، لذلك يشير المؤشر إلى الشمال.</string>
     <string name="pointing_north_no_destination">يشير إلى الشمال — لم تُختَر وجهة بعد</string>
@@ -216,6 +215,7 @@
 
     <!-- Offline areas -->
     <string name="areas_title">المناطق دون اتصال</string>
+    <string name="areas_back_to_map">العودة إلى الخريطة</string>
     <string name="area_larger_places">طنجة · الدار البيضاء · مراكش · أكادير · الداخلة</string>
     <string name="area_smaller_places">نواكشوط · نواذيبو · الزويرات · النعمة</string>
     <string name="area_covers_you">موقعك الحالي داخل هذه المنطقة</string>

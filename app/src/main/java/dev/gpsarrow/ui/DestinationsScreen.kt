@@ -17,9 +17,11 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -39,6 +41,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
@@ -93,6 +97,15 @@ fun DestinationsScreen(
     /** Hoisted: a search survives a trip to the arrow tab and back. */
     query: String,
     onQueryChange: (String) -> Unit,
+    /**
+     * Whether the search field is showing at all, as opposed to being collapsed to its icon.
+     *
+     * Hoisted alongside [query] for the same reason it is, and so that saving a point can
+     * collapse the field in the same breath as it clears the filters. Note this is only half of
+     * "is the field visible" — see `searchExpanded` below.
+     */
+    searchOpen: Boolean,
+    onSearchOpenChange: (Boolean) -> Unit,
     favouritesOnly: Boolean,
     onFavouritesOnlyChange: (Boolean) -> Unit,
     /** Freshly saved point: scrolled to and tinted briefly so the user sees where it landed. */
@@ -138,22 +151,70 @@ fun DestinationsScreen(
 
         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
         if (destinations.isNotEmpty()) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                label = { Text(stringResource(R.string.search)) },
-                placeholder = { Text(stringResource(R.string.search_placeholder)) },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-            )
+            // Collapsed, the search is one icon in the row below and the field's whole row of
+            // height goes back to the list. Expanded, the layout is exactly what it always was.
+            //
+            // Open when the user asked for it OR when a query is in force. That second half is
+            // what keeps the collapsed icon honest: a non-blank query filters the list, and a
+            // filter with no visible cause is the one state this must not be able to reach.
+            val searchExpanded = searchOpen || query.isNotBlank()
+            val focusRequester = remember { FocusRequester() }
+
+            if (searchExpanded) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    label = { Text(stringResource(R.string.search)) },
+                    placeholder = { Text(stringResource(R.string.search_placeholder)) },
+                    singleLine = true,
+                    trailingIcon = {
+                        // Clears AND collapses. Clearing alone would leave an empty field sitting
+                        // in the row that collapsing exists to give back.
+                        IconButton(
+                            onClick = {
+                                onQueryChange("")
+                                onSearchOpenChange(false)
+                            },
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.clear_search),
+                            )
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                        .focusRequester(focusRequester),
+                )
+                // Keyed on `searchOpen`, not on `searchExpanded`. The two differ in exactly the
+                // case that matters: a query still in force from an earlier visit shows the
+                // field without anyone having opened it this time, and that must not pop the
+                // keyboard over the list the user came back to read. A field the user did open
+                // keeps the caret across a tab switch, which is what they would expect.
+                //
+                // Guarded because the request can land before the node is attached — on a
+                // restore into an already-open search, for instance. A keyboard that fails to
+                // appear costs a tap; a crash costs the app.
+                LaunchedEffect(searchOpen) {
+                    if (searchOpen) runCatching { focusRequester.requestFocus() }
+                }
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                if (!searchExpanded) {
+                    IconButton(onClick = { onSearchOpenChange(true) }) {
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = stringResource(R.string.search),
+                        )
+                    }
+                }
+
                 Box {
                     TextButton(onClick = { sortMenuOpen = true }) {
                         Text(stringResource(effectiveSort.labelRes()), maxLines = 1)
@@ -228,7 +289,11 @@ fun DestinationsScreen(
                     stringResource(R.string.empty_no_match, query)
                 },
                 actionLabel = stringResource(R.string.clear_search),
-                onAction = { onQueryChange(""); onFavouritesOnlyChange(false) },
+                onAction = {
+                    onQueryChange("")
+                    onSearchOpenChange(false)
+                    onFavouritesOnlyChange(false)
+                },
             )
 
             else -> {

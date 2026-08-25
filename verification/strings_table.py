@@ -19,7 +19,6 @@ STRINGS = [
      "Enregistrer ma position (position non acquise)", "حفظ موقعي (لم يُحدَّد الموقع بعد)"),
     ("save_my_location_stale", "Save my location (fix is stale)",
      "Enregistrer ma position (position périmée)", "حفظ موقعي (تحديد الموقع قديم)"),
-    ("add_point", "Add point", "Ajouter un point", "إضافة نقطة"),
     ("arrived_title", "You’re here", "Vous y êtes", "أنت هنا"),
     ("arrived_explanation", "Closer than this fix can measure, so the needle is showing north.",
      "Plus près que ce que cette position peut mesurer : l’aiguille indique le nord.",
@@ -395,6 +394,10 @@ STRINGS = [
      "فتح قائمة المناطق"),
     ("SECTION", "Offline areas", None, None),
     ("areas_title", "Offline areas", "Zones hors ligne", "المناطق دون اتصال"),
+    # This screen presents over the MAP, so its exit returns there. Deliberately not
+    # map_back_to_arrow, which labels a different button with a different destination.
+    ("areas_back_to_map", "Back to the map", "Retour à la carte",
+     "العودة إلى الخريطة"),
     ("area_larger_places", "Tangier · Casablanca · Marrakech · Agadir · Dakhla",
      "Tanger · Casablanca · Marrakech · Agadir · Dakhla",
      "طنجة · الدار البيضاء · مراكش · أكادير · الداخلة"),

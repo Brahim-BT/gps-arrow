@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -73,7 +72,6 @@ fun ArrowScreen(
     onToggleDiagnostics: () -> Unit,
     onPickDestination: () -> Unit,
     onSaveMyLocation: () -> Unit,
-    onAddDestination: () -> Unit,
     /** Which notation the position band is showing. Hoisted so a tab switch does not reset it. */
     positionFormat: CoordinateFormat,
     onCyclePositionFormat: () -> Unit,
@@ -139,61 +137,42 @@ fun ArrowScreen(
                 },
             ),
             onSaveMyLocation = onSaveMyLocation,
-            onAddDestination = onAddDestination,
         )
     }
 }
 
 /**
- * The actions that live on the arrow screen, now that the tab bar owns navigation.
+ * The one action that lives on the arrow screen, now that the tab bar owns navigation.
  *
  * "Destinations" and "Map" used to sit here as buttons; both are tabs, so both are gone — a
- * second way to reach the same place is just a wider tap target for the wrong reason.
+ * second way to reach the same place is just a wider tap target for the wrong reason. **Add
+ * point** has now gone the same way. It was kept for a while as a secondary route into the
+ * coordinate editor, but the editor is already one tap away on the Destinations FAB, and a
+ * second entry point was buying nothing at the price of a button under the needle.
  *
- * What is left is deliberately not navigation:
- *  - **Save my location** is the primary action of the whole app (the "where did I park"
- *    button), one tap from the home screen, and it is emphatically not a place.
- *  - **Add point** opens the coordinate editor. It has no tab of its own — its other entry
- *    point is the FAB inside Destinations — so it is kept as a secondary action rather than
- *    silently costing the user a tap.
+ * What is left is deliberately not navigation. **Save my location** is the primary action of the
+ * whole app (the "where did I park" button), one tap from the home screen, and it is emphatically
+ * not a place.
  */
 @Composable
 private fun ActionButtons(
     saveEnabled: Boolean,
     saveLabel: String,
     onSaveMyLocation: () -> Unit,
-    onAddDestination: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+    Button(
+        onClick = onSaveMyLocation,
+        enabled = saveEnabled,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp),
+        contentPadding = ButtonDefaults.ContentPadding,
     ) {
-        Button(
-            onClick = onSaveMyLocation,
-            enabled = saveEnabled,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 52.dp),
-            contentPadding = ButtonDefaults.ContentPadding,
-        ) {
-            Text(
-                text = saveLabel,
-                maxLines = 1,
-                style = MaterialTheme.typography.labelLarge,
-            )
-        }
-
-        OutlinedButton(
-            onClick = onAddDestination,
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-            contentPadding = ButtonDefaults.TextButtonContentPadding,
-        ) {
-            Text(
-                text = stringResource(R.string.add_point),
-                maxLines = 1,
-                style = MaterialTheme.typography.labelLarge,
-            )
-        }
+        Text(
+            text = saveLabel,
+            maxLines = 1,
+            style = MaterialTheme.typography.labelLarge,
+        )
     }
 }
 
