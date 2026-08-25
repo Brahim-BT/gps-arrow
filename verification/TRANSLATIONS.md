@@ -14,8 +14,8 @@ literally, at the cost of elegance, on the principle that a smooth translation w
 
 **The marks are a reviewed judgement, not something the emitter can infer.** They come from
 `SAFETY_KEYS` in the table. A newly added string is unmarked until someone reads it and adds it
-there, so an unmarked row means "not yet judged" as well as "not safety-carrying". 31 of
-257 rows are marked.
+there, so an unmarked row means "not yet judged" as well as "not safety-carrying". 41 of
+268 rows are marked.
 
 
 ## Product name and tabs
@@ -143,6 +143,12 @@ there, so an unmarked row means "not yet judged" as well as "not safety-carrying
 |  | `cd_unstar` | Unstar %1$s | Retirer %1$s des favoris | إزالة %1$s من المفضّلة |
 |  | `cd_edit` | Edit %1$s | Modifier %1$s | تعديل %1$s |
 |  | `cd_delete` | Delete %1$s | Supprimer %1$s | حذف %1$s |
+| **!** | `shared_badge` | Publicly shared | Partagée publiquement | منشورة للعموم |
+| **!** | `shared_edit_unpublished` | Publicly shared — your edit is not published yet | Partagée publiquement — votre modification n’est pas encore publiée | منشورة للعموم — لم يُنشر تعديلك بعد |
+| **!** | `shared_publish_unconfirmed` | Sharing — not confirmed yet | Partage — pas encore confirmé | قيد النشر — لم يُؤكَّد بعد |
+| **!** | `shared_still_public` | Still public — withdrawal not confirmed | Toujours public — arrêt non confirmé | لا تزال منشورة — لم يُؤكَّد إيقاف النشر |
+| **!** | `shared_withdrawal_unconfirmed` | Withdrawal not confirmed | Arrêt non confirmé | لم يُؤكَّد إيقاف النشر |
+| **!** | `menu_unshare_point` | Stop sharing | Ne plus partager | إيقاف النشر |
 |  | `selected_destination` | ▸ %1$s | ▸ %1$s | ▸ %1$s |
 |  | `accuracy_suffix` |  · ±%1$s m |  · ±%1$s m |  · ±%1$s م |
 |  | `delete_dialog_title` | Delete this point? | Supprimer ce point ? | حذف هذه النقطة؟ |
@@ -183,6 +189,8 @@ there, so an unmarked row means "not yet judged" as well as "not safety-carrying
 |  | `read_as` | Read as %1$s and split into both fields. | Interprété comme %1$s et réparti dans les deux champs. | قُرئ بصيغة %1$s وقُسِّم على الحقلين. |
 |  | `save_point` | Save point | Enregistrer le point | حفظ النقطة |
 |  | `save_changes` | Save changes | Enregistrer les modifications | حفظ التعديلات |
+| **!** | `field_share_public` | Share publicly | Partager publiquement | نشر للعموم |
+| **!** | `field_share_public_caption` | Anyone using %1$s will see this point’s name, coordinates and note. You can stop sharing later — but anyone who already has it keeps their copy. | Toute personne utilisant %1$s verra le nom, les coordonnées et la note de ce point. Vous pouvez arrêter le partage plus tard — mais toute personne qui l’a déjà en garde une copie. | سيرى كل مستخدمي %1$s اسم هذه النقطة وإحداثياتها وملاحظتها. يمكنك إيقاف النشر لاحقاً — لكن من حصل عليها من قبل يحتفظ بنسخته. |
 |  | `plus_code_label` | Plus code %1$s | Plus code %1$s | ‏Plus code %1$s |
 |  | `mgrs_label` | MGRS %1$s | MGRS %1$s | ‏MGRS %1$s |
 |  | `pasteable_formats` | Pasteable formats | Formats acceptés | الصيغ المقبولة |
@@ -245,7 +253,7 @@ there, so an unmarked row means "not yet judged" as well as "not safety-carrying
 |  | `permission_title_precise` | Precise location needed | Position précise requise | مطلوب تحديد دقيق للموقع |
 |  | `permission_title_location` | Location permission | Autorisation de localisation | إذن الوصول إلى الموقع |
 | **!** | `permission_body_approximate` | You granted approximate location. An arrow pointing at a destination needs precise GPS — approximate is accurate to about a kilometre, which would point you the wrong way. | Vous avez accordé la localisation approximative. Une flèche qui pointe vers une destination a besoin du GPS précis : l’approximatif est précis à environ un kilomètre, ce qui vous enverrait dans la mauvaise direction. | لقد منحت إذن الموقع التقريبي. السهم الذي يشير إلى وجهة يحتاج إلى GPS دقيق — الموقع التقريبي دقته نحو كيلومتر واحد، وهو ما سيوجّهك في الاتجاه الخطأ. |
-|  | `permission_body_initial` | GPS Baibbat reads your position from the GPS satellites directly. Your position is never sent anywhere. The only thing that uses the internet is downloading an offline area, and only when you ask for it. | GPS Baibbat lit votre position directement depuis les satellites GPS. Votre position n’est jamais envoyée nulle part. Seul le téléchargement d’une zone hors ligne utilise Internet, et uniquement à votre demande. | يقرأ GPS Baibbat موقعك مباشرة من الأقمار الصناعية. لا يُرسل موقعك إلى أي جهة إطلاقاً. الشيء الوحيد الذي يستخدم الإنترنت هو تنزيل منطقة للاستخدام دون اتصال، وذلك فقط عندما تطلب ذلك. |
+| **!** | `permission_body_initial` | Your position is read from the GPS satellites directly, and is not sent anywhere unless you choose to share a saved point. The internet is otherwise used only for downloading an offline area when you ask, and for refreshing the shared points when you open the map. | Votre position est lue directement depuis les satellites GPS et n’est envoyée nulle part, sauf si vous choisissez de partager un point enregistré. Internet ne sert par ailleurs qu’à télécharger une zone hors ligne à votre demande, et à actualiser les points partagés quand vous ouvrez la carte. | يُقرأ موقعك مباشرة من الأقمار الصناعية، ولا يُرسل إلى أي جهة إلا إذا اخترت مشاركة نقطة محفوظة. وبخلاف ذلك لا يُستخدم الإنترنت إلا لتنزيل منطقة للاستخدام دون اتصال عندما تطلب ذلك، ولتحديث النقاط المنشورة عند فتح الخريطة. |
 |  | `permission_grant_precise` | Grant precise location | Accorder la position précise | منح إذن الموقع الدقيق |
 |  | `permission_continue` | Continue | Continuer | متابعة |
 |  | `permission_open_settings` | Open app settings | Ouvrir les paramètres de l’application | فتح إعدادات التطبيق |
@@ -258,6 +266,9 @@ there, so an unmarked row means "not yet judged" as well as "not safety-carrying
 |  | `cd_face_north` | Face north and follow my heading | Orienter vers le nord et suivre mon cap | التوجه نحو الشمال ومتابعة اتجاهي |
 |  | `map_centre_on_me` | Centre on me | Centrer sur moi | التوسيط على موقعي |
 |  | `map_back_to_arrow` | Back to the arrow | Retour à la flèche | العودة إلى السهم |
+|  | `shared_card_label` | Shared by another user | Partagé par un autre utilisateur | منشور من مستخدم آخر |
+|  | `shared_card_save` | Save as mine | Ajouter à mes points | إضافة إلى نقاطي |
+|  | `shared_saved_mine` | Saved to your destinations | Enregistré dans vos destinations | تم الحفظ في وجهاتك |
 |  | `map_none_title` | No map for this area yet | Pas encore de carte pour cette zone | لا توجد خريطة لهذه المنطقة بعد |
 |  | `map_none_arrow_works` | The arrow still works — it doesn’t need maps. | La flèche fonctionne toujours — elle n’a pas besoin de cartes. | لا يزال السهم يعمل — فهو لا يحتاج إلى خرائط. |
 |  | `map_none_prompt` | Download an offline area to see the map here. | Téléchargez une zone hors ligne pour voir la carte ici. | نزّل منطقة للاستخدام دون اتصال لرؤية الخريطة هنا. |
@@ -325,7 +336,7 @@ there, so an unmarked row means "not yet judged" as well as "not safety-carrying
 |  | `about_declination_source` | Magnetic model | Modèle magnétique | النموذج المغناطيسي |
 |  | `about_declination_framework` | Android built-in (WMM2020) | Intégré à Android (WMM2020) | ‏مدمج في أندرويد (WMM2020) |
 |  | `about_declination_note` | Across the area this app covers, magnetic declination differs from the current model by under 0.2°, which is smaller than the model’s own uncertainty. | Sur la zone couverte par cette application, la déclinaison magnétique s’écarte du modèle actuel de moins de 0,2°, soit moins que l’incertitude propre au modèle. | في المنطقة التي يغطيها هذا التطبيق، يختلف الانحراف المغناطيسي عن النموذج الحالي بأقل من 0.2 درجة، وهو أقل من هامش عدم اليقين في النموذج نفسه. |
-|  | `about_offline` | Navigating never uses the internet. The only thing that does is downloading an offline area, and only when you ask for it. | La navigation n’utilise jamais Internet. Seul le téléchargement d’une zone hors ligne l’utilise, et uniquement à votre demande. | لا يستخدم التوجّه الإنترنت إطلاقاً. الشيء الوحيد الذي يستخدمه هو تنزيل منطقة للاستخدام دون اتصال، وذلك فقط عندما تطلب ذلك. |
+| **!** | `about_offline` | Navigating never uses the internet. Downloading an offline area, and publishing a point you chose to share, happen only when you ask. Opening the map also refreshes the points other people have shared. | La navigation n’utilise jamais Internet. Le téléchargement d’une zone hors ligne et la publication d’un point que vous avez choisi de partager n’ont lieu qu’à votre demande. Ouvrir la carte actualise aussi les points partagés par d’autres. | لا يستخدم التوجّه الإنترنت إطلاقاً. تنزيل منطقة للاستخدام دون اتصال ونشر نقطة اخترت مشاركتها لا يحدثان إلا عندما تطلب ذلك. كما أنّ فتح الخريطة يحدّث النقاط التي شاركها آخرون. |
 |  | `about_map_attribution` | Map data: © OpenStreetMap contributors, ODbL. | Données cartographiques : © les contributeurs d’OpenStreetMap, ODbL. | بيانات الخريطة: © مساهمو OpenStreetMap، رخصة ODbL. |
 |  | `about_attribution` | Magnetic model: NOAA/NGA World Magnetic Model, public domain. | Modèle magnétique : World Magnetic Model de la NOAA/NGA, domaine public. | النموذج المغناطيسي: World Magnetic Model من NOAA/NGA، ملكية عامة. |
 

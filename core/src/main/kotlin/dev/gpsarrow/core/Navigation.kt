@@ -277,4 +277,19 @@ data class Destination(
      * and the user is the only one who can decide whether ±40 m is good enough for the job.
      */
     val accuracyMeters: Float? = null,
+    /**
+     * What the user has asked for regarding public sharing. **An instruction, not a status.**
+     *
+     * This used to be `isPublic: Boolean`, whose own comment admitted it was "a local flag about
+     * a REMOTE fact" that "nothing here may assume matches the server" — and the list then
+     * rendered "Publicly shared" straight off it. A Boolean cannot carry a remote fact, so this
+     * field no longer tries to: it records only the local, certain half.
+     *
+     * The other half — whether the point is actually in the feed — is derived at read time from
+     * the cached feed by [SharedPoints.observationOf], and the two are combined by
+     * [SharedPoints.statusOf] into the only thing the UI is allowed to say. That derivation is
+     * why nothing about the remote side is persisted here: it self-corrects on the next sync,
+     * and a stored copy of it would not.
+     */
+    val shareIntent: ShareIntent = ShareIntent.PRIVATE,
 )

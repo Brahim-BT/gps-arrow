@@ -19,6 +19,7 @@ build — once you have Android Studio open, `./gradlew :core:test` is the real 
 | `strings_table.py` | The single aligned table of every user-facing string in English, French and Arabic, plus `SAFETY_KEYS` — the reviewed list of which of them carry safety meaning. |
 | `emit_strings.py` | Emits `values/`, `values-fr/` and `values-ar/` from it, then checks the three key sets and all format specifiers match. Run after editing the table; never hand-edit one language's file. |
 | `emit_translations.py` | Emits `TRANSLATIONS.md` from the same table. Run after `emit_strings.py` — it refuses to run before, so the document cannot describe strings the app does not ship. |
+| `workflow_drain_test.py` | Runs the cleanup workflow's `run:` blocks verbatim against a fake Realtime Database, over five cases: an edit that removes a note actually removes it, a wrong token changes nothing on either the edit or the withdrawal path, an edit cannot resurrect a moderated-away point, and an honest withdrawal clears all four nodes. **Shell logic only** — it proves nothing about the live drain, the security rules or the service account; the real check is the curl smoke test in `SETUP_SHARED_POINTS.md`. Runnable alone. |
 | `TRANSLATIONS.md` | Generated. The three languages side by side for review, with the safety-carrying rows marked. |
 
 Run them with `python3 <script>` from anywhere; they locate the repo root from their own path
@@ -175,6 +176,38 @@ rename cannot silently drop a mark. The document says outright that an unmarked 
 yet judged" as well as "not safety-carrying", because a marking scheme that looks complete and
 is not would be the same bug again in a smaller font.
 
+## The workflow checker, and what it was made to fail on
+
+`workflow_drain_test.py` was added because the cleanup workflow became the only thing that can
+apply an edit to a published point, and its worst failure is silent. An edit that removes a note
+is applied with a `PATCH`, and a `PATCH` that omits a key leaves the old value — so skipping an
+absent note instead of deleting the child makes "remove my note" the one edit that does nothing
+while the app reports it as sent. Nothing else in this repo executes that shell.
+
+Per the rule this file has had to learn twice, it was trusted only after being made to fail:
+
+| case | expected | result |
+|---|---|---|
+| current tree | pass | pass |
+| an absent note skipped instead of deleted | fail | note survived the edit |
+| edit-path token check removed | fail | a wrong token moved the point |
+| withdrawal-path token check removed | fail | a wrong token deleted the point |
+| queue entry left behind on refusal | fail | slot still occupied (permanent denial of edit) |
+| the step it needs renamed | fail | `refusing to report success: no run: block named …` |
+
+The last row is the empty-scan guard in this checker's own shape: extracting shell by step name
+means a rename would otherwise skip the case silently and still print a pass. The third row also
+prompted a fix here rather than in the workflow — a wrong workflow can delete the node the check
+then looks for, so a check that *raises* is reported as a failing case rather than escaping as a
+traceback that would send the reader to debug the harness instead of the thing that is wrong.
+
+**Read its second paragraph before quoting a green run at anyone.** It runs against a fake API,
+so it says nothing about the security rules, the service account, Firebase's real PATCH and
+DELETE semantics, or whether `DB:` was ever pointed at a database. The check that covers those is
+the curl smoke test in `SETUP_SHARED_POINTS.md`, and it asserts on the workflow's log rather than
+on HTTP status codes — because the tombstone write returns 200 for an attacker too, and the
+refusal happens at drain time.
+
 ## What these checkers cannot see
 
 Read this before assuming more of them than they promise. Every entry here has reached CI at
@@ -218,9 +251,36 @@ looked.
 | `LocationEngine.status()` | "location is off" — before the permission dialog was answered |
 | `_gnss` initial value | "location is off" — on the first frame, before any emission |
 | `MapCamera` restored as `0,0,0` | a real camera at null island, indistinguishable from none |
+| `Destination.isPublic` | "this point is published" — having never fetched a feed |
 
 The fix is always the same: make the third state representable, and never assert a problem from
 it. Showing nothing briefly is fine; showing a false instruction is not.
+
+The fifth is the one that shows the shape at its worst, and it is worth reading the diagnosis
+rather than only the fix. `isPublic` carried a *remote* fact in a local Boolean, and its own KDoc
+said so — "it can be true while the publish request is still in flight or has failed... nothing
+here may assume the flag matches the server" — while the list rendered "Publicly shared" straight
+off it. The comment was right and the code did the thing the comment forbade, which is what
+happens when the type cannot express what the comment knows.
+
+Two things generalise from it:
+
+- **A comment is not a constraint.** If the honest statement about a field is "nothing may assume
+  X", and the field's type permits assuming X, something eventually will. The fix was not a
+  better comment; it was splitting the field into the half that is local and certain (an
+  *intent*) and the half that is remote and may be absent (an *observation*, derived at read
+  time from the cached feed), so the uncertain state has nowhere to hide.
+- **The dangerous direction is the reassuring one.** The other four instances asserted a
+  *problem* prematurely — "no map", "location is off" — which is annoying and self-correcting.
+  This one asserted *success*: tap the switch off with no signal and the badge disappeared, so
+  the user was told their camp was private while it was still on every other user's map. Nothing
+  in the app would ever correct that, and the user had no way to find out. When judging one of
+  these, ask which way the premature assertion falls.
+
+There is a matching rule about what may be *said*, which is the same discipline one layer up: do
+not replace an unknown with a forecast. "Gone within about a day" is a prediction about whether a
+scheduled job ran, and presenting it as a fact about the user's own camp is the same defect
+wearing better clothes. Report what was observed.
 
 ### 2. Something runs at a rate you did not intend
 

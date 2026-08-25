@@ -4,6 +4,7 @@ import dev.gpsarrow.core.Fix
 import dev.gpsarrow.core.LatLon
 import dev.gpsarrow.core.MapMarker
 import dev.gpsarrow.core.NavigationState
+import dev.gpsarrow.core.SharedPoint
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -23,6 +24,10 @@ object MapMarkers {
 
     const val POSITION_SOURCE = "position"
     const val DESTINATION_SOURCE = "destination"
+    const val SHARED_SOURCE = "shared"
+
+    /** Layer ids the map-click handler queries when looking for a shared dot. */
+    val SHARED_LAYERS = listOf("shared-dot")
 
     private val EMPTY = JSONObject()
         .put("type", "FeatureCollection")
@@ -60,6 +65,40 @@ object MapMarkers {
     fun destination(target: LatLon?, name: String?): String {
         if (target == null) return EMPTY
         return feature(target, JSONObject().put("name", name.orEmpty()))
+    }
+
+    /**
+     * The public layer: one feature per point somebody else chose to share.
+     *
+     * `pid` rides in the properties so the tap handler can identify the point without a second
+     * lookup; `name` feeds the label layer's text-field.
+     */
+    fun shared(points: List<SharedPoint>): String {
+        if (points.isEmpty()) return EMPTY
+        val features = JSONArray()
+        points.forEach { p ->
+            features.put(
+                JSONObject()
+                    .put("type", "Feature")
+                    .put(
+                        "properties",
+                        JSONObject()
+                            .put("name", p.name)
+                            .put("pid", p.id),
+                    )
+                    .put(
+                        "geometry",
+                        JSONObject()
+                            .put("type", "Point")
+                            // GeoJSON is lon,lat — see the note in [feature].
+                            .put("coordinates", JSONArray().put(p.position.lon).put(p.position.lat)),
+                    ),
+            )
+        }
+        return JSONObject()
+            .put("type", "FeatureCollection")
+            .put("features", features)
+            .toString()
     }
 
     private fun feature(p: LatLon, properties: JSONObject): String =

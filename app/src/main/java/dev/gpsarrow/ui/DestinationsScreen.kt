@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -56,6 +57,7 @@ import dev.gpsarrow.core.Geo
 import dev.gpsarrow.core.LatLon
 import dev.gpsarrow.core.Mgrs
 import dev.gpsarrow.core.PlusCode
+import dev.gpsarrow.core.ShareStatus
 import dev.gpsarrow.ui.theme.AppTheme
 
 @Composable
@@ -73,6 +75,21 @@ fun DestinationsScreen(
     onToggleFavourite: (Destination) -> Unit,
     onDelete: (Destination) -> Unit,
     onAdd: () -> Unit,
+    /**
+     * Whether public sharing exists in this build. Gates the badge rather than the data: a
+     * point can carry a share intent while the backend is unconfigured, and a badge that means
+     * nothing to this install is noise.
+     */
+    sharingAvailable: Boolean = false,
+    /**
+     * What the app has observed about each point's public visibility.
+     *
+     * A function rather than a field on [Destination] because it is derived — the local intent
+     * combined with the last fetched feed — and a copy stored per row would go stale the moment
+     * a sync landed. Defaults to saying nothing, which is the right answer for any caller that
+     * has not wired the feed in.
+     */
+    shareStatus: (Destination) -> ShareStatus = { ShareStatus.NOT_SHARED },
     /** Hoisted: a search survives a trip to the arrow tab and back. */
     query: String,
     onQueryChange: (String) -> Unit,
@@ -236,6 +253,8 @@ fun DestinationsScreen(
                             selected = destination.id == selectedId,
                             highlighted = destination.id == highlightId,
                             units = units,
+                            sharingAvailable = sharingAvailable,
+                            shareStatus = shareStatus(destination),
                             onSelect = { onSelect(destination) },
                             onEdit = { onEdit(destination) },
                             onToggleFavourite = { onToggleFavourite(destination) },
@@ -281,6 +300,8 @@ private fun DestinationRow(
     selected: Boolean,
     highlighted: Boolean,
     units: DistanceUnits,
+    sharingAvailable: Boolean,
+    shareStatus: ShareStatus,
     onSelect: () -> Unit,
     onEdit: () -> Unit,
     onToggleFavourite: () -> Unit,
@@ -360,6 +381,48 @@ private fun DestinationRow(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+
+        // Sharing state, as words rather than as a glyph.
+        //
+        // It used to be a lone globe icon rendered straight off a local Boolean, which said
+        // "Publicly shared" about a point the app had never seen in a feed. There are now four
+        // things it can say and only one of them is a claim about the world, so a single tinted
+        // icon could not carry them: the same dimmed globe would have to mean "not confirmed
+        // yet", "still public" and "withdrawal not confirmed" at once. Nothing is drawn at all
+        // when there is nothing to say, so a row without sharing looks exactly as it did before
+        // the feature existed.
+        //
+        // Still not a control. Sharing is changed where the point is edited, so there is exactly
+        // one place whose state has to stay honest.
+        if (sharingAvailable) {
+            shareStatusLabelRes(shareStatus)?.let { labelRes ->
+                val certain = shareStatus == ShareStatus.PUBLISHED
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Public,
+                        // The text beside it is the label; announcing both would read the state
+                        // twice.
+                        contentDescription = null,
+                        tint = if (certain) tokens.accent else tokens.label,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Text(
+                        text = stringResource(labelRes),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (certain) tokens.accent else tokens.label,
+                        // Two lines, not one. "Publicly shared — your edit is not published yet"
+                        // ellipsised on a narrow screen reads as "Publicly shared…", which is
+                        // the opposite of what it says: the clause that carries the warning is
+                        // the one that would be cut.
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),

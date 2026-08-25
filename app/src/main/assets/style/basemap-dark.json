@@ -21,6 +21,13 @@
         "type": "FeatureCollection",
         "features": []
       }
+    },
+    "shared": {
+      "type": "geojson",
+      "data": {
+        "type": "FeatureCollection",
+        "features": []
+      }
     }
   },
   "layers": [
@@ -429,6 +436,43 @@
         "text-color": "#FFFFFF",
         "text-halo-color": "#000000",
         "text-halo-width": 1.6
+      }
+    },
+    {
+      "id": "shared-dot",
+      "type": "circle",
+      "source": "shared",
+      "paint": {
+        "circle-radius": 5.5,
+        "circle-color": "#26C6DA",
+        "circle-stroke-color": "#000000",
+        "circle-stroke-width": 1.5
+      }
+    },
+    {
+      "id": "shared-label",
+      "type": "symbol",
+      "source": "shared",
+      "layout": {
+        "text-field": [
+          "get",
+          "name"
+        ],
+        "text-font": [
+          "Noto Sans Medium"
+        ],
+        "text-size": 11,
+        "text-anchor": "top",
+        "text-offset": [
+          0,
+          0.8
+        ],
+        "symbol-sort-key": 2
+      },
+      "paint": {
+        "text-color": "#80DEEA",
+        "text-halo-color": "#000000",
+        "text-halo-width": 1.4
       }
     },
     {

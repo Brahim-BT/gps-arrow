@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -28,9 +29,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.gpsarrow.R
+import dev.gpsarrow.core.Format
 import dev.gpsarrow.core.LatLon
 import dev.gpsarrow.core.MapOrientation
 import dev.gpsarrow.core.OrientationState
+import dev.gpsarrow.core.SharedPoint
 import dev.gpsarrow.maps.InstalledArea
 import dev.gpsarrow.maps.CameraCommand
 import dev.gpsarrow.maps.MapCamera
@@ -56,6 +59,14 @@ fun MapScreen(
     cameraCommand: CameraCommand?,
     positionGeoJson: String,
     destinationGeoJson: String,
+    /** GeoJSON for the public shared-points dots. */
+    sharedGeoJson: String,
+    /** The shared dot the user tapped, or null for no selection. */
+    selectedShared: SharedPoint?,
+    /** Formatted distance from the user, when a fix exists; shown on the selection card. */
+    selectedDistanceText: String?,
+    /** True when the selected id already exists in the user's own list (hides "save as mine"). */
+    selectedAlreadySaved: Boolean,
     orientation: OrientationState,
     hasPosition: Boolean,
     /** Smoothed position to keep centred while following. */
@@ -67,6 +78,10 @@ fun MapScreen(
     moving: Boolean,
     onCameraMoved: (MapCamera) -> Unit,
     onUserGesture: () -> Unit,
+    /** Tapped a shared dot (its id), or tapped empty map (null) to dismiss the card. */
+    onSharedTap: (String?) -> Unit,
+    onNavigateShared: (SharedPoint) -> Unit,
+    onSaveShared: (SharedPoint) -> Unit,
     onFaceNorth: () -> Unit,
     onCentreOnMe: () -> Unit,
     onBack: () -> Unit,
@@ -85,12 +100,19 @@ fun MapScreen(
             cameraCommand = cameraCommand,
             positionGeoJson = positionGeoJson,
             destinationGeoJson = destinationGeoJson,
+            sharedGeoJson = sharedGeoJson,
+            selectedShared = selectedShared,
+            selectedDistanceText = selectedDistanceText,
+            selectedAlreadySaved = selectedAlreadySaved,
             orientation = orientation,
             hasPosition = hasPosition,
             followTarget = followTarget,
             moving = moving,
             onCameraMoved = onCameraMoved,
             onUserGesture = onUserGesture,
+            onSharedTap = onSharedTap,
+            onNavigateShared = onNavigateShared,
+            onSaveShared = onSaveShared,
             onFaceNorth = onFaceNorth,
             onCentreOnMe = onCentreOnMe,
             onBack = onBack,
@@ -150,6 +172,14 @@ private fun InstalledMap(
     cameraCommand: CameraCommand?,
     positionGeoJson: String,
     destinationGeoJson: String,
+    /** GeoJSON for the public shared-points dots. */
+    sharedGeoJson: String,
+    /** The shared dot the user tapped, or null for no selection. */
+    selectedShared: SharedPoint?,
+    /** Formatted distance from the user, when a fix exists; shown on the selection card. */
+    selectedDistanceText: String?,
+    /** True when the selected id already exists in the user's own list (hides "save as mine"). */
+    selectedAlreadySaved: Boolean,
     orientation: OrientationState,
     hasPosition: Boolean,
     /** Smoothed position to keep centred while following. */
@@ -161,6 +191,10 @@ private fun InstalledMap(
     moving: Boolean,
     onCameraMoved: (MapCamera) -> Unit,
     onUserGesture: () -> Unit,
+    /** Tapped a shared dot (its id), or tapped empty map (null) to dismiss the card. */
+    onSharedTap: (String?) -> Unit,
+    onNavigateShared: (SharedPoint) -> Unit,
+    onSaveShared: (SharedPoint) -> Unit,
     onFaceNorth: () -> Unit,
     onCentreOnMe: () -> Unit,
     onBack: () -> Unit,
@@ -196,6 +230,8 @@ private fun InstalledMap(
             cameraCommand = cameraCommand,
             positionGeoJson = positionGeoJson,
             destinationGeoJson = destinationGeoJson,
+            sharedGeoJson = sharedGeoJson,
+            onSharedPointTapped = onSharedTap,
             // Null the moment following is suspended, so the view leaves the camera entirely
             // alone rather than merely holding the bearing steady. It comes back by itself
             // after MapOrientation's idle dwell, or immediately via "centre on me" / north.
@@ -236,6 +272,24 @@ private fun InstalledMap(
                     .padding(12.dp),
             ) { Text(stringResource(R.string.map_centre_on_me)) }
         }
+
+        // Tap-inspect card for a shared public point. It floats above the controls — the
+        // centre-on-me button and the attribution line both live in the bottom corners, so a
+        // 64dp bottom inset clears whichever of them is showing. Dismissal is tapping the map
+        // somewhere else, which arrives here as onSharedTap(null).
+        if (selectedShared != null) {
+            SharedSelectionCard(
+                point = selectedShared,
+                distanceText = selectedDistanceText,
+                alreadySaved = selectedAlreadySaved,
+                onNavigate = { onNavigateShared(selectedShared) },
+                onSave = { onSaveShared(selectedShared) },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 12.dp, end = 12.dp, bottom = 64.dp),
+            )
+        }
+
         // ODbL condition: attribution must be visible wherever the map is shown, not buried in
         // an About page. It sits over the map rather than beside it for exactly that reason.
         Text(
@@ -247,6 +301,63 @@ private fun InstalledMap(
                 .background(MaterialTheme.colorScheme.background.copy(alpha = 0.7f))
                 .padding(horizontal = 6.dp, vertical = 2.dp),
         )
+    }
+}
+
+/**
+ * What a tapped shared dot opens: who it came from (as much as is known — "another user"),
+ * where it is, how far away, and the two things one can do with it.
+ *
+ * "Save as mine" disappears once the point already exists in the user's own list — every
+ * saved-from-shared point keeps its original id, so the check is an id lookup, and offering
+ * to save something already saved would create the impression of a duplicate.
+ */
+@Composable
+private fun SharedSelectionCard(
+    point: SharedPoint,
+    distanceText: String?,
+    alreadySaved: Boolean,
+    onNavigate: () -> Unit,
+    onSave: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(modifier = modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                stringResource(R.string.shared_card_label),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.secondary,
+            )
+            Text(point.name, style = MaterialTheme.typography.titleLarge)
+            Text(
+                ltrIsolate(Format.decimal(point.position)),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (distanceText != null) {
+                Text(
+                    distanceText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Row(
+                modifier = Modifier.padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Button(onClick = onNavigate, modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.navigate_here))
+                }
+                if (!alreadySaved) {
+                    OutlinedButton(onClick = onSave, modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.shared_card_save))
+                    }
+                }
+            }
+        }
     }
 }
 

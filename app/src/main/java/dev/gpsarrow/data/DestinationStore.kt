@@ -5,6 +5,7 @@ import android.util.Log
 import dev.gpsarrow.core.Destination
 import dev.gpsarrow.core.DestinationEdit
 import dev.gpsarrow.core.LatLon
+import dev.gpsarrow.core.ShareIntent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -44,6 +45,8 @@ class DestinationStore(context: Context) {
         source: String = "manual",
         /** Accuracy of the fix this came from; null when it was typed, pasted or imported. */
         accuracyMeters: Float? = null,
+        /** Off unless the editor's share switch was on when the point was saved. */
+        shareIntent: ShareIntent = ShareIntent.PRIVATE,
     ): Destination = withContext(Dispatchers.IO) {
         val destination = Destination(
             id = UUID.randomUUID().toString(),
@@ -53,6 +56,7 @@ class DestinationStore(context: Context) {
             createdAtMillis = System.currentTimeMillis(),
             source = source,
             accuracyMeters = accuracyMeters,
+            shareIntent = shareIntent,
         )
         _destinations.value = _destinations.value + destination
         write(_destinations.value)
@@ -75,6 +79,11 @@ class DestinationStore(context: Context) {
      * assign it unconditionally; since nothing in the app edits notes, every edit erased the
      * note it was not editing. Adding note editing means adding a way to say "unchanged" that is
      * distinct from "cleared", not restoring a defaulted parameter.
+     *
+     * There is deliberately **no sharing parameter either**, for a related reason. It briefly
+     * had one, and that was how the share switch came to write a local flag and publish
+     * nothing: an edit path can only change stored fields, and sharing is a stored field plus a
+     * network act. It goes through [setShareIntent] and the view model, which owns both halves.
      */
     suspend fun update(
         id: String,
@@ -91,6 +100,21 @@ class DestinationStore(context: Context) {
         }
         write(_destinations.value)
         updated
+    }
+
+    /**
+     * Record what the user asked for regarding sharing, and nothing else.
+     *
+     * Local and immediate. Delivering the instruction — publishing, or queueing a withdrawal —
+     * is the view model's job, and the two are separate on purpose: this write must survive
+     * being offline, and the network act must not be able to make it look as though it did not
+     * happen.
+     */
+    suspend fun setShareIntent(id: String, intent: ShareIntent) = withContext(Dispatchers.IO) {
+        _destinations.value = _destinations.value.map {
+            if (it.id == id) it.copy(shareIntent = intent) else it
+        }
+        write(_destinations.value)
     }
 
     suspend fun setFavourite(id: String, favourite: Boolean) = withContext(Dispatchers.IO) {
@@ -149,6 +173,15 @@ class DestinationStore(context: Context) {
                         } else {
                             null
                         },
+                        // Absent means PRIVATE, and so does anything unrecognised — the one
+                        // field where guessing wrong puts a coordinate on the internet defaults
+                        // in the safe direction. `public: true` is read for the handful of
+                        // devices that ran the branch before this became three-valued.
+                        shareIntent = if (o.optBoolean(KEY_LEGACY_PUBLIC, false)) {
+                            ShareIntent.SHARED
+                        } else {
+                            ShareIntent.fromStoredName(o.optString(KEY_SHARE).takeIf { it.isNotEmpty() })
+                        },
                     ),
                 )
             }
@@ -172,6 +205,9 @@ class DestinationStore(context: Context) {
                     // Omitted rather than written as 0 when unknown: absent and "perfect" must
                     // not collapse to the same thing on the way back in.
                     d.accuracyMeters?.let { put(KEY_ACCURACY, it.toDouble()) }
+                    // Written by name, and omitted entirely for PRIVATE, so the common case
+                    // leaves no sharing field in the file at all.
+                    if (d.shareIntent != ShareIntent.PRIVATE) put(KEY_SHARE, d.shareIntent.name)
                 },
             )
         }
@@ -224,5 +260,9 @@ class DestinationStore(context: Context) {
         const val FILE_NAME = "destinations.json"
         const val TAG = "DestinationStore"
         const val KEY_ACCURACY = "accuracyM"
+        const val KEY_SHARE = "share"
+
+        /** The two-state field this replaced. Read, never written. */
+        const val KEY_LEGACY_PUBLIC = "public"
     }
 }

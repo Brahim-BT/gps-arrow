@@ -106,6 +106,12 @@
     <string name="cd_unstar">Retirer %1$s des favoris</string>
     <string name="cd_edit">Modifier %1$s</string>
     <string name="cd_delete">Supprimer %1$s</string>
+    <string name="shared_badge">Partagée publiquement</string>
+    <string name="shared_edit_unpublished">Partagée publiquement — votre modification n’est pas encore publiée</string>
+    <string name="shared_publish_unconfirmed">Partage — pas encore confirmé</string>
+    <string name="shared_still_public">Toujours public — arrêt non confirmé</string>
+    <string name="shared_withdrawal_unconfirmed">Arrêt non confirmé</string>
+    <string name="menu_unshare_point">Ne plus partager</string>
     <string name="selected_destination">▸ %1$s</string>
     <string name="accuracy_suffix"> · ±%1$s m</string>
     <string name="delete_dialog_title">Supprimer ce point ?</string>
@@ -140,6 +146,8 @@
     <string name="read_as">Interprété comme %1$s et réparti dans les deux champs.</string>
     <string name="save_point">Enregistrer le point</string>
     <string name="save_changes">Enregistrer les modifications</string>
+    <string name="field_share_public">Partager publiquement</string>
+    <string name="field_share_public_caption">Toute personne utilisant %1$s verra le nom, les coordonnées et la note de ce point. Vous pouvez arrêter le partage plus tard — mais toute personne qui l’a déjà en garde une copie.</string>
     <string name="plus_code_label">Plus code %1$s</string>
     <string name="mgrs_label">MGRS %1$s</string>
     <string name="pasteable_formats">Formats acceptés</string>
@@ -187,7 +195,7 @@
     <string name="permission_title_precise">Position précise requise</string>
     <string name="permission_title_location">Autorisation de localisation</string>
     <string name="permission_body_approximate">Vous avez accordé la localisation approximative. Une flèche qui pointe vers une destination a besoin du GPS précis : l’approximatif est précis à environ un kilomètre, ce qui vous enverrait dans la mauvaise direction.</string>
-    <string name="permission_body_initial">GPS Baibbat lit votre position directement depuis les satellites GPS. Votre position n’est jamais envoyée nulle part. Seul le téléchargement d’une zone hors ligne utilise Internet, et uniquement à votre demande.</string>
+    <string name="permission_body_initial">Votre position est lue directement depuis les satellites GPS et n’est envoyée nulle part, sauf si vous choisissez de partager un point enregistré. Internet ne sert par ailleurs qu’à télécharger une zone hors ligne à votre demande, et à actualiser les points partagés quand vous ouvrez la carte.</string>
     <string name="permission_grant_precise">Accorder la position précise</string>
     <string name="permission_continue">Continuer</string>
     <string name="permission_open_settings">Ouvrir les paramètres de l’application</string>
@@ -197,6 +205,9 @@
     <string name="cd_face_north">Orienter vers le nord et suivre mon cap</string>
     <string name="map_centre_on_me">Centrer sur moi</string>
     <string name="map_back_to_arrow">Retour à la flèche</string>
+    <string name="shared_card_label">Partagé par un autre utilisateur</string>
+    <string name="shared_card_save">Ajouter à mes points</string>
+    <string name="shared_saved_mine">Enregistré dans vos destinations</string>
     <string name="map_none_title">Pas encore de carte pour cette zone</string>
     <string name="map_none_arrow_works">La flèche fonctionne toujours — elle n’a pas besoin de cartes.</string>
     <string name="map_none_prompt">Téléchargez une zone hors ligne pour voir la carte ici.</string>
@@ -255,7 +266,7 @@
     <string name="about_declination_source">Modèle magnétique</string>
     <string name="about_declination_framework">Intégré à Android (WMM2020)</string>
     <string name="about_declination_note">Sur la zone couverte par cette application, la déclinaison magnétique s’écarte du modèle actuel de moins de 0,2°, soit moins que l’incertitude propre au modèle.</string>
-    <string name="about_offline">La navigation n’utilise jamais Internet. Seul le téléchargement d’une zone hors ligne l’utilise, et uniquement à votre demande.</string>
+    <string name="about_offline">La navigation n’utilise jamais Internet. Le téléchargement d’une zone hors ligne et la publication d’un point que vous avez choisi de partager n’ont lieu qu’à votre demande. Ouvrir la carte actualise aussi les points partagés par d’autres.</string>
     <string name="about_map_attribution">Données cartographiques : © les contributeurs d’OpenStreetMap, ODbL.</string>
     <string name="about_attribution">Modèle magnétique : World Magnetic Model de la NOAA/NGA, domaine public.</string>
 

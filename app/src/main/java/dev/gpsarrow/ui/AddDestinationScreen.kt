@@ -16,6 +16,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -24,6 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.gpsarrow.R
@@ -34,6 +37,8 @@ import dev.gpsarrow.core.LatLon
 import dev.gpsarrow.core.Mgrs
 import dev.gpsarrow.core.ParseResult
 import dev.gpsarrow.core.PlusCode
+import dev.gpsarrow.core.ShareStatus
+import dev.gpsarrow.ui.theme.AppTheme
 
 /**
  * Two clearly labelled fields, because one combined box made people guess at the format.
@@ -48,7 +53,20 @@ fun AddDestinationScreen(
     draft: CoordinateDraft,
     onDraftChange: (CoordinateDraft) -> Unit,
     currentPosition: LatLon?,
-    onSave: (name: String, position: LatLon, source: String) -> Unit,
+    onSave: (name: String, position: LatLon, source: String, sharePublicly: Boolean) -> Unit,
+    /**
+     * Whether public sharing exists in this build. The toggle is hidden rather than disabled
+     * when it does not — a dead control for a backend that was never configured explains
+     * nothing and invites taps.
+     */
+    sharingAvailable: Boolean = false,
+    /**
+     * What the app has actually observed about this point's public visibility.
+     *
+     * [ShareStatus.NOT_SHARED] for a new point, which is the truth: nothing has been published,
+     * so there is nothing to report and the consent caption stands alone.
+     */
+    shareStatus: ShareStatus = ShareStatus.NOT_SHARED,
     /** null when shown as a tab (nothing to go back to); non-null in edit mode. */
     onBack: (() -> Unit)? = null,
     /** Non-null puts the screen in edit mode: same fields, same parser, different verb. */
@@ -179,6 +197,72 @@ fun AddDestinationScreen(
             )
         }
 
+        // The opt-in that publishes the point.
+        //
+        // Two different sentences sit under this switch, and which one shows is the whole
+        // design. Off, it is the consent caption: what exactly becomes visible, and that a copy
+        // already taken cannot be called back — stated before the toggle, because that is the
+        // only moment the irreversible part is still avoidable. On, it is what the app has
+        // actually observed about the point, which is the only thing it is entitled to say
+        // afterwards.
+        if (sharingAvailable) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.field_share_public),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    val statusRes = shareStatusLabelRes(shareStatus)
+                    // The caption while the switch is off, because that is the moment the
+                    // irreversible part is still avoidable — and also whenever there is no
+                    // observed state to report, so the row is never left explaining nothing.
+                    if (!draft.sharePublicly || statusRes == null) {
+                        Text(
+                            stringResource(
+                                R.string.field_share_public_caption,
+                                // The app name is Latin in all three languages, so in Arabic it
+                                // is an LTR run inside an RTL sentence. Isolated, or the
+                                // bidirectional algorithm reorders the punctuation around it.
+                                ltrIsolate(stringResource(R.string.app_name)),
+                            ),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    statusRes?.let {
+                        Text(
+                            stringResource(it),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (shareStatus == ShareStatus.PUBLISHED) {
+                                AppTheme.tokens.accent
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
+                }
+                // The switch's own name changes with what flipping it would do. "Stop sharing"
+                // is the promise being made, and it is a promise about cessation, not
+                // retrieval — which is what the caption above spells out in full.
+                val switchLabel = stringResource(
+                    if (draft.sharePublicly) {
+                        R.string.menu_unshare_point
+                    } else {
+                        R.string.field_share_public
+                    },
+                )
+                Switch(
+                    checked = draft.sharePublicly,
+                    onCheckedChange = { onDraftChange(draft.copy(sharePublicly = it)) },
+                    modifier = Modifier.semantics { contentDescription = switchLabel },
+                )
+            }
+        }
+
         position?.let { OtherFormats(it) }
 
         Button(
@@ -188,6 +272,7 @@ fun AddDestinationScreen(
                     name.ifBlank { Format.decimal(p) },
                     p,
                     pastedFormat ?: "manual",
+                    draft.sharePublicly,
                 )
             },
             enabled = position != null,

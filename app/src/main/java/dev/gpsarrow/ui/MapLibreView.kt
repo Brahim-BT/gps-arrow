@@ -59,6 +59,17 @@ fun MapLibreView(
     cameraCommand: CameraCommand?,
     positionGeoJson: String,
     destinationGeoJson: String,
+    /** GeoJSON for the public shared-points layer; empty collection renders as nothing. */
+    sharedGeoJson: String,
+    /**
+     * Called when the user taps the map: the id of the shared dot under the finger, or null
+     * when the tap landed on nothing selectable (which is how the card gets dismissed).
+     *
+     * Registered once with the first composition's lambda — like every callback here, it must
+     * route through captured Compose state rather than through values that change on
+     * recomposition.
+     */
+    onSharedPointTapped: (String?) -> Unit,
     /** Bearing to follow, or null to leave the camera's rotation alone. */
     followBearingDeg: Double?,
     /**
@@ -179,11 +190,31 @@ fun MapLibreView(
                     )
                 }
 
+                // Tap-to-inspect on the shared layer. queryRenderedFeatures is cheap at tap
+                // rate, and an empty hit list is the dismiss path — one listener covers select
+                // and deselect. Registered once, like every other listener in this file.
+                map.addOnMapClickListener { latLng ->
+                    if (map.style == null) return@addOnMapClickListener false
+                    val screen = map.projection.toScreenLocation(latLng)
+                    val hit = runCatching {
+                        map.queryRenderedFeatures(screen, *MapMarkers.SHARED_LAYERS.toTypedArray())
+                    }.getOrNull()?.firstOrNull()
+                    // Feature properties are a Gson object here, not org.json — the pid was
+                    // written by MapMarkers.shared as a plain string property.
+                    val pid = hit?.properties()?.get("pid")
+                        ?.takeIf { it.isJsonPrimitive }?.asString
+                        ?.takeIf { it.isNotEmpty() }
+                    onSharedPointTapped(pid)
+                    true
+                }
+
                 map.setStyle(Style.Builder().fromJson(styleJson)) { style ->
                     style.getSourceAs<GeoJsonSource>(MapMarkers.POSITION_SOURCE)
                         ?.setGeoJson(positionGeoJson)
                     style.getSourceAs<GeoJsonSource>(MapMarkers.DESTINATION_SOURCE)
                         ?.setGeoJson(destinationGeoJson)
+                    style.getSourceAs<GeoJsonSource>(MapMarkers.SHARED_SOURCE)
+                        ?.setGeoJson(sharedGeoJson)
 
                     // Once, and only if the user has not already taken over.
                     if (initialCamera != null && placed.compareAndSet(false, true) &&
@@ -210,7 +241,7 @@ fun MapLibreView(
 
     // Markers change with every fix. They touch sources, never the camera, so they are safe to
     // apply while the user is panning.
-    LaunchedEffect(mapRef.value, positionGeoJson, destinationGeoJson) {
+    LaunchedEffect(mapRef.value, positionGeoJson, destinationGeoJson, sharedGeoJson) {
         val map = mapRef.value ?: return@LaunchedEffect
         runCatching {
             map.style?.let { style ->
@@ -218,6 +249,8 @@ fun MapLibreView(
                     ?.setGeoJson(positionGeoJson)
                 style.getSourceAs<GeoJsonSource>(MapMarkers.DESTINATION_SOURCE)
                     ?.setGeoJson(destinationGeoJson)
+                style.getSourceAs<GeoJsonSource>(MapMarkers.SHARED_SOURCE)
+                    ?.setGeoJson(sharedGeoJson)
             }
         }.onFailure { Log.w(TAG, "could not update markers", it) }
     }
