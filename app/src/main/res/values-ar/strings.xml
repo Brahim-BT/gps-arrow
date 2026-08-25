@@ -107,6 +107,7 @@
     <string name="cd_edit">تعديل %1$s</string>
     <string name="cd_delete">حذف %1$s</string>
     <string name="shared_badge">منشورة للعموم</string>
+    <string name="shared_edit_unpublished">منشورة للعموم — لم يُنشر تعديلك بعد</string>
     <string name="shared_publish_unconfirmed">قيد النشر — لم يُؤكَّد بعد</string>
     <string name="shared_still_public">لا تزال منشورة — لم يُؤكَّد إيقاف النشر</string>
     <string name="shared_withdrawal_unconfirmed">لم يُؤكَّد إيقاف النشر</string>

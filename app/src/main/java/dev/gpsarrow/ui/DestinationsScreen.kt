@@ -413,7 +413,11 @@ private fun DestinationRow(
                         text = stringResource(labelRes),
                         style = MaterialTheme.typography.labelMedium,
                         color = if (certain) tokens.accent else tokens.label,
-                        maxLines = 1,
+                        // Two lines, not one. "Publicly shared — your edit is not published yet"
+                        // ellipsised on a narrow screen reads as "Publicly shared…", which is
+                        // the opposite of what it says: the clause that carries the warning is
+                        // the one that would be cut.
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }

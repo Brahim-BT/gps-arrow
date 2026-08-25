@@ -179,17 +179,37 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
      * scratch every time, so it self-corrects after any sync rather than accumulating.
      */
     private suspend fun reconcileWithFeed(feed: List<SharedPoint>) {
-        val remoteIds = feed.map { it.id }.toSet()
+        val published = feed.associateBy { it.id }
         store.destinations.value.forEach { destination ->
             when (destination.shareIntent) {
                 ShareIntent.PRIVATE -> Unit
-                ShareIntent.SHARED ->
-                    if (destination.id !in remoteIds) publishNow(destination)
+                ShareIntent.SHARED -> deliverShared(destination, published[destination.id])
                 ShareIntent.WITHDRAWN ->
-                    if (destination.id in remoteIds) withdrawNow(destination.id)
+                    if (published.containsKey(destination.id)) withdrawNow(destination.id)
             }
         }
     }
+
+    /**
+     * What this device still owes the server for one point the user wants shared.
+     *
+     * Three answers, and the whole reason this is one function: the switch path and the retry
+     * path must never disagree about which of them applies. Not in the feed means publish. In
+     * the feed but carrying something else means the user edited it, so queue the edit —
+     * publishing again would be refused, since the point node is create-only. In the feed and
+     * matching means nothing is owed.
+     *
+     * [published] null while no feed has ever been fetched reads as "publish", which is right:
+     * the create is refused if the point is already there, and the next sync sorts it out with
+     * an actual observation instead of a guess.
+     */
+    private suspend fun deliverShared(destination: Destination, published: SharedPoint?): Boolean =
+        when {
+            published == null -> publishNow(destination)
+            !SharedPoints.publishedMatches(published, SharedPoints.wireFormOf(destination)) ->
+                queueEditNow(destination)
+            else -> false
+        }
 
     /**
      * Share or stop sharing one saved point.
@@ -232,7 +252,10 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
         // second one. Both calls are create-or-queue and cost one refused request at worst.
         val delivered = when (intent) {
             ShareIntent.PRIVATE -> false
-            ShareIntent.SHARED -> publishNow(destination.copy(shareIntent = intent))
+            ShareIntent.SHARED -> deliverShared(
+                destination.copy(shareIntent = intent),
+                _sharedPoints.value.firstOrNull { it.id == destination.id },
+            )
             ShareIntent.WITHDRAWN -> withdrawNow(destination.id)
         }
         // Go and look, so the next thing shown is observed rather than assumed.
@@ -260,10 +283,45 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
             return false
         }
         val token = shareTokens.mint(destination.id) ?: return false
-        return when (val result = sharedApi.publish(destination.toSharedPoint(), ShareToken.hash(token))) {
+        return when (val result = sharedApi.publish(SharedPoints.wireFormOf(destination), ShareToken.hash(token))) {
             SharedPointsApi.Publish.Done -> true
             is SharedPointsApi.Publish.Failed -> {
                 Log.w(TAG, "publish failed (retried on the next sync): ${result.detail}")
+                false
+            }
+        }
+    }
+
+    /**
+     * Queue an edit to a point that is already public.
+     *
+     * Uses [ShareTokenStore.tokenFor], never [ShareTokenStore.mint]. An edit is an act of
+     * ownership over something already out there, so a device that has no token for the point
+     * cannot make one up — minting here would write a fresh token whose digest can never match
+     * `owners/<id>`, and every future withdrawal would be refused as well. Failing is the
+     * correct outcome, and the status goes on saying the edit is unpublished, which is true.
+     */
+    private suspend fun queueEditNow(destination: Destination): Boolean {
+        if (!SharedPoints.canPublish(
+                destination.id,
+                destination.name,
+                destination.position.lat,
+                destination.position.lon,
+                destination.note,
+            )
+        ) {
+            Log.w(TAG, "not queueing an edit for ${destination.id}: fails the publish rules")
+            return false
+        }
+        val token = shareTokens.tokenFor(destination.id)
+        if (token == null) {
+            Log.w(TAG, "no token for ${destination.id}; this device cannot edit it")
+            return false
+        }
+        return when (val result = sharedApi.queueEdit(SharedPoints.wireFormOf(destination), token)) {
+            SharedPointsApi.Publish.Done -> true
+            is SharedPointsApi.Publish.Failed -> {
+                Log.w(TAG, "edit queue failed (retried on the next sync): ${result.detail}")
                 false
             }
         }
@@ -314,13 +372,6 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun Destination.toSharedPoint() = SharedPoint(
-        id = id,
-        name = name,
-        position = position,
-        note = note,
-        createdAtMillis = createdAtMillis,
-    )
 
     // Starts UNKNOWN, not "off". The previous initial value asserted that location was
     // disabled before anything had looked, so the very first frame of a first launch showed

@@ -107,6 +107,7 @@
     <string name="cd_edit">Modifier %1$s</string>
     <string name="cd_delete">Supprimer %1$s</string>
     <string name="shared_badge">Partagée publiquement</string>
+    <string name="shared_edit_unpublished">Partagée publiquement — votre modification n’est pas encore publiée</string>
     <string name="shared_publish_unconfirmed">Partage — pas encore confirmé</string>
     <string name="shared_still_public">Toujours public — arrêt non confirmé</string>
     <string name="shared_withdrawal_unconfirmed">Arrêt non confirmé</string>

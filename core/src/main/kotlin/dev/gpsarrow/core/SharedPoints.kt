@@ -45,8 +45,19 @@ enum class ShareIntent {
  * after shipping a screen that asserted the negative case before anything had looked.
  */
 enum class ShareObservation {
-    /** The id was in the feed the last time one was fetched. */
-    PRESENT,
+    /** In the feed, and the published copy says what the local point says. */
+    PRESENT_MATCHING,
+
+    /**
+     * In the feed, but the published copy differs from the local point.
+     *
+     * Reached by editing a point that is already public. The published copy is create-only for
+     * clients, so an edit is queued and applied by the cleanup job rather than written directly;
+     * until that lands, the world sees the old name, coordinates or note. Distinct from
+     * [PRESENT_MATCHING] because "shared" and "shared, but not what you just typed" are
+     * different facts and only one of them is what the user believes.
+     */
+    PRESENT_STALE,
 
     /** A feed was fetched and this id was not in it. */
     ABSENT,
@@ -73,6 +84,16 @@ enum class ShareStatus {
 
     /** Seen in a fetched feed while the user wants it shared. The only certain claim. */
     PUBLISHED,
+
+    /**
+     * Public, and the public copy is not what this device holds — the user edited it and the
+     * edit has not been applied yet.
+     *
+     * Both halves matter and both are actionable. The point is out there, so withdrawing is
+     * still the thing to do if that is what they want; and what is out there is the old text, so
+     * a correction they have already made has not reached anyone.
+     */
+    EDIT_UNPUBLISHED,
 
     /** The user wants it shared; no feed has confirmed that it is. */
     PUBLISH_UNCONFIRMED,
@@ -143,21 +164,79 @@ object SharedPoints {
         feed.filterNot { it.id in locallyKnownIds }
 
     /**
-     * What the last fetched feed says about [id].
+     * The wire form of a saved point: the fields sharing publishes, and nothing else.
+     *
+     * One definition, because there are now three callers — publishing, queueing an edit, and
+     * deciding what the badge may say — and a second copy of this mapping is how a field the
+     * user never opted into ends up on the internet. [SharedPoint] deliberately has no room for
+     * the favourite star, the last-used stamp, the fix accuracy or the share intent; this is the
+     * only place the narrowing happens, so it is the only place to check that it still does.
+     */
+    fun wireFormOf(destination: Destination): SharedPoint = SharedPoint(
+        id = destination.id,
+        name = destination.name,
+        position = destination.position,
+        note = destination.note,
+        createdAtMillis = destination.createdAtMillis,
+    )
+
+    /**
+     * What the last fetched feed says about a point.
      *
      * [cachedAtMillis] is the whole point of the signature: without it, "not in the feed" and
      * "there is no feed" collapse into the same empty set, and the app would report a
      * withdrawal complete to a user who has never once been online.
+     *
+     * [published] is the entry from that feed, or null if the feed had no such id. Taking the
+     * whole entry rather than a set of ids is what makes the stale case visible at all — it is
+     * the only way to notice that the id is out there carrying something other than what this
+     * device now holds.
+     *
+     * Everything here reads from the CACHED feed, which is why it works with no signal: a point
+     * edited in airplane mode is stale against the cache immediately, and stays that way until
+     * a fetch shows otherwise.
      */
     fun observationOf(
-        id: String,
-        feedIds: Set<String>,
+        published: SharedPoint?,
+        local: SharedPoint,
         cachedAtMillis: Long?,
     ): ShareObservation = when {
         cachedAtMillis == null -> ShareObservation.NEVER_LOOKED
-        id in feedIds -> ShareObservation.PRESENT
-        else -> ShareObservation.ABSENT
+        published == null -> ShareObservation.ABSENT
+        publishedMatches(published, local) -> ShareObservation.PRESENT_MATCHING
+        else -> ShareObservation.PRESENT_STALE
     }
+
+    /**
+     * Whether the published copy still says what the local point says.
+     *
+     * Compares only the four fields that are published and editable. Not the id, which is the
+     * thing being compared *by*, and not `createdAt`, which an edit never changes — including it
+     * would make every point stale for ever the first time the clock disagreed.
+     *
+     * Field by field rather than by comparing serialised forms: `org.json` gives no ordering
+     * guarantee, so two encodings of the same point can differ as strings and would report a
+     * permanent, invisible staleness.
+     *
+     * Doubles with `==`, deliberately. This is not a comparison of two measurements where a
+     * tolerance would be right — it is "is this the same number I sent", where anything other
+     * than exact equality means something changed.
+     */
+    fun publishedMatches(published: SharedPoint, local: SharedPoint): Boolean =
+        published.name == local.name &&
+            published.position.lat == local.position.lat &&
+            published.position.lon == local.position.lon &&
+            noteOrNull(published.note) == noteOrNull(local.note)
+
+    /**
+     * A blank note and no note are the same thing, and must compare equal.
+     *
+     * The feed parser already turns a blank note into null on the way in. Without the same
+     * normalisation on the local side, a point holding `""` would read as permanently stale
+     * against a published copy holding null: every sync would queue an edit, the edit would
+     * change nothing, and the row would say "not published yet" for ever.
+     */
+    private fun noteOrNull(note: String?): String? = note?.takeIf { it.isNotBlank() }
 
     /**
      * The one place a local instruction and a remote observation become a claim.
@@ -176,13 +255,18 @@ object SharedPoints {
             ShareIntent.PRIVATE -> ShareStatus.NOT_SHARED
 
             ShareIntent.SHARED -> when (observation) {
-                ShareObservation.PRESENT -> ShareStatus.PUBLISHED
+                ShareObservation.PRESENT_MATCHING -> ShareStatus.PUBLISHED
+                ShareObservation.PRESENT_STALE -> ShareStatus.EDIT_UNPUBLISHED
                 ShareObservation.ABSENT -> ShareStatus.PUBLISH_UNCONFIRMED
                 ShareObservation.NEVER_LOOKED -> ShareStatus.PUBLISH_UNCONFIRMED
             }
 
+            // Both present cases collapse to one claim on purpose. The point is public and the
+            // withdrawal is unconfirmed; WHICH version is public does not change what the user
+            // can do about it, and a fourth line of nuance here would cost more than it tells.
             ShareIntent.WITHDRAWN -> when (observation) {
-                ShareObservation.PRESENT -> ShareStatus.STILL_PUBLIC
+                ShareObservation.PRESENT_MATCHING -> ShareStatus.STILL_PUBLIC
+                ShareObservation.PRESENT_STALE -> ShareStatus.STILL_PUBLIC
                 ShareObservation.ABSENT -> ShareStatus.NOT_SHARED
                 ShareObservation.NEVER_LOOKED -> ShareStatus.WITHDRAWAL_UNCONFIRMED
             }

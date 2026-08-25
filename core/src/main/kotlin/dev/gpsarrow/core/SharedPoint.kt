@@ -43,6 +43,9 @@ object SharedPointJson {
     private const val KEY_NOTE = "note"
     private const val KEY_CREATED_AT = "createdAt"
 
+    /** Only ever appears in a pending edit, never in the feed. */
+    private const val KEY_TOKEN = "t"
+
     /**
      * One point node: exactly what the owner opted into and nothing else.
      *
@@ -54,7 +57,11 @@ object SharedPointJson {
             put(KEY_NAME, point.name)
             put(KEY_LAT, point.position.lat)
             put(KEY_LON, point.position.lon)
-            point.note?.let { put(KEY_NOTE, it) }
+            // Blank is omitted as well as null. The reader turns a blank note into null coming
+            // back in, so publishing `""` would produce a point that never compares equal to
+            // itself — permanently "edited but not published", queueing an edit on every sync
+            // that changes nothing. See SharedPoints.publishedMatches.
+            point.note?.takeIf { it.isNotBlank() }?.let { put(KEY_NOTE, it) }
             put(KEY_CREATED_AT, point.createdAtMillis)
         }.toString()
 
@@ -79,6 +86,34 @@ object SharedPointJson {
         JSONObject().apply {
             put("sharedPoints/${point.id}", JSONObject(encodeForPublish(point)))
             put("owners/${point.id}", ownerHash)
+        }.toString()
+
+    /**
+     * The body for `PUT /pendingEdits/<id>.json`: an edit to an already-published point,
+     * carrying the token that authorises it.
+     *
+     * `sharedPoints/<id>` is create-only for clients and stays that way — that create-only rule
+     * is what makes a moderator's deletion stick. So an edit is not a write to the point; it is
+     * a *request*, queued here and applied by the cleanup job, which verifies
+     * `sha256(token) == owners/<id>` before touching anything. Realtime Database rules can
+     * compare strings but cannot hash, so the check has to happen somewhere that can.
+     *
+     * The token sits here in plaintext until the queue is drained. That is the same exposure
+     * `tombstones/<id>` already has — same node kind, same lifetime, same `".read": false` —
+     * and it is why `owners/<id>` can go on holding a digest rather than a secret.
+     *
+     * **An absent note is written as JSON null, not omitted.** The job applies this with a
+     * `PATCH`, and a `PATCH` that omits a key leaves the old value in place — so omitting it
+     * would make "remove this note" the one edit that silently does nothing, which is the edit
+     * most likely to matter.
+     */
+    fun encodePendingEdit(point: SharedPoint, token: String): String =
+        JSONObject().apply {
+            put(KEY_TOKEN, token)
+            put(KEY_NAME, point.name)
+            put(KEY_LAT, point.position.lat)
+            put(KEY_LON, point.position.lon)
+            put(KEY_NOTE, point.note?.takeIf { it.isNotBlank() } ?: JSONObject.NULL)
         }.toString()
 
     /**

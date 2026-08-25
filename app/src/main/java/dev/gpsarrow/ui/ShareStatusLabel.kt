@@ -21,6 +21,7 @@ import dev.gpsarrow.core.ShareStatus
 fun shareStatusLabelRes(status: ShareStatus): Int? = when (status) {
     ShareStatus.NOT_SHARED -> null
     ShareStatus.PUBLISHED -> R.string.shared_badge
+    ShareStatus.EDIT_UNPUBLISHED -> R.string.shared_edit_unpublished
     ShareStatus.PUBLISH_UNCONFIRMED -> R.string.shared_publish_unconfirmed
     ShareStatus.STILL_PUBLIC -> R.string.shared_still_public
     ShareStatus.WITHDRAWAL_UNCONFIRMED -> R.string.shared_withdrawal_unconfirmed

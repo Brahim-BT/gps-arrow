@@ -81,6 +81,70 @@ class SharedPointJsonTest {
         assertTrue(!node.has("note"))
     }
 
+    /**
+     * The queued edit carries the token and the four editable fields — and nothing else. In
+     * particular no `createdAt`: the job applies this with a PATCH, and an edit must not be able
+     * to rewrite when a point was created.
+     */
+    @Test
+    fun `pendingEditCarriesTheTokenAndTheEditableFields`() {
+        val body = JSONObject(
+            SharedPointJson.encodePendingEdit(
+                SharedPoint(
+                    id = "abc-123",
+                    name = "The well",
+                    position = LatLon(18.0735, -16.0289),
+                    note = "bring rope",
+                    createdAtMillis = 1_720_000_000_000,
+                ),
+                token = "a".repeat(64),
+            ),
+        )
+
+        assertEquals(setOf("t", "name", "lat", "lon", "note"), body.keys().asSequence().toSet())
+        assertEquals("a".repeat(64), body.getString("t"))
+        assertEquals("The well", body.getString("name"))
+        assertEquals(18.0735, body.getDouble("lat"), 1e-12)
+        assertEquals("bring rope", body.getString("note"))
+    }
+
+    /**
+     * The one that would be silent if it were wrong. Removing a note is applied by the job as a
+     * `PATCH`, and a PATCH that omits a key leaves the old value — so an absent note has to go
+     * out as an explicit JSON null, or "delete my note" becomes the single edit that does
+     * nothing while the app reports it as sent.
+     */
+    @Test
+    fun `pendingEditWritesAnAbsentNoteAsNullRatherThanOmittingIt`() {
+        listOf(null, "", "   ").forEach { note ->
+            val body = JSONObject(
+                SharedPointJson.encodePendingEdit(
+                    SharedPoint("id-1", "North dune", LatLon(20.0, -10.0), note, 1L),
+                    token = "b".repeat(64),
+                ),
+            )
+            assertTrue("note=${note.toString()}", body.has("note"))
+            assertTrue("note=${note.toString()}", body.isNull("note"))
+        }
+    }
+
+    /**
+     * The publish body does the opposite, and must: it OMITS a blank note. The reader turns a
+     * blank note into null coming back in, so publishing `""` would give a point that never
+     * compares equal to itself and reads as permanently edited-but-not-published.
+     */
+    @Test
+    fun `publishBodyOmitsABlankNoteAsWellAsAnAbsentOne`() {
+        listOf(null, "", "   ").forEach { note ->
+            val body = JSONObject(
+                SharedPointJson.encodeForPublish(
+                    SharedPoint("id-1", "North dune", LatLon(20.0, -10.0), note, 1L),
+                ),
+            )
+            assertTrue("note=${note.toString()}", !body.has("note"))
+        }
+    }
+
     @Test
     fun `roundTripThroughTheFeedKeepsNamesAndCoordinatesExact`() {
         // A name with quotes, backslashes, newlines and non-Latin text — every class of escape

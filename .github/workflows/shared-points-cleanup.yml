@@ -1,36 +1,58 @@
 name: Shared-points cleanup
 
-# Drains the tombstone queue once a day.
+# Drains two queues: edits to published points, then withdrawals.
 #
-# A tombstone is a withdrawal request: the value is the secret token the publishing device
-# minted for that point and kept locally. The point is deleted only when sha256(token) equals
-# the digest stored at owners/<id>, which is a node no client can read. Anyone can WRITE a
-# tombstone — unauthenticated clients have to be able to withdraw their own points, and there is
-# nobody to authenticate them as — so a queued tombstone means nothing until it is checked here.
-# Refusal happens at this step, not at write time.
+# Both queues are unauthenticated writes carrying the secret token the publishing device minted
+# for that point and kept locally. Both are honoured only when sha256(token) equals the digest
+# stored at owners/<id>, which is a node no client can read. This job exists because that check
+# has to happen somewhere that can hash, and Realtime Database rules cannot — they compare
+# strings; they cannot verify a preimage. Anyone can WRITE to either queue, because
+# unauthenticated clients have to be able to act on their own points and there is nobody to
+# authenticate them as. **A queued entry means nothing until this job checks it.**
 #
-# Two properties this file is responsible for, both easy to break by tidying:
+# Four properties this file is responsible for, all easy to break by tidying:
 #
-#  1. **It deletes all THREE nodes.** sharedPoints/<id>, owners/<id> and tombstones/<id>.
-#     Leaving owners/<id> behind makes the id permanently unusable: publishing is one atomic
-#     multi-path PATCH whose write to owners/ is create-only, so it would be refused, and the
-#     point would fail to publish with it. The device would retry forever and the user would see
+#  1. **A hostile queue write costs the owner one cycle and nothing more.** Both queue nodes are
+#     create-only, so a stranger can occupy a point's slot with a wrong token and block the
+#     owner's write until this runs. That is why every path below FREES THE SLOT — accepted,
+#     refused, or nonsensical, the entry is deleted. The owner's device notices on its next sync
+#     that the point is still stale or still public, and queues again. Leave an entry in place on
+#     any path and that path becomes a permanent denial of edit or withdrawal.
+#     Create-only is still the better of the two options: allowing overwrites would let the same
+#     attacker clobber a LEGITIMATE entry at any moment right up to drain time, which is the same
+#     denial with better timing for them.
+#
+#  2. **An edit applies `note` as an explicit delete when it is absent.** The edit body always
+#     carries a `note` key, null when there is none, and it is applied here as an explicit
+#     DELETE of that child rather than left out of the PATCH. A PATCH that omits a key leaves the
+#     old value, which would make "remove my note" the one edit that silently does nothing — and
+#     it is the edit most likely to be the reason someone edited at all.
+#
+#  3. **It deletes all THREE nodes on a withdrawal.** sharedPoints/<id>, owners/<id> and
+#     tombstones/<id>. Leaving owners/<id> behind makes the id permanently unusable: publishing
+#     is one atomic multi-path PATCH whose write to owners/ is create-only, so it would be
+#     refused and take the point with it. The device would retry for ever and the user would see
 #     "not confirmed yet" for the rest of the point's life.
-#  2. **Unmatched tombstones are dropped, not kept.** A tombstone naming a point that does not
-#     exist is either already handled or a stranger's guess. Either way it is queue litter, and
-#     the queue is an unauthenticated write on a 1 GB free tier.
 #
-# Safe to re-run at any time; it only ever deletes what it can prove.
+#  4. **An edit to a point that does not exist is refused, not applied.** That is what keeps
+#     moderation sticky: a hand-deleted point cannot be brought back through the edit queue any
+#     more than it can through the publish path.
+#
+# Safe to re-run at any time; it only ever acts on what it can prove.
 on:
   schedule:
-    - cron: "17 3 * * *"
+    # Every 15 minutes. GitHub's scheduled minimum is 5 and schedules are best-effort — delays
+    # of 5-30 minutes are normal at peak — so this buys "usually minutes" rather than a guarantee.
+    # Deliberately off the hour, which is the busiest slot. Nothing in the app quotes a number
+    # to the user; it reports what it has observed and nothing else.
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  drain-tombstones:
+  drain:
     runs-on: ubuntu-latest
     steps:
       # Needs no checkout: everything it touches lives in Firebase.
@@ -39,9 +61,61 @@ jobs:
         with:
           credentials_json: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
 
-      - name: Drain tombstones
+      - name: Apply pending edits
         env:
           # Paste your Realtime Database URL here (see SETUP_SHARED_POINTS.md step 1).
+          DB: https://YOUR-PROJECT-default-rtdb.YOUR-REGION.firebasedatabase.app
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          edits=$(curl -sSf -H "Authorization: Bearer $TOKEN" "$DB/pendingEdits.json")
+          if [ "$edits" = "null" ]; then echo "no pending edits"; exit 0; fi
+
+          # `while IFS= read -r`, not `for id in $(...)`: an id is a UUID today, but the client's
+          # own id guard permits spaces, and word-splitting would quietly act on the wrong path.
+          echo "$edits" | jq -r 'keys[]' |
+          while IFS= read -r id; do
+            entry=$(echo "$edits" | jq -c --arg id "$id" '.[$id]')
+            offered=$(printf '%s' "$(echo "$entry" | jq -r '.t // ""')" | sha256sum | cut -d' ' -f1)
+            stored=$(curl -sSf -H "Authorization: Bearer $TOKEN" "$DB/owners/$id.json" \
+                     | jq -r 'select(. != null)')
+            point=$(curl -sSf -H "Authorization: Bearer $TOKEN" "$DB/sharedPoints/$id.json")
+
+            # Every branch below deletes the queue entry. See property 1 in the header.
+            if [ "$point" = "null" ]; then
+              curl -sSf -X DELETE -H "Authorization: Bearer $TOKEN" "$DB/pendingEdits/$id.json"
+              echo "::warning::refused edit to $id (no such point) — moderation stays sticky"
+              continue
+            fi
+            if [ -z "$stored" ] || [ "$stored" != "$offered" ]; then
+              curl -sSf -X DELETE -H "Authorization: Bearer $TOKEN" "$DB/pendingEdits/$id.json"
+              echo "::warning::refused edit to $id (token does not match the owner digest)"
+              continue
+            fi
+
+            # The three always-present fields. `t` is dropped: it is the proof, not content.
+            body=$(echo "$entry" | jq -c '{name, lat, lon}')
+            curl -sSf -X PATCH -H "Authorization: Bearer $TOKEN" \
+                 -d "$body" "$DB/sharedPoints/$id.json" >/dev/null
+
+            # `note` separately, because absent must mean DELETE and a PATCH cannot say that —
+            # omitting the key would leave the old note in place. See property 2 in the header.
+            note=$(echo "$entry" | jq -c '.note')
+            if [ "$note" = "null" ]; then
+              curl -sSf -X DELETE -H "Authorization: Bearer $TOKEN" \
+                   "$DB/sharedPoints/$id/note.json"
+            else
+              curl -sSf -X PUT -H "Authorization: Bearer $TOKEN" \
+                   -d "$note" "$DB/sharedPoints/$id/note.json" >/dev/null
+            fi
+
+            curl -sSf -X DELETE -H "Authorization: Bearer $TOKEN" "$DB/pendingEdits/$id.json"
+            echo "applied edit to $id"
+          done
+
+      - name: Drain tombstones
+        env:
+          # Same URL as above.
           DB: https://YOUR-PROJECT-default-rtdb.YOUR-REGION.firebasedatabase.app
           TOKEN: ${{ steps.auth.outputs.access_token }}
         run: |
@@ -70,6 +144,7 @@ jobs:
               # All three, and owners LAST: if the run dies between calls, an id that still has
               # its digest is republishable, whereas one that has lost it is not.
               curl -sSf -X DELETE -H "Authorization: Bearer $TOKEN" "$DB/sharedPoints/$id.json"
+              curl -sSf -X DELETE -H "Authorization: Bearer $TOKEN" "$DB/pendingEdits/$id.json" || true
               curl -sSf -X DELETE -H "Authorization: Bearer $TOKEN" "$DB/tombstones/$id.json"
               curl -sSf -X DELETE -H "Authorization: Bearer $TOKEN" "$DB/owners/$id.json"
               echo "removed $id"

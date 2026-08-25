@@ -157,6 +157,14 @@ STRINGS = [
     # a day", which is a prediction about whether a scheduled job ran, presented to the user as a
     # fact about their camp. Observed state only.
     ("shared_badge", "Publicly shared", "Partagée publiquement", "منشورة للعموم"),
+    # Public, and the public copy is not what this device holds. Both halves are load-bearing:
+    # drop "publicly shared" and the user stops knowing the point is out there at all; drop the
+    # second clause and a correction they have already made looks delivered when it is not.
+    # One string rather than two, so a stale note and a stale coordinate read the same — the
+    # table is worth more for being small enough to check by reading.
+    ("shared_edit_unpublished", "Publicly shared — your edit is not published yet",
+     "Partagée publiquement — votre modification n’est pas encore publiée",
+     "منشورة للعموم — لم يُنشر تعديلك بعد"),
     ("shared_publish_unconfirmed", "Sharing — not confirmed yet",
      "Partage — pas encore confirmé", "قيد النشر — لم يُؤكَّد بعد"),
     ("shared_still_public", "Still public — withdrawal not confirmed",
@@ -649,8 +657,8 @@ SAFETY_KEYS = {
     # when it is not, or public when it never was. The two unconfirmed states are the ones to
     # watch: neither may be rendered as anything a reader could take for a completed act.
     "field_share_public", "field_share_public_caption", "menu_unshare_point",
-    "shared_badge", "shared_publish_unconfirmed", "shared_still_public",
-    "shared_withdrawal_unconfirmed",
+    "shared_badge", "shared_edit_unpublished", "shared_publish_unconfirmed",
+    "shared_still_public", "shared_withdrawal_unconfirmed",
     # What uses the connection, and whether the position leaves the device. Both are flat
     # promises about network behaviour that the user has no way to verify, and both have now
     # been made false once by a feature landing — see the comments on each.

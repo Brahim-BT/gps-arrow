@@ -121,6 +121,24 @@ class SharedPointsApi {
         sendBody(SharedPointsConfig.tombstoneUrl(id), "PUT", JSONObject.quote(token))
 
     /**
+     * Queue an edit to an already-published point, presenting this device's token for it.
+     *
+     * Same shape and same caveats as [queueRemoval], for the same reason: the point node is
+     * create-only for clients, so this is a request the cleanup job verifies and applies, not a
+     * write to the point. A 200 means "queued", never "accepted".
+     *
+     * The queue slot is create-only, so a hostile write can occupy it. That costs the owner one
+     * drain cycle and nothing more — the job frees the slot whether it accepts the edit or
+     * refuses it, and the next sync notices the point is still stale and queues again.
+     */
+    suspend fun queueEdit(point: SharedPoint, token: String): Publish =
+        sendBody(
+            SharedPointsConfig.pendingEditUrl(point.id),
+            "PUT",
+            SharedPointJson.encodePendingEdit(point, token),
+        )
+
+    /**
      * `PATCH` the database root, via the method-override header.
      *
      * `HttpURLConnection` refuses `setRequestMethod("PATCH")` outright — its allowed set is

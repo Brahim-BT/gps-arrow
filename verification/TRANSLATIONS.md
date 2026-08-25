@@ -14,8 +14,8 @@ literally, at the cost of elegance, on the principle that a smooth translation w
 
 **The marks are a reviewed judgement, not something the emitter can infer.** They come from
 `SAFETY_KEYS` in the table. A newly added string is unmarked until someone reads it and adds it
-there, so an unmarked row means "not yet judged" as well as "not safety-carrying". 40 of
-267 rows are marked.
+there, so an unmarked row means "not yet judged" as well as "not safety-carrying". 41 of
+268 rows are marked.
 
 
 ## Product name and tabs
@@ -144,6 +144,7 @@ there, so an unmarked row means "not yet judged" as well as "not safety-carrying
 |  | `cd_edit` | Edit %1$s | Modifier %1$s | تعديل %1$s |
 |  | `cd_delete` | Delete %1$s | Supprimer %1$s | حذف %1$s |
 | **!** | `shared_badge` | Publicly shared | Partagée publiquement | منشورة للعموم |
+| **!** | `shared_edit_unpublished` | Publicly shared — your edit is not published yet | Partagée publiquement — votre modification n’est pas encore publiée | منشورة للعموم — لم يُنشر تعديلك بعد |
 | **!** | `shared_publish_unconfirmed` | Sharing — not confirmed yet | Partage — pas encore confirmé | قيد النشر — لم يُؤكَّد بعد |
 | **!** | `shared_still_public` | Still public — withdrawal not confirmed | Toujours public — arrêt non confirmé | لا تزال منشورة — لم يُؤكَّد إيقاف النشر |
 | **!** | `shared_withdrawal_unconfirmed` | Withdrawal not confirmed | Arrêt non confirmé | لم يُؤكَّد إيقاف النشر |

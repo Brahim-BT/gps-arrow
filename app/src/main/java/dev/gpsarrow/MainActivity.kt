@@ -264,16 +264,24 @@ private fun AppRoot(
     //
     // Derived, never stored: the local intent is certain, the feed observation is not, and
     // `sharedCachedAt == null` is the difference between "your point is not in the feed" and
-    // "no feed has ever been fetched here". Remembered on both inputs so the lambda is stable
-    // between syncs and the list can still skip recomposition.
+    // "no feed has ever been fetched here".
+    //
+    // Keyed by id and holding the whole entry rather than a set of ids — comparing the published
+    // copy against the local one is the only way to notice that a point is public while carrying
+    // something other than what the user has since typed. Remembered on both inputs so the
+    // lambda stays stable between syncs and the list can go on skipping recomposition.
     val sharedCachedAt by viewModel.sharedCachedAtMillis.collectAsStateWithLifecycle()
-    val sharedFeedIds = remember(sharedPoints) { sharedPoints.map { it.id }.toSet() }
+    val publishedById = remember(sharedPoints) { sharedPoints.associateBy { it.id } }
     val shareStatusOf: (Destination) -> ShareStatus =
-        remember(sharedFeedIds, sharedCachedAt) {
+        remember(publishedById, sharedCachedAt) {
             { destination ->
                 SharedPoints.statusOf(
                     destination.shareIntent,
-                    SharedPoints.observationOf(destination.id, sharedFeedIds, sharedCachedAt),
+                    SharedPoints.observationOf(
+                        published = publishedById[destination.id],
+                        local = SharedPoints.wireFormOf(destination),
+                        cachedAtMillis = sharedCachedAt,
+                    ),
                 )
             }
         }

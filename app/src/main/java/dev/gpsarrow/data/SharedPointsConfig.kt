@@ -30,4 +30,14 @@ object SharedPointsConfig {
     fun rootUrl() = "$BASE_URL/.json"
 
     fun tombstoneUrl(id: String) = "$BASE_URL/tombstones/$id.json"
+
+    /**
+     * Where an edit to an already-published point is queued.
+     *
+     * A queue rather than a write, for the same reason withdrawal is: `sharedPoints/<id>` is
+     * create-only for clients and stays so — that rule is what makes a moderator's deletion
+     * stick — and the token can only be verified by something that can hash, which database
+     * rules cannot.
+     */
+    fun pendingEditUrl(id: String) = "$BASE_URL/pendingEdits/$id.json"
 }

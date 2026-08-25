@@ -112,48 +112,128 @@ class SharedPointsTest {
         assertTrue(SharedPoints.isPublishableId("well by the road"))
     }
 
+    // ---------------------------------------------------------------- the wire form
+
+    /**
+     * The narrowing that is the privacy policy, asserted rather than described.
+     *
+     * [SharedPoint] has no field for the star, the last-used stamp, the fix accuracy or the
+     * share intent, so this cannot fail while the types hold — which is the point: if somebody
+     * widens the wire format one day, this test is where the argument for it has to be made.
+     */
+    @Test
+    fun `theWireFormCarriesOnlyWhatTheOwnerOptedInTo`() {
+        val saved = Destination(
+            id = "id-1",
+            name = "The well",
+            position = LatLon(18.0735, -16.0289),
+            note = "bring rope",
+            createdAtMillis = 7L,
+            source = "manual",
+            isFavourite = true,
+            lastUsedAtMillis = 99L,
+            accuracyMeters = 4.5f,
+            shareIntent = ShareIntent.SHARED,
+        )
+
+        val wire = SharedPoints.wireFormOf(saved)
+
+        assertEquals(
+            SharedPoint("id-1", "The well", LatLon(18.0735, -16.0289), "bring rope", 7L),
+            wire,
+        )
+    }
+
     // ---------------------------------------------------------------- what may be claimed
+
+    private val local = SharedPoint("a", "The well", LatLon(18.0735, -16.0289), "bring rope", 7L)
 
     @Test
     fun `withNoCacheNothingHasBeenObserved`() {
         assertEquals(
             ShareObservation.NEVER_LOOKED,
-            SharedPoints.observationOf("a", feedIds = setOf("a"), cachedAtMillis = null),
+            SharedPoints.observationOf(published = local, local = local, cachedAtMillis = null),
         )
     }
 
     @Test
     fun `aCachedFeedDistinguishesPresentFromAbsent`() {
         assertEquals(
-            ShareObservation.PRESENT,
-            SharedPoints.observationOf("a", setOf("a", "b"), cachedAtMillis = 1L),
+            ShareObservation.PRESENT_MATCHING,
+            SharedPoints.observationOf(local, local, cachedAtMillis = 1L),
         )
         assertEquals(
             ShareObservation.ABSENT,
-            SharedPoints.observationOf("a", setOf("b"), cachedAtMillis = 1L),
+            SharedPoints.observationOf(null, local, cachedAtMillis = 1L),
         )
+    }
+
+    /** Each published field on its own, so a comparison that quietly stops covering one shows. */
+    @Test
+    fun `anEditToAnyPublishedFieldReadsAsStale`() {
+        listOf(
+            local.copy(name = "The other well"),
+            local.copy(position = LatLon(18.0736, -16.0289)),
+            local.copy(position = LatLon(18.0735, -16.0290)),
+            local.copy(note = "bring two ropes"),
+            local.copy(note = null),
+        ).forEach { published ->
+            assertEquals(
+                published.toString(),
+                ShareObservation.PRESENT_STALE,
+                SharedPoints.observationOf(published, local, cachedAtMillis = 1L),
+            )
+        }
+    }
+
+    /**
+     * The id is what the two sides are matched BY, and `createdAt` is never edited. Including
+     * either in the comparison would make points stale for ever rather than never.
+     */
+    @Test
+    fun `idAndCreatedAtAreNotPartOfTheComparison`() {
+        assertTrue(SharedPoints.publishedMatches(local.copy(id = "different"), local))
+        assertTrue(SharedPoints.publishedMatches(local.copy(createdAtMillis = 999L), local))
+    }
+
+    /**
+     * A blank note and no note are the same thing. If they were not, a point holding `""` would
+     * be stale against its own published copy for ever: every sync would queue an edit, the edit
+     * would change nothing, and the row would say "not published yet" permanently.
+     */
+    @Test
+    fun `aBlankNoteAndNoNoteAreTheSameThing`() {
+        val blank = local.copy(note = "")
+        val spaces = local.copy(note = "   ")
+        val absent = local.copy(note = null)
+        assertTrue(SharedPoints.publishedMatches(absent, blank))
+        assertTrue(SharedPoints.publishedMatches(blank, absent))
+        assertTrue(SharedPoints.publishedMatches(spaces, absent))
         assertEquals(
-            ShareObservation.ABSENT,
-            SharedPoints.observationOf("a", emptySet(), cachedAtMillis = 1L),
+            ShareObservation.PRESENT_MATCHING,
+            SharedPoints.observationOf(absent, blank, cachedAtMillis = 1L),
         )
     }
 
     /**
-     * The whole table, spelled out. It is nine rows and it is the entire honesty argument of
+     * The whole table, spelled out. It is twelve rows and it is the entire honesty argument of
      * this feature, so it is pinned rather than described.
      */
     @Test
     fun `everyIntentAndObservationPairMapsToOneClaim`() {
         val expected = mapOf(
-            (ShareIntent.PRIVATE to ShareObservation.PRESENT) to ShareStatus.NOT_SHARED,
+            (ShareIntent.PRIVATE to ShareObservation.PRESENT_MATCHING) to ShareStatus.NOT_SHARED,
+            (ShareIntent.PRIVATE to ShareObservation.PRESENT_STALE) to ShareStatus.NOT_SHARED,
             (ShareIntent.PRIVATE to ShareObservation.ABSENT) to ShareStatus.NOT_SHARED,
             (ShareIntent.PRIVATE to ShareObservation.NEVER_LOOKED) to ShareStatus.NOT_SHARED,
 
-            (ShareIntent.SHARED to ShareObservation.PRESENT) to ShareStatus.PUBLISHED,
+            (ShareIntent.SHARED to ShareObservation.PRESENT_MATCHING) to ShareStatus.PUBLISHED,
+            (ShareIntent.SHARED to ShareObservation.PRESENT_STALE) to ShareStatus.EDIT_UNPUBLISHED,
             (ShareIntent.SHARED to ShareObservation.ABSENT) to ShareStatus.PUBLISH_UNCONFIRMED,
             (ShareIntent.SHARED to ShareObservation.NEVER_LOOKED) to ShareStatus.PUBLISH_UNCONFIRMED,
 
-            (ShareIntent.WITHDRAWN to ShareObservation.PRESENT) to ShareStatus.STILL_PUBLIC,
+            (ShareIntent.WITHDRAWN to ShareObservation.PRESENT_MATCHING) to ShareStatus.STILL_PUBLIC,
+            (ShareIntent.WITHDRAWN to ShareObservation.PRESENT_STALE) to ShareStatus.STILL_PUBLIC,
             (ShareIntent.WITHDRAWN to ShareObservation.ABSENT) to ShareStatus.NOT_SHARED,
             (ShareIntent.WITHDRAWN to ShareObservation.NEVER_LOOKED) to
                 ShareStatus.WITHDRAWAL_UNCONFIRMED,
@@ -187,7 +267,26 @@ class SharedPointsTest {
             ShareStatus.WITHDRAWAL_UNCONFIRMED,
             SharedPoints.statusOf(
                 ShareIntent.WITHDRAWN,
-                SharedPoints.observationOf("mine", feedIds = emptySet(), cachedAtMillis = null),
+                SharedPoints.observationOf(published = null, local = local, cachedAtMillis = null),
+            ),
+        )
+    }
+
+    /**
+     * The offline edit, which is the same discipline one step along: a user with no signal
+     * changes a published point and must be told the world still has the old one. It reads off
+     * the CACHED feed, so it is true immediately and stays true until a fetch says otherwise.
+     */
+    @Test
+    fun `anOfflineEditIsReportedAsUnpublishedFromTheCachedFeedAlone`() {
+        val cached = local                          // what the last fetch saw
+        val edited = local.copy(note = null)        // what the user has just done, offline
+
+        assertEquals(
+            ShareStatus.EDIT_UNPUBLISHED,
+            SharedPoints.statusOf(
+                ShareIntent.SHARED,
+                SharedPoints.observationOf(cached, edited, cachedAtMillis = 1L),
             ),
         )
     }
@@ -235,6 +334,6 @@ class SharedPointsTest {
         }.filter { (intent, observation) ->
             SharedPoints.statusOf(intent, observation) == ShareStatus.PUBLISHED
         }
-        assertEquals(listOf(ShareIntent.SHARED to ShareObservation.PRESENT), certain)
+        assertEquals(listOf(ShareIntent.SHARED to ShareObservation.PRESENT_MATCHING), certain)
     }
 }
