@@ -27,7 +27,6 @@ class SharedPointJsonTest {
                     note = "bring rope",
                     createdAtMillis = 1_720_000_000_000,
                 ),
-                deviceId = "device-7",
             ),
         )
 
@@ -36,7 +35,9 @@ class SharedPointJsonTest {
         assertEquals(-16.0289, body.getDouble("lon"), 1e-12)
         assertEquals("bring rope", body.getString("note"))
         assertEquals(1_720_000_000_000L, body.getLong("createdAt"))
-        assertEquals("device-7", body.getString("deviceId"))
+        // Five keys, and no sixth. The point node is the privacy policy made concrete, so this
+        // asserts the absence as hard as the presence: an owner id here would be world-readable.
+        assertEquals(setOf("name", "lat", "lon", "note", "createdAt"), body.keys().asSequence().toSet())
     }
 
     /** A null note is OMITTED, not written as JSON null — the rules reject nothing either way,
@@ -51,10 +52,33 @@ class SharedPointJsonTest {
                     position = LatLon(20.0, -10.0),
                     createdAtMillis = 1L,
                 ),
-                deviceId = "d",
             ),
         )
         assertTrue(!body.has("note"))
+    }
+
+    /**
+     * The atomic pair. If these two paths could ever land separately, the failure mode is a
+     * public point with no owner digest — visible to everyone and withdrawable by nobody.
+     */
+    @Test
+    fun `publishPatchWritesThePointAndTheOwnerDigestAtTheirOwnPaths`() {
+        val point = SharedPoint(
+            id = "abc-123",
+            name = "Camp",
+            position = LatLon(31.5, -8.0),
+            note = null,
+            createdAtMillis = 7L,
+        )
+
+        val patch = JSONObject(SharedPointJson.encodePublishPatch(point, ownerHash = "deadbeef"))
+
+        assertEquals(setOf("sharedPoints/abc-123", "owners/abc-123"), patch.keys().asSequence().toSet())
+        assertEquals("deadbeef", patch.getString("owners/abc-123"))
+        val node = patch.getJSONObject("sharedPoints/abc-123")
+        assertEquals("Camp", node.getString("name"))
+        assertEquals(31.5, node.getDouble("lat"), 1e-12)
+        assertTrue(!node.has("note"))
     }
 
     @Test
@@ -62,6 +86,8 @@ class SharedPointJsonTest {
         // A name with quotes, backslashes, newlines and non-Latin text — every class of escape
         // the JSON string format has.
         val nasty = "Wells \"old\" \\new\\ ماء\nline2"
+        // An id this app would refuse to publish — see SharedPoints.isPublishableId — because
+        // the reader must tolerate whatever is already in the feed, not only what it writes.
         val point = SharedPoint(
             id = "point/with odd;chars",
             name = nasty,
@@ -70,7 +96,7 @@ class SharedPointJsonTest {
             createdAtMillis = 99L,
         )
         val feed = JSONObject()
-            .put(point.id, JSONObject(SharedPointJson.encodeForPublish(point, "d")))
+            .put(point.id, JSONObject(SharedPointJson.encodeForPublish(point)))
             .toString()
 
         val parsed = SharedPointJson.decodeFeed(feed)

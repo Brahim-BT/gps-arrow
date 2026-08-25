@@ -18,7 +18,16 @@ object SharedPointsConfig {
     /** REST paths against the base URL. Centralised so the shapes live in one sentence. */
     fun feedUrl() = "$BASE_URL/sharedPoints.json"
 
-    fun pointUrl(id: String) = "$BASE_URL/sharedPoints/$id.json"
+    /**
+     * The database root, which is where publishing writes.
+     *
+     * Publishing is a multi-path update covering `sharedPoints/<id>` and `owners/<id>`, and a
+     * multi-path update has to be addressed at the common ancestor of the paths it names. There
+     * is deliberately no `pointUrl(id)` any more: a write that could touch the point without
+     * touching its owner digest is exactly the half-published state the atomic shape exists to
+     * make impossible.
+     */
+    fun rootUrl() = "$BASE_URL/.json"
 
     fun tombstoneUrl(id: String) = "$BASE_URL/tombstones/$id.json"
 }

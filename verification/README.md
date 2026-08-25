@@ -16,9 +16,10 @@ build — once you have Android Studio open, `./gradlew :core:test` is the real 
 | `exhaustive_check.py` | Every `when` over a project enum handles every constant or says `else`. Runnable alone. |
 | `sealed_check.py` | The same for sealed interfaces and classes, which `exhaustive_check.py` does not see. Added with the v1 map work, which introduced three sealed hierarchies at once. Runnable alone. |
 | `pmtiles_header_fixtures.py` | Builds PMTiles v3 headers from the spec's byte table and emits `PmtilesTest.kt`. An implementation independent of `Pmtiles.kt`, so the two agreeing means something. Re-run after changing either. |
-| `strings_table.py` | The single aligned table of every user-facing string in English, French and Arabic. |
+| `strings_table.py` | The single aligned table of every user-facing string in English, French and Arabic, plus `SAFETY_KEYS` — the reviewed list of which of them carry safety meaning. |
 | `emit_strings.py` | Emits `values/`, `values-fr/` and `values-ar/` from it, then checks the three key sets and all format specifiers match. Run after editing the table; never hand-edit one language's file. |
-| `TRANSLATIONS.md` | The three languages side by side for review, with the safety-critical rows marked. |
+| `emit_translations.py` | Emits `TRANSLATIONS.md` from the same table. Run after `emit_strings.py` — it refuses to run before, so the document cannot describe strings the app does not ship. |
+| `TRANSLATIONS.md` | Generated. The three languages side by side for review, with the safety-carrying rows marked. |
 
 Run them with `python3 <script>` from anywhere; they locate the repo root from their own path
 and refuse to run if they cannot find it. Only `wmm_reference.py` has a dependency.
@@ -147,6 +148,33 @@ Re-verified after the change — the regression table above still holds, plus:
 | root with no enums | fail | `refusing to report success on an empty scan` |
 | not a repo root at all | fail | `no settings.gradle.kts under ... — this is not the repo root` |
 
+## A document that said it was generated, and was not
+
+`TRANSLATIONS.md` opened with "Generated from `verification/strings_table.py`". No script
+generated it; it was written by hand once and that line was aspirational. By the time anyone
+looked it held 191 of the table's 257 keys — 26% stale, still naming the app by a name it no
+longer used, still showing a permission string that had been replaced, and missing
+`position_stale`, `value_unknown`, `about_map_attribution` and the whole `diag_course_*` set.
+
+The missing rows were not a random 26%. Staleness accumulates at the end, so the absent strings
+were the *newest* ones, and on this project the newest strings are disproportionately the safety
+ones — each was added because some state was being asserted without warrant. The document
+existed to get the safety-carrying strings read in three languages side by side, and those were
+precisely the rows it did not have.
+
+This is the same shape as the two checkers that scanned nothing: **the claim of being checked is
+what stops anyone checking.** Nobody diffs a file whose header says it is generated. The fix is
+`emit_translations.py`, which makes the header true, refuses to run unless the three
+`strings.xml` already carry the table's exact key set, and re-parses its own output and compares
+it back to the table rather than trusting that it wrote what it meant to write.
+
+One thing it deliberately does *not* do is infer which rows are safety-carrying. That is a
+reading of what a string claims, not a property a script can compute, so it lives in
+`SAFETY_KEYS` in the table; the emitter only checks that every key named there still exists, so a
+rename cannot silently drop a mark. The document says outright that an unmarked row means "not
+yet judged" as well as "not safety-carrying", because a marking scheme that looks complete and
+is not would be the same bug again in a smaller font.
+
 ## What these checkers cannot see
 
 Read this before assuming more of them than they promise. Every entry here has reached CI at
@@ -190,9 +218,36 @@ looked.
 | `LocationEngine.status()` | "location is off" — before the permission dialog was answered |
 | `_gnss` initial value | "location is off" — on the first frame, before any emission |
 | `MapCamera` restored as `0,0,0` | a real camera at null island, indistinguishable from none |
+| `Destination.isPublic` | "this point is published" — having never fetched a feed |
 
 The fix is always the same: make the third state representable, and never assert a problem from
 it. Showing nothing briefly is fine; showing a false instruction is not.
+
+The fifth is the one that shows the shape at its worst, and it is worth reading the diagnosis
+rather than only the fix. `isPublic` carried a *remote* fact in a local Boolean, and its own KDoc
+said so — "it can be true while the publish request is still in flight or has failed... nothing
+here may assume the flag matches the server" — while the list rendered "Publicly shared" straight
+off it. The comment was right and the code did the thing the comment forbade, which is what
+happens when the type cannot express what the comment knows.
+
+Two things generalise from it:
+
+- **A comment is not a constraint.** If the honest statement about a field is "nothing may assume
+  X", and the field's type permits assuming X, something eventually will. The fix was not a
+  better comment; it was splitting the field into the half that is local and certain (an
+  *intent*) and the half that is remote and may be absent (an *observation*, derived at read
+  time from the cached feed), so the uncertain state has nowhere to hide.
+- **The dangerous direction is the reassuring one.** The other four instances asserted a
+  *problem* prematurely — "no map", "location is off" — which is annoying and self-correcting.
+  This one asserted *success*: tap the switch off with no signal and the badge disappeared, so
+  the user was told their camp was private while it was still on every other user's map. Nothing
+  in the app would ever correct that, and the user had no way to find out. When judging one of
+  these, ask which way the premature assertion falls.
+
+There is a matching rule about what may be *said*, which is the same discipline one layer up: do
+not replace an unknown with a forecast. "Gone within about a day" is a prediction about whether a
+scheduled job ran, and presenting it as a fact about the user's own camp is the same defect
+wearing better clothes. Report what was observed.
 
 ### 2. Something runs at a rate you did not intend
 

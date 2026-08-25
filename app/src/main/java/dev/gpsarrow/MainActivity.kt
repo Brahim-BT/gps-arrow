@@ -61,6 +61,8 @@ import dev.gpsarrow.core.DistanceUnits
 import dev.gpsarrow.core.Format
 import dev.gpsarrow.core.Geo
 import dev.gpsarrow.core.ParseResult
+import dev.gpsarrow.core.ShareIntent
+import dev.gpsarrow.core.ShareStatus
 import dev.gpsarrow.core.SharedPoints
 import dev.gpsarrow.locale.AppLanguage
 import dev.gpsarrow.locale.AppLocale
@@ -257,6 +259,24 @@ private fun AppRoot(
     LaunchedEffect(tab) {
         if (tab == AppTab.MAP) viewModel.syncSharedPointsIfDue()
     }
+
+    // What the app may claim about the user's own points being public.
+    //
+    // Derived, never stored: the local intent is certain, the feed observation is not, and
+    // `sharedCachedAt == null` is the difference between "your point is not in the feed" and
+    // "no feed has ever been fetched here". Remembered on both inputs so the lambda is stable
+    // between syncs and the list can still skip recomposition.
+    val sharedCachedAt by viewModel.sharedCachedAtMillis.collectAsStateWithLifecycle()
+    val sharedFeedIds = remember(sharedPoints) { sharedPoints.map { it.id }.toSet() }
+    val shareStatusOf: (Destination) -> ShareStatus =
+        remember(sharedFeedIds, sharedCachedAt) {
+            { destination ->
+                SharedPoints.statusOf(
+                    destination.shareIntent,
+                    SharedPoints.observationOf(destination.id, sharedFeedIds, sharedCachedAt),
+                )
+            }
+        }
 
     // Which shared dot is tapped. The selection holds only the ID: the feed can refresh under
     // it, so holding the point itself could keep showing a copy that no longer exists.
@@ -473,12 +493,13 @@ private fun AppRoot(
                             currentPosition = state.fix?.position,
                             editing = open.destination,
                             sharingAvailable = SharedPointsConfig.isConfigured,
-                            onSave = { name, position, _, isPublic ->
+                            shareStatus = shareStatusOf(open.destination),
+                            onSave = { name, position, _, sharePublicly ->
                                 viewModel.updateDestination(
                                     open.destination.id,
                                     name,
                                     position,
-                                    isPublic = isPublic,
+                                    sharePublicly = sharePublicly,
                                 ) {
                                     highlightId = open.destination.id
                                     editor = null
@@ -495,8 +516,8 @@ private fun AppRoot(
                             onDraftChange = { addDraft = it },
                             currentPosition = state.fix?.position,
                             sharingAvailable = SharedPointsConfig.isConfigured,
-                            onSave = { name, position, source, isPublic ->
-                                viewModel.saveDestination(name, position, source, isPublic) { saved ->
+                            onSave = { name, position, source, sharePublicly ->
+                                viewModel.saveDestination(name, position, source, sharePublicly) { saved ->
                                     addDraft = CoordinateDraft.EMPTY
                                     // Clear the filters, or a new point that doesn't match the
                                     // active search would be saved into an invisible row.
@@ -614,6 +635,7 @@ private fun AppRoot(
                         sort = sort,
                         units = units,
                         sharingAvailable = SharedPointsConfig.isConfigured,
+                        shareStatus = shareStatusOf,
                         query = searchQuery,
                         onQueryChange = { searchQuery = it },
                         favouritesOnly = favouritesOnly,
@@ -630,7 +652,10 @@ private fun AppRoot(
                                 name = it.name,
                                 latText = Format.coordinate(it.position.lat),
                                 lonText = Format.coordinate(it.position.lon),
-                                isPublic = it.isPublic,
+                                // The switch opens showing the instruction, not the observation:
+                                // a point the user asked to withdraw shows it off even while the
+                                // status line underneath says the withdrawal is unconfirmed.
+                                sharePublicly = it.shareIntent == ShareIntent.SHARED,
                             )
                             editor = Editor.Existing(it)
                         },
@@ -838,7 +863,7 @@ private fun AppRoot(
 /** Keeps a half-typed coordinate across process death, not just across tab switches. */
 private val CoordinateDraftSaver = listSaver<CoordinateDraft, String>(
     save = {
-        listOf(it.name, it.latText, it.lonText, it.readAs.orEmpty(), it.isPublic.toString())
+        listOf(it.name, it.latText, it.lonText, it.readAs.orEmpty(), it.sharePublicly.toString())
     },
     restore = {
         CoordinateDraft(
@@ -846,7 +871,9 @@ private val CoordinateDraftSaver = listSaver<CoordinateDraft, String>(
             latText = it[1],
             lonText = it[2],
             readAs = it[3].ifEmpty { null },
-            isPublic = it.getOrNull(4) == "true",
+            // A restore that cannot read the flag leaves the switch off. Process death must
+            // never be able to turn sharing on.
+            sharePublicly = it.getOrNull(4) == "true",
         )
     },
 )

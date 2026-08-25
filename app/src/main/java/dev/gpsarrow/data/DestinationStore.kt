@@ -3,7 +3,9 @@ package dev.gpsarrow.data
 import android.content.Context
 import android.util.Log
 import dev.gpsarrow.core.Destination
+import dev.gpsarrow.core.DestinationEdit
 import dev.gpsarrow.core.LatLon
+import dev.gpsarrow.core.ShareIntent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,7 +45,8 @@ class DestinationStore(context: Context) {
         source: String = "manual",
         /** Accuracy of the fix this came from; null when it was typed, pasted or imported. */
         accuracyMeters: Float? = null,
-        isPublic: Boolean = false,
+        /** Off unless the editor's share switch was on when the point was saved. */
+        shareIntent: ShareIntent = ShareIntent.PRIVATE,
     ): Destination = withContext(Dispatchers.IO) {
         val destination = Destination(
             id = UUID.randomUUID().toString(),
@@ -53,7 +56,7 @@ class DestinationStore(context: Context) {
             createdAtMillis = System.currentTimeMillis(),
             source = source,
             accuracyMeters = accuracyMeters,
-            isPublic = isPublic,
+            shareIntent = shareIntent,
         )
         _destinations.value = _destinations.value + destination
         write(_destinations.value)
@@ -67,31 +70,32 @@ class DestinationStore(context: Context) {
         write(_destinations.value)
     }
 
-    /** Full edit: name, position and note in one write. Keeps id and createdAt. */
+    /**
+     * Apply the editor's name and position. Keeps id, createdAt, the note, the star and
+     * everything else the editor does not present — see [DestinationEdit.applied], which holds
+     * the rules and the test that pins them.
+     *
+     * There is deliberately **no `note` parameter**. It used to take one, defaulted to null, and
+     * assign it unconditionally; since nothing in the app edits notes, every edit erased the
+     * note it was not editing. Adding note editing means adding a way to say "unchanged" that is
+     * distinct from "cleared", not restoring a defaulted parameter.
+     *
+     * There is deliberately **no sharing parameter either**, for a related reason. It briefly
+     * had one, and that was how the share switch came to write a local flag and publish
+     * nothing: an edit path can only change stored fields, and sharing is a stored field plus a
+     * network act. It goes through [setShareIntent] and the view model, which owns both halves.
+     */
     suspend fun update(
         id: String,
         name: String,
         position: LatLon,
-        note: String? = null,
-        /** Tri-state: null leaves the sharing flag as it was. */
-        isPublic: Boolean? = null,
     ): Destination? = withContext(Dispatchers.IO) {
         var updated: Destination? = null
         _destinations.value = _destinations.value.map {
             if (it.id != id) {
                 it
             } else {
-                it.copy(
-                    name = name.ifBlank { it.name },
-                    position = position,
-                    note = note,
-                    isPublic = isPublic ?: it.isPublic,
-                    // A hand-typed coordinate is no longer the fix it came from, so the fix's
-                    // accuracy has stopped describing it. Keep the badge only if the position
-                    // is byte-identical; otherwise drop it rather than let it vouch for a
-                    // number the receiver never produced.
-                    accuracyMeters = if (position == it.position) it.accuracyMeters else null,
-                ).also { edited -> updated = edited }
+                DestinationEdit.applied(it, name, position).also { edited -> updated = edited }
             }
         }
         write(_destinations.value)
@@ -99,12 +103,16 @@ class DestinationStore(context: Context) {
     }
 
     /**
-     * Flip only the sharing flag. A separate method rather than an [update] call because the
-     * list-row action must not need — or risk — the full edit payload.
+     * Record what the user asked for regarding sharing, and nothing else.
+     *
+     * Local and immediate. Delivering the instruction — publishing, or queueing a withdrawal —
+     * is the view model's job, and the two are separate on purpose: this write must survive
+     * being offline, and the network act must not be able to make it look as though it did not
+     * happen.
      */
-    suspend fun setPublic(id: String, public: Boolean) = withContext(Dispatchers.IO) {
+    suspend fun setShareIntent(id: String, intent: ShareIntent) = withContext(Dispatchers.IO) {
         _destinations.value = _destinations.value.map {
-            if (it.id == id) it.copy(isPublic = public) else it
+            if (it.id == id) it.copy(shareIntent = intent) else it
         }
         write(_destinations.value)
     }
@@ -165,7 +173,15 @@ class DestinationStore(context: Context) {
                         } else {
                             null
                         },
-                        isPublic = o.optBoolean("public", false),
+                        // Absent means PRIVATE, and so does anything unrecognised — the one
+                        // field where guessing wrong puts a coordinate on the internet defaults
+                        // in the safe direction. `public: true` is read for the handful of
+                        // devices that ran the branch before this became three-valued.
+                        shareIntent = if (o.optBoolean(KEY_LEGACY_PUBLIC, false)) {
+                            ShareIntent.SHARED
+                        } else {
+                            ShareIntent.fromStoredName(o.optString(KEY_SHARE).takeIf { it.isNotEmpty() })
+                        },
                     ),
                 )
             }
@@ -189,7 +205,9 @@ class DestinationStore(context: Context) {
                     // Omitted rather than written as 0 when unknown: absent and "perfect" must
                     // not collapse to the same thing on the way back in.
                     d.accuracyMeters?.let { put(KEY_ACCURACY, it.toDouble()) }
-                    if (d.isPublic) put("public", true)
+                    // Written by name, and omitted entirely for PRIVATE, so the common case
+                    // leaves no sharing field in the file at all.
+                    if (d.shareIntent != ShareIntent.PRIVATE) put(KEY_SHARE, d.shareIntent.name)
                 },
             )
         }
@@ -207,7 +225,7 @@ class DestinationStore(context: Context) {
     fun toGpx(list: List<Destination> = _destinations.value): String = buildString {
         appendLine("""<?xml version="1.0" encoding="UTF-8"?>""")
         appendLine(
-            """<gpx version="1.1" creator="GPS Arrow" xmlns="http://www.topografix.com/GPX/1/1">""",
+            """<gpx version="1.1" creator="GPS Baibbat" xmlns="http://www.topografix.com/GPX/1/1">""",
         )
         list.forEach { d ->
             appendLine("""  <wpt lat="${d.position.lat}" lon="${d.position.lon}">""")
@@ -242,5 +260,9 @@ class DestinationStore(context: Context) {
         const val FILE_NAME = "destinations.json"
         const val TAG = "DestinationStore"
         const val KEY_ACCURACY = "accuracyM"
+        const val KEY_SHARE = "share"
+
+        /** The two-state field this replaced. Read, never written. */
+        const val KEY_LEGACY_PUBLIC = "public"
     }
 }

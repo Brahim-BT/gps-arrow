@@ -8,10 +8,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
-import java.util.UUID
 
 /**
- * The on-device copy of the shared feed, and the anonymous device identity.
+ * The on-device copy of the shared feed.
  *
  * Offline-first like everything else in this app: the dots on the map come from this file, so a
  * user with no signal still sees what they saw last time the map could refresh. The file is one
@@ -20,15 +19,23 @@ import java.util.UUID
  * The stored shape reuses the wire format for the points themselves — `{id: {…}}`, parsed by
  * [SharedPointJson.decodeFeed] — plus two envelope fields (`cachedAt`, `etag`) the server never
  * sees.
+ *
+ * This file is also the *evidence* half of the sharing status. [Snapshot.cachedAtMillis] being
+ * null is the difference between "your point is not in the feed" and "no feed has ever been
+ * fetched on this device", and those two must never collapse — see
+ * [dev.gpsarrow.core.SharedPoints.observationOf].
+ *
+ * It used to own an anonymous device id as well. That concept is gone entirely; withdrawal is
+ * authorised per point by [ShareTokenStore].
  */
 class SharedPointCache(context: Context) {
 
     private val file = File(context.filesDir, FILE_NAME)
-    private val deviceFile = File(context.filesDir, DEVICE_FILE_NAME)
 
     data class Snapshot(
         val points: List<SharedPoint>,
         val etag: String?,
+        /** Null means no feed has ever been fetched — not "the feed was empty". */
         val cachedAtMillis: Long?,
     )
 
@@ -47,9 +54,7 @@ class SharedPointCache(context: Context) {
                 etag?.let { root.put("etag", it) }
                 val encoded = JSONObject()
                 points.forEach { p ->
-                    // The publish body minus the device id — that field is transport-only and
-                    // must not sit in a file the user can open with any file manager.
-                    encoded.put(p.id, JSONObject(SharedPointJson.encodeForPublish(p, "")))
+                    encoded.put(p.id, JSONObject(SharedPointJson.encodeForPublish(p)))
                 }
                 root.put("points", encoded)
                 atomicWrite(root.toString(2))
@@ -64,23 +69,6 @@ class SharedPointCache(context: Context) {
             root.put("cachedAt", nowMillis)
             atomicWrite(root.toString(2))
         }.onFailure { Log.w(TAG, "could not refresh cache timestamp", it) }
-    }
-
-    /**
-     * A random identifier that says only "same device as before". No account, no hardware id,
-     * nothing that follows the user across installs or devices — it exists so un-sharing can
-     * later be verified to touch only this device's own points.
-     */
-    suspend fun deviceId(): String = withContext(Dispatchers.IO) {
-        try {
-            deviceFile.takeIf { it.exists() }?.readText()?.trim()?.takeIf { it.isNotEmpty() }
-                ?: UUID.randomUUID().toString().also {
-                    deviceFile.writeText(it)
-                }
-        } catch (e: Exception) {
-            Log.w(TAG, "device id unavailable; publishing without one", e)
-            ""
-        }
     }
 
     private fun read(): Snapshot {
@@ -108,6 +96,5 @@ class SharedPointCache(context: Context) {
     private companion object {
         const val TAG = "SharedPointCache"
         const val FILE_NAME = "shared_points.json"
-        const val DEVICE_FILE_NAME = "device_id.txt"
     }
 }

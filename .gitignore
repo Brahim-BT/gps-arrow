@@ -55,6 +55,11 @@ __pycache__/
 # so a stray *.bak must at least never reach a commit.
 *.bak
 
+# Code review write-ups, kept locally to read. `push.sh` does `git add -A`, so anything left in
+# the working tree gets committed by default — these are working notes about a branch, not part
+# of the project's own documentation, and they go stale the moment the branch is fixed.
+REVIEW_*.md
+
 # ---- Map extracts ----
 # Region files are cut with `pmtiles extract` (REGION_FILES.md) and distributed as GitHub
 # release assets, never as repo contents. They are hundreds of megabytes; GitHub hard-rejects

@@ -1,8 +1,25 @@
 name: Shared-points cleanup
 
-# Drains the tombstone queue once a day: for each queued id, if the stored point's deviceId
-# matches the device that queued the removal, the point is deleted and the tombstone cleared.
-# A mismatch is reported and left alone — that is a moderation case, not an automatic one.
+# Drains the tombstone queue once a day.
+#
+# A tombstone is a withdrawal request: the value is the secret token the publishing device
+# minted for that point and kept locally. The point is deleted only when sha256(token) equals
+# the digest stored at owners/<id>, which is a node no client can read. Anyone can WRITE a
+# tombstone — unauthenticated clients have to be able to withdraw their own points, and there is
+# nobody to authenticate them as — so a queued tombstone means nothing until it is checked here.
+# Refusal happens at this step, not at write time.
+#
+# Two properties this file is responsible for, both easy to break by tidying:
+#
+#  1. **It deletes all THREE nodes.** sharedPoints/<id>, owners/<id> and tombstones/<id>.
+#     Leaving owners/<id> behind makes the id permanently unusable: publishing is one atomic
+#     multi-path PATCH whose write to owners/ is create-only, so it would be refused, and the
+#     point would fail to publish with it. The device would retry forever and the user would see
+#     "not confirmed yet" for the rest of the point's life.
+#  2. **Unmatched tombstones are dropped, not kept.** A tombstone naming a point that does not
+#     exist is either already handled or a stranger's guess. Either way it is queue litter, and
+#     the queue is an unauthenticated write on a 1 GB free tier.
+#
 # Safe to re-run at any time; it only ever deletes what it can prove.
 on:
   schedule:
@@ -32,14 +49,34 @@ jobs:
           tombs=$(curl -sSf -H "Authorization: Bearer $TOKEN" "$DB/tombstones.json")
           if [ "$tombs" = "null" ]; then echo "queue empty"; exit 0; fi
           echo "$tombs" | jq -r 'to_entries[] | "\(.key)\t\(.value)"' |
-          while IFS=$'\t' read -r id owner; do
-            stored=$(curl -sSf -H "Authorization: Bearer $TOKEN" "$DB/sharedPoints/$id.json" \
-                     | jq -r '.deviceId // empty')
-            if [ "$stored" = "$owner" ]; then
+          while IFS=$'\t' read -r id token; do
+            point=$(curl -sSf -H "Authorization: Bearer $TOKEN" "$DB/sharedPoints/$id.json")
+            if [ "$point" = "null" ]; then
+              # Nothing to withdraw. Clear the queue entry and the orphaned digest with it, so a
+              # later legitimate re-share of the same id is not blocked by a create-only write.
+              curl -sSf -X DELETE -H "Authorization: Bearer $TOKEN" "$DB/owners/$id.json"
+              curl -sSf -X DELETE -H "Authorization: Bearer $TOKEN" "$DB/tombstones/$id.json"
+              echo "dropped $id (no such point)"
+              continue
+            fi
+
+            stored=$(curl -sSf -H "Authorization: Bearer $TOKEN" "$DB/owners/$id.json" \
+                     | jq -r 'select(. != null)')
+            # Lower-case hex, matching ShareToken.hash on the device. `printf %s` so no trailing
+            # newline is hashed; `cut` because sha256sum prints "<digest>  -".
+            offered=$(printf '%s' "$token" | sha256sum | cut -d' ' -f1)
+
+            if [ -n "$stored" ] && [ "$stored" = "$offered" ]; then
+              # All three, and owners LAST: if the run dies between calls, an id that still has
+              # its digest is republishable, whereas one that has lost it is not.
               curl -sSf -X DELETE -H "Authorization: Bearer $TOKEN" "$DB/sharedPoints/$id.json"
               curl -sSf -X DELETE -H "Authorization: Bearer $TOKEN" "$DB/tombstones/$id.json"
+              curl -sSf -X DELETE -H "Authorization: Bearer $TOKEN" "$DB/owners/$id.json"
               echo "removed $id"
             else
-              echo "::warning::kept $id (deviceId mismatch — review manually)"
+              # Somebody offered a token that does not hash to the stored digest. That is the
+              # scheme working, not a fault: drop the guess and leave the point alone.
+              curl -sSf -X DELETE -H "Authorization: Bearer $TOKEN" "$DB/tombstones/$id.json"
+              echo "::warning::refused $id (token does not match the owner digest) — point kept"
             fi
           done

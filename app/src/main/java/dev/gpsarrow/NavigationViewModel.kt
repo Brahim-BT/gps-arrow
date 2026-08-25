@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.gpsarrow.core.Destination
 import dev.gpsarrow.core.DestinationSort
+import dev.gpsarrow.core.CourseEstimator
 import dev.gpsarrow.core.FixQuality
 import dev.gpsarrow.core.Format
 import dev.gpsarrow.core.Fix
@@ -15,10 +16,13 @@ import dev.gpsarrow.core.Geo
 import dev.gpsarrow.core.HeadingArbiter
 import dev.gpsarrow.core.LatLon
 import dev.gpsarrow.core.NavigationState
+import dev.gpsarrow.core.ShareIntent
+import dev.gpsarrow.core.ShareToken
 import dev.gpsarrow.core.SharedPoint
 import dev.gpsarrow.core.SharedPointJson
 import dev.gpsarrow.core.SharedPoints
 import dev.gpsarrow.data.DestinationStore
+import dev.gpsarrow.data.ShareTokenStore
 import dev.gpsarrow.data.SharedPointCache
 import dev.gpsarrow.data.SharedPointsApi
 import dev.gpsarrow.data.SharedPointsConfig
@@ -91,10 +95,22 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
     // be as incapable of disturbing the arrow as the map download is.
 
     private val sharedCache = SharedPointCache(appContext)
+    private val shareTokens = ShareTokenStore(appContext)
     private val sharedApi = SharedPointsApi()
 
     private val _sharedPoints = MutableStateFlow<List<SharedPoint>>(emptyList())
     val sharedPoints: StateFlow<List<SharedPoint>> = _sharedPoints.asStateFlow()
+
+    /**
+     * When a feed was last fetched, or **null if one never has been on this device**.
+     *
+     * Exposed rather than kept private because it is half of every honest statement the UI makes
+     * about sharing: without it, "your point is not in the feed" and "no feed has ever been
+     * fetched" are the same empty list, and the app would report a withdrawal complete to a user
+     * who has never once been online. See [SharedPoints.observationOf].
+     */
+    private val _sharedCachedAtMillis = MutableStateFlow<Long?>(null)
+    val sharedCachedAtMillis: StateFlow<Long?> = _sharedCachedAtMillis.asStateFlow()
 
     private var sharedEtag: String? = null
     private var sharedSyncJob: Job? = null
@@ -103,28 +119,46 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
      * Refresh the feed if it is due. Called when the map tab opens; deliberately never from a
      * timer, so the layer costs nothing while nobody is looking at it.
      */
-    fun syncSharedPointsIfDue() {
+    fun syncSharedPointsIfDue() = syncSharedPoints(force = false)
+
+    /**
+     * @param force skip the staleness dwell. Used right after a share or a withdrawal, so the
+     *   next thing the user sees is an observation rather than a guess — an online user's badge
+     *   settles in a second instead of in six hours, and an offline user's correctly does not.
+     */
+    private fun syncSharedPoints(force: Boolean) {
         if (!SharedPointsConfig.isConfigured) return
         if (sharedSyncJob?.isActive == true) return
         sharedSyncJob = viewModelScope.launch {
             val snapshot = runCatching { sharedCache.load() }.getOrNull() ?: return@launch
-            if (!SharedPoints.shouldRefresh(snapshot.cachedAtMillis, System.currentTimeMillis())) {
+            val now = System.currentTimeMillis()
+            if (!force && !SharedPoints.shouldRefresh(snapshot.cachedAtMillis, now)) {
                 sharedSyncJob = null
                 return@launch
             }
-            when (val result = sharedApi.fetch(sharedEtag ?: snapshot.etag)) {
+            // Only present an ETag when there is a cache the ETag describes. A 304 answered
+            // against a stamp-less cache would mark the feed observed while holding no points,
+            // and every shared point would read as absent.
+            val etag = if (snapshot.cachedAtMillis != null) sharedEtag ?: snapshot.etag else null
+            when (val result = sharedApi.fetch(etag)) {
                 is SharedPointsApi.Fetch.Fresh -> {
                     val points = SharedPointJson.decodeFeed(result.body)
                     _sharedPoints.value = points
                     sharedEtag = result.etag
-                    runCatching {
-                        sharedCache.save(points, result.etag, System.currentTimeMillis())
-                    }
-                    republishPending(points)
+                    runCatching { sharedCache.save(points, result.etag, now) }
+                    _sharedCachedAtMillis.value = now
+                    reconcileWithFeed(points)
                 }
 
-                SharedPointsApi.Fetch.NotModified ->
-                    runCatching { sharedCache.touch(System.currentTimeMillis()) }
+                // A 304 is an observation too: it says the cached feed IS the current one. So
+                // it stamps freshness and reconciles against the cache, rather than doing
+                // nothing — a withdrawal that could not be delivered last time gets its retry
+                // here as much as it would after a full body.
+                SharedPointsApi.Fetch.NotModified -> {
+                    runCatching { sharedCache.touch(now) }
+                    _sharedCachedAtMillis.value = now
+                    reconcileWithFeed(snapshot.points)
+                }
 
                 is SharedPointsApi.Fetch.Failed ->
                     Log.w(TAG, "shared-points refresh failed: ${result.detail}")
@@ -134,64 +168,127 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Publish again any local point marked public that the fresh feed does not know.
+     * Deliver, against a freshly observed feed, whatever the user asked for and this device has
+     * not managed to hand over yet.
      *
-     * This is the whole retry policy: a publish attempted offline, or refused once, is retried
-     * automatically the next time a sync succeeds — no queue file, no backoff state, nothing to
-     * get stuck. A point the user has un-shared still sits in the feed until its tombstone is
-     * drained, and being present in the feed means it correctly does NOT re-publish here.
+     * This is the whole retry policy, and it runs in **both** directions — which is the half
+     * that was missing. A publish attempted offline is retried because the point is absent while
+     * the intent says shared; a withdrawal attempted offline is retried because the point is
+     * present while the intent says withdrawn. No queue file, no backoff state, nothing to get
+     * stuck: the difference between what was asked for and what is out there is recomputed from
+     * scratch every time, so it self-corrects after any sync rather than accumulating.
      */
-    private suspend fun republishPending(feed: List<SharedPoint>) {
+    private suspend fun reconcileWithFeed(feed: List<SharedPoint>) {
         val remoteIds = feed.map { it.id }.toSet()
-        val deviceId = sharedCache.deviceId()
-        store.destinations.value
-            .filter { it.isPublic && it.id !in remoteIds }
-            .filter { SharedPoints.canPublish(it.id, it.name, it.position.lat, it.position.lon, it.note) }
-            .forEach { destination ->
-                val result = sharedApi.publish(
-                    destination.id,
-                    destination.toSharedPoint(),
-                    deviceId,
-                )
-                if (result is SharedPointsApi.Publish.Failed) {
-                    Log.w(TAG, "publish of ${destination.id} failed: ${result.detail}")
-                }
+        store.destinations.value.forEach { destination ->
+            when (destination.shareIntent) {
+                ShareIntent.PRIVATE -> Unit
+                ShareIntent.SHARED ->
+                    if (destination.id !in remoteIds) publishNow(destination)
+                ShareIntent.WITHDRAWN ->
+                    if (destination.id in remoteIds) withdrawNow(destination.id)
             }
+        }
     }
 
-    /** Share or un-share a saved point. The local flag flips immediately; the network follows. */
-    fun setDestinationShared(destination: Destination, shared: Boolean) {
-        viewModelScope.launch {
-            store.setPublic(destination.id, shared)
+    /**
+     * Share or stop sharing one saved point.
+     *
+     * The single entry point for changing sharing, and the reason there is only one: the
+     * previous version had the switch route through the ordinary edit path, which wrote the
+     * local flag and published nothing, so ticking the box showed "Publicly shared" while
+     * nothing left the device and unticking it hid the badge while the point stayed public
+     * forever. Recording and delivering are both here, in that order.
+     *
+     * [onRecorded] fires as soon as the local instruction is on disk, before any network work,
+     * so an editor can close on a phone with no signal exactly as fast as on one with signal.
+     */
+    fun setDestinationShared(
+        destination: Destination,
+        sharePublicly: Boolean,
+        onRecorded: () -> Unit = {},
+    ) {
+        viewModelScope.launch { applyShare(destination, sharePublicly, onRecorded) }
+    }
+
+    private suspend fun applyShare(
+        destination: Destination,
+        sharePublicly: Boolean,
+        onRecorded: () -> Unit = {},
+    ) {
+        val intent = SharedPoints.intentAfterSwitch(destination.shareIntent, sharePublicly)
+        if (intent != destination.shareIntent) {
+            store.setShareIntent(destination.id, intent)
             if (_state.value.destination?.id == destination.id) {
                 _state.value =
-                    _state.value.copy(destination = destination.copy(isPublic = shared))
+                    _state.value.copy(destination = destination.copy(shareIntent = intent))
             }
-            if (!SharedPointsConfig.isConfigured || shared == destination.isPublic) return@launch
-            if (shared) {
-                if (!SharedPoints.canPublish(
-                        destination.id,
-                        destination.name,
-                        destination.position.lat,
-                        destination.position.lon,
-                        destination.note,
-                    )
-                ) {
-                    return@launch
-                }
-                val result = sharedApi.publish(
-                    destination.id,
-                    destination.copy(isPublic = true).toSharedPoint(),
-                    sharedCache.deviceId(),
-                )
-                if (result is SharedPointsApi.Publish.Failed) {
-                    Log.w(TAG, "publish failed (will retry on next sync): ${result.detail}")
-                }
-            } else {
-                val result = sharedApi.queueRemoval(destination.id, sharedCache.deviceId())
-                if (result is SharedPointsApi.Publish.Failed) {
-                    Log.w(TAG, "removal queued failed: ${result.detail}")
-                }
+        }
+        onRecorded()
+
+        if (!SharedPointsConfig.isConfigured) return
+        // Delivered even when the instruction did not change, because "already asked for" and
+        // "already delivered" are different things and this device may still owe the server the
+        // second one. Both calls are create-or-queue and cost one refused request at worst.
+        val delivered = when (intent) {
+            ShareIntent.PRIVATE -> false
+            ShareIntent.SHARED -> publishNow(destination.copy(shareIntent = intent))
+            ShareIntent.WITHDRAWN -> withdrawNow(destination.id)
+        }
+        // Go and look, so the next thing shown is observed rather than assumed.
+        if (delivered) syncSharedPoints(force = true)
+    }
+
+    /**
+     * Publish one point: mint or reuse its withdrawal token, **write it to disk**, then send the
+     * atomic pair.
+     *
+     * The order is the requirement. A token that reached the server but never reached this
+     * device is a point the user can never withdraw, so a token that cannot be persisted refuses
+     * the publish outright rather than risking it.
+     */
+    private suspend fun publishNow(destination: Destination): Boolean {
+        if (!SharedPoints.canPublish(
+                destination.id,
+                destination.name,
+                destination.position.lat,
+                destination.position.lon,
+                destination.note,
+            )
+        ) {
+            Log.w(TAG, "not publishing ${destination.id}: fails the publish rules")
+            return false
+        }
+        val token = shareTokens.mint(destination.id) ?: return false
+        return when (val result = sharedApi.publish(destination.toSharedPoint(), ShareToken.hash(token))) {
+            SharedPointsApi.Publish.Done -> true
+            is SharedPointsApi.Publish.Failed -> {
+                Log.w(TAG, "publish failed (retried on the next sync): ${result.detail}")
+                false
+            }
+        }
+    }
+
+    /**
+     * Queue a withdrawal by presenting this device's token for the point.
+     *
+     * A missing token — app data cleared, or the point published from a device the user no
+     * longer has — means the withdrawal cannot be delivered from here at all. Nothing pretends
+     * otherwise: the intent stays [ShareIntent.WITHDRAWN] and the status keeps saying the
+     * withdrawal is unconfirmed, which is the true statement.
+     */
+    private suspend fun withdrawNow(id: String): Boolean {
+        if (!SharedPoints.isPublishableId(id)) return false
+        val token = shareTokens.tokenFor(id)
+        if (token == null) {
+            Log.w(TAG, "no withdrawal token for $id; this device cannot withdraw it")
+            return false
+        }
+        return when (val result = sharedApi.queueRemoval(id, token)) {
+            SharedPointsApi.Publish.Done -> true
+            is SharedPointsApi.Publish.Failed -> {
+                Log.w(TAG, "withdrawal queue failed (retried on the next sync): ${result.detail}")
+                false
             }
         }
     }
@@ -244,6 +341,13 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
     private var locationJob: Job? = null
     private var headingJob: Job? = null
 
+    // Course-over-ground bookkeeping, fed one fix at a time. The estimate is computed BEFORE
+    // the new fix overwrites _state, because the estimator's whole job is comparing this fix
+    // against what came before it.
+    private var courseState: CourseEstimator.State? = null
+    private var derivedCourseDeg: Double? = null
+    private var chipCourseTrusted: Boolean = true
+
     // Diagnostics only. Counters are the fastest way to tell "sensor is dead" apart from
     // "sensor is alive but the value never reaches the UI".
     private var rawCompassDeg: Double? = null
@@ -263,10 +367,16 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
 
         // The cached feed loads with everything else, so the map shows dots on the very first
         // frame; a refresh only happens later, when the map tab is opened and the cache is due.
+        //
+        // cachedAtMillis is carried across with the points because it is what the sharing badges
+        // are entitled to claim from. Until this lands it stays null, which reads as "nothing
+        // has been observed" — the correct answer during the first few milliseconds, and the
+        // permanent one for a device that has never been online.
         viewModelScope.launch {
             runCatching { sharedCache.load() }.onSuccess { snapshot ->
                 _sharedPoints.value = snapshot.points
                 sharedEtag = snapshot.etag
+                _sharedCachedAtMillis.value = snapshot.cachedAtMillis
             }
         }
 
@@ -366,6 +476,21 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun applyFix(fix: Fix, acquiring: Boolean) {
         fixUpdateCount++
+        // The estimator compares this fix with the previous one, so it runs before _state
+        // (still holding the previous fix) is overwritten. Wrapped like everything else that
+        // touches geometry: a failure here degrades to trusting the chip, never to a crash.
+        runCatching { CourseEstimator.update(courseState, fix) }
+            .onSuccess { estimate ->
+                courseState = estimate.state
+                derivedCourseDeg = estimate.derivedCourseDeg
+                chipCourseTrusted = estimate.chipTrusted
+            }
+            .onFailure {
+                Log.w(TAG, "course estimation failed; trusting the chip bearing", it)
+                derivedCourseDeg = null
+                chipCourseTrusted = true
+            }
+
         // Declination changes slowly with position; recompute per fix, it costs microseconds.
         val dec = runCatching {
             declination.declinationDegrees(fix.position, fix.altitudeMeters ?: 0.0)
@@ -387,6 +512,8 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
             compassDeg = compassDeg,
             magnetometerReliable = compassReliable,
             previousSource = current.headingSource,
+            derivedCourseDeg = derivedCourseDeg,
+            chipCourseTrusted = chipCourseTrusted,
         )
         if (heading != current.headingDeg || source != current.headingSource) {
             _state.value = current.copy(headingDeg = heading, headingSource = source)
@@ -405,16 +532,24 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
         id: String,
         name: String,
         position: LatLon,
-        isPublic: Boolean? = null,
+        /** The editor's share switch. Routed through [applyShare], never through [store.update]. */
+        sharePublicly: Boolean = false,
         onDone: () -> Unit = {},
     ) {
         viewModelScope.launch {
-            val updated = store.update(id, name, position, isPublic = isPublic)
+            val updated = store.update(id, name, position)
             // Keep the live navigation target in step with the edit.
             if (updated != null && _state.value.destination?.id == id) {
                 _state.value = _state.value.copy(destination = updated)
             }
-            onDone()
+            if (updated == null) {
+                onDone()
+                return@launch
+            }
+            // onDone is handed to applyShare rather than called here, so it fires once the
+            // instruction is on disk and before the network work — the editor closes at the same
+            // speed with and without signal.
+            applyShare(updated, sharePublicly, onDone)
         }
     }
 
@@ -538,6 +673,22 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
                 valueRes = s.headingChipRes(),
             ),
             degRow(R.string.diag_heading_smoothed, s.headingDeg),
+            // The course-over-ground story in three rows: what the chip claims, what geometry
+            // derived from consecutive positions says, and whether the chip is currently
+            // believed. A frozen-bearing device reports here as trusted=false with the two
+            // courses disagreeing — the exact signature of the driving freeze this panel exists
+            // to diagnose.
+            degRow(R.string.diag_course_chip, fix?.bearingDeg?.toDouble()),
+            degRow(R.string.diag_course_derived, derivedCourseDeg),
+            Diagnostic(
+                R.string.diag_course_trust,
+                chipCourseTrusted.toString(),
+                valueRes = if (chipCourseTrusted) {
+                    R.string.diag_course_trusted
+                } else {
+                    R.string.diag_course_distrusted
+                },
+            ),
             degRow(R.string.diag_compass_raw, rawCompassDeg),
             degRow(R.string.diag_compass_smoothed, smoothedCompassDeg),
             degRow(
@@ -615,11 +766,23 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
         name: String,
         position: LatLon,
         source: String,
-        isPublic: Boolean = false,
+        /** The editor's share switch, on a brand-new point. */
+        sharePublicly: Boolean = false,
         onDone: (Destination) -> Unit = {},
     ) {
         viewModelScope.launch {
-            onDone(store.add(name, position, source = source, isPublic = isPublic))
+            val saved = store.add(
+                name,
+                position,
+                source = source,
+                shareIntent = if (sharePublicly) ShareIntent.SHARED else ShareIntent.PRIVATE,
+            )
+            // Saved with the intent already on it, so the screen can close now; the publish
+            // that follows is the network half and must not hold the UI open.
+            onDone(saved)
+            if (sharePublicly && SharedPointsConfig.isConfigured) {
+                if (publishNow(saved)) syncSharedPoints(force = true)
+            }
         }
     }
 

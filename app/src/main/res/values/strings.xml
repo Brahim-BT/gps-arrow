@@ -9,7 +9,7 @@
 <resources>
 
     <!-- Product name and tabs -->
-    <string name="app_name">GPS Arrow</string>
+    <string name="app_name">GPS Baibbat</string>
     <string name="navigate_here">Navigate here</string>
     <string name="app_subtitle">NAVIGATOR</string>
     <string name="tab_arrow">Arrow</string>
@@ -107,6 +107,9 @@
     <string name="cd_edit">Edit %1$s</string>
     <string name="cd_delete">Delete %1$s</string>
     <string name="shared_badge">Publicly shared</string>
+    <string name="shared_publish_unconfirmed">Sharing — not confirmed yet</string>
+    <string name="shared_still_public">Still public — withdrawal not confirmed</string>
+    <string name="shared_withdrawal_unconfirmed">Withdrawal not confirmed</string>
     <string name="menu_unshare_point">Stop sharing</string>
     <string name="selected_destination">▸ %1$s</string>
     <string name="accuracy_suffix"> · ±%1$s m</string>
@@ -143,7 +146,7 @@
     <string name="save_point">Save point</string>
     <string name="save_changes">Save changes</string>
     <string name="field_share_public">Share publicly</string>
-    <string name="field_share_public_caption">Anyone using GPS Arrow will see this point’s name, coordinates and note.</string>
+    <string name="field_share_public_caption">Anyone using %1$s will see this point’s name, coordinates and note. You can stop sharing later — but anyone who already has it keeps their copy.</string>
     <string name="plus_code_label">Plus code %1$s</string>
     <string name="mgrs_label">MGRS %1$s</string>
     <string name="pasteable_formats">Pasteable formats</string>
@@ -191,7 +194,7 @@
     <string name="permission_title_precise">Precise location needed</string>
     <string name="permission_title_location">Location permission</string>
     <string name="permission_body_approximate">You granted approximate location. An arrow pointing at a destination needs precise GPS — approximate is accurate to about a kilometre, which would point you the wrong way.</string>
-    <string name="permission_body_initial">GPS Arrow reads your position from the GPS satellites directly. Nothing is sent anywhere — this build has no internet permission at all.</string>
+    <string name="permission_body_initial">Your position is read from the GPS satellites directly, and is not sent anywhere unless you choose to share a saved point. The internet is otherwise used only for downloading an offline area when you ask, and for refreshing the shared points when you open the map.</string>
     <string name="permission_grant_precise">Grant precise location</string>
     <string name="permission_continue">Continue</string>
     <string name="permission_open_settings">Open app settings</string>
@@ -262,7 +265,7 @@
     <string name="about_declination_source">Magnetic model</string>
     <string name="about_declination_framework">Android built-in (WMM2020)</string>
     <string name="about_declination_note">Across the area this app covers, magnetic declination differs from the current model by under 0.2°, which is smaller than the model’s own uncertainty.</string>
-    <string name="about_offline">Navigating never uses the internet. The only thing that does is downloading an offline area, and only when you ask for it.</string>
+    <string name="about_offline">Navigating never uses the internet. Downloading an offline area, and publishing a point you chose to share, happen only when you ask. Opening the map also refreshes the points other people have shared.</string>
     <string name="about_map_attribution">Map data: © OpenStreetMap contributors, ODbL.</string>
     <string name="about_attribution">Magnetic model: NOAA/NGA World Magnetic Model, public domain.</string>
 
@@ -279,6 +282,11 @@
     <string name="diag_arrow_angle">arrow angle</string>
     <string name="diag_arbiter_mode">heading source</string>
     <string name="diag_heading_smoothed">heading (smoothed)</string>
+    <string name="diag_course_chip">course from receiver</string>
+    <string name="diag_course_derived">course from movement</string>
+    <string name="diag_course_trust">receiver course trust</string>
+    <string name="diag_course_trusted">trusted</string>
+    <string name="diag_course_distrusted">stale — using movement</string>
     <string name="diag_compass_raw">compass raw</string>
     <string name="diag_compass_smoothed">compass smoothed</string>
     <string name="diag_raw_minus_smoothed">raw − smoothed</string>

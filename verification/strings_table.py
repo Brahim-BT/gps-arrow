@@ -4,7 +4,7 @@
 # (key, en, fr, ar)
 STRINGS = [
     ("SECTION", "Product name and tabs", None, None),
-    ("app_name", "GPS Arrow", "GPS Arrow", "GPS Arrow"),
+    ("app_name", "GPS Baibbat", "GPS Baibbat", "GPS Baibbat"),
     # Referenced from AndroidManifest.xml for the geo: intent filter's activity label.
     ("navigate_here", "Navigate here", "Naviguer jusqu\u2019ici", "\u0627\u0644\u062a\u0648\u062c\u0647 \u0625\u0644\u0649 \u0647\u0646\u0627"),
     ("app_subtitle", "NAVIGATOR", "NAVIGATEUR", "الملاح"),
@@ -146,7 +146,25 @@ STRINGS = [
     ("cd_unstar", "Unstar %1$s", "Retirer %1$s des favoris", "إزالة %1$s من المفضّلة"),
     ("cd_edit", "Edit %1$s", "Modifier %1$s", "تعديل %1$s"),
     ("cd_delete", "Delete %1$s", "Supprimer %1$s", "حذف %1$s"),
+    # What the app is allowed to say about one of the user's own points being public.
+    #
+    # Exactly one of these four is a claim about the world — shared_badge, reached only by having
+    # seen the point in a fetched feed. The other three name the uncertainty instead of resolving
+    # it, and the reason they exist is the row where a permanently-offline user taps the switch
+    # off: the app must not report a withdrawal it has no way to have observed.
+    #
+    # None of them forecasts. There was a version that said the point would be gone "within about
+    # a day", which is a prediction about whether a scheduled job ran, presented to the user as a
+    # fact about their camp. Observed state only.
     ("shared_badge", "Publicly shared", "Partagée publiquement", "منشورة للعموم"),
+    ("shared_publish_unconfirmed", "Sharing — not confirmed yet",
+     "Partage — pas encore confirmé", "قيد النشر — لم يُؤكَّد بعد"),
+    ("shared_still_public", "Still public — withdrawal not confirmed",
+     "Toujours public — arrêt non confirmé", "لا تزال منشورة — لم يُؤكَّد إيقاف النشر"),
+    ("shared_withdrawal_unconfirmed", "Withdrawal not confirmed",
+     "Arrêt non confirmé", "لم يُؤكَّد إيقاف النشر"),
+    # Promises cessation, and only cessation — see field_share_public_caption. All three already
+    # say that and none of them should be "smoothed" into anything that sounds like deletion.
     ("menu_unshare_point", "Stop sharing", "Ne plus partager", "إيقاف النشر"),
     ("selected_destination", "▸ %1$s", "▸ %1$s", "▸ %1$s"),
     ("accuracy_suffix", " · ±%1$s m", " · ±%1$s m", " · ±%1$s م"),
@@ -194,11 +212,22 @@ STRINGS = [
     # The opt-in that makes the point public. The caption states exactly what becomes visible,
     # because a toggle without its consequence reads as private-by-default to the people who
     # most need to know it is not.
+    #
+    # It also states the part that cannot be undone, and states it here rather than beside the
+    # off switch, because that is the only moment it is still avoidable. Stopping sharing is
+    # cessation, not retrieval: it stops new people seeing the point, and does nothing about
+    # anyone who already has it — every client caches the feed to disk, and "save as mine" makes
+    # a permanent copy that is then an ordinary point of theirs.
+    #
+    # The app name is a placeholder fed from app_name, not spelled out. It was spelled out in all
+    # three languages, and a rename then left this one string naming the app by a name it no
+    # longer used — visible to users, in the sentence asking for their consent. A placeholder
+    # cannot go stale; another literal would just re-arm the same trap for the next rename.
     ("field_share_public", "Share publicly", "Partager publiquement", "نشر للعموم"),
     ("field_share_public_caption",
-     "Anyone using GPS Arrow will see this point’s name, coordinates and note.",
-     "Toute personne utilisant GPS Arrow verra le nom, les coordonnées et la note de ce point.",
-     "سيرى كل مستخدمو GPS Arrow اسم هذه النقطة وإحداثياتها وملاحظتها."),
+     "Anyone using %1$s will see this point’s name, coordinates and note. You can stop sharing later — but anyone who already has it keeps their copy.",
+     "Toute personne utilisant %1$s verra le nom, les coordonnées et la note de ce point. Vous pouvez arrêter le partage plus tard — mais toute personne qui l’a déjà en garde une copie.",
+     "سيرى كل مستخدمي %1$s اسم هذه النقطة وإحداثياتها وملاحظتها. يمكنك إيقاف النشر لاحقاً — لكن من حصل عليها من قبل يحتفظ بنسخته."),
     ("plus_code_label", "Plus code %1$s", "Plus code %1$s", "‏Plus code %1$s"),
     ("mgrs_label", "MGRS %1$s", "MGRS %1$s", "‏MGRS %1$s"),
     ("pasteable_formats", "Pasteable formats", "Formats acceptés", "الصيغ المقبولة"),
@@ -291,10 +320,31 @@ STRINGS = [
      "You granted approximate location. An arrow pointing at a destination needs precise GPS — approximate is accurate to about a kilometre, which would point you the wrong way.",
      "Vous avez accordé la localisation approximative. Une flèche qui pointe vers une destination a besoin du GPS précis : l’approximatif est précis à environ un kilomètre, ce qui vous enverrait dans la mauvaise direction.",
      "لقد منحت إذن الموقع التقريبي. السهم الذي يشير إلى وجهة يحتاج إلى GPS دقيق — الموقع التقريبي دقته نحو كيلومتر واحد، وهو ما سيوجّهك في الاتجاه الخطأ."),
+    # This claimed "Nothing is sent anywhere — this build has no internet permission at all".
+    # Both halves stopped being true when map downloads landed: the manifest has declared
+    # INTERNET since then, and the app does make requests. It now says the thing that is both
+    # true and what the user is actually asking at a location prompt — that their POSITION never
+    # leaves the device — and names the one thing that does use the connection, in the same words
+    # as about_offline, so the two cannot drift apart again.
+    #
+    # The general rule, learned twice now: a reassurance phrased as "this app cannot do X" dates
+    # the moment X is added, while one phrased as "X is the only thing that does" survives. Any
+    # new network use must be added to BOTH strings or neither is true.
+    #
+    # Which is what happened next. Shared points made two clauses here false at once — the
+    # enumeration ("the only thing") and, for the first time, the flat promise that the position
+    # is never sent anywhere. It is still true by default and still true for anyone who never
+    # touches the share switch, but "never" was doing work the app can no longer back, so it now
+    # names the one act that sends a position and says it is the user's.
+    #
+    # The app is also no longer named here. It was spelled out in all three languages, which is
+    # how a rename left the sharing caption naming the app by a name it had stopped using. There
+    # is nothing in this sentence that needs the name, so the safest fix was to remove the
+    # dependency rather than parameterise it.
     ("permission_body_initial",
-     "GPS Arrow reads your position from the GPS satellites directly. Nothing is sent anywhere — this build has no internet permission at all.",
-     "GPS Arrow lit votre position directement depuis les satellites GPS. Rien n’est envoyé nulle part : cette version n’a aucune autorisation d’accès à Internet.",
-     "يقرأ GPS Arrow موقعك مباشرة من الأقمار الصناعية. لا يُرسل أي شيء إلى أي جهة — هذه النسخة لا تملك إذن الوصول إلى الإنترنت إطلاقاً."),
+     "Your position is read from the GPS satellites directly, and is not sent anywhere unless you choose to share a saved point. The internet is otherwise used only for downloading an offline area when you ask, and for refreshing the shared points when you open the map.",
+     "Votre position est lue directement depuis les satellites GPS et n’est envoyée nulle part, sauf si vous choisissez de partager un point enregistré. Internet ne sert par ailleurs qu’à télécharger une zone hors ligne à votre demande, et à actualiser les points partagés quand vous ouvrez la carte.",
+     "يُقرأ موقعك مباشرة من الأقمار الصناعية، ولا يُرسل إلى أي جهة إلا إذا اخترت مشاركة نقطة محفوظة. وبخلاف ذلك لا يُستخدم الإنترنت إلا لتنزيل منطقة للاستخدام دون اتصال عندما تطلب ذلك، ولتحديث النقاط المنشورة عند فتح الخريطة."),
     ("permission_grant_precise", "Grant precise location", "Accorder la position précise",
      "منح إذن الموقع الدقيق"),
     ("permission_continue", "Continue", "Continuer", "متابعة"),
@@ -449,13 +499,22 @@ STRINGS = [
      "Across the area this app covers, magnetic declination differs from the current model by under 0.2°, which is smaller than the model’s own uncertainty.",
      "Sur la zone couverte par cette application, la déclinaison magnétique s’écarte du modèle actuel de moins de 0,2°, soit moins que l’incertitude propre au modèle.",
      "في المنطقة التي يغطيها هذا التطبيق، يختلف الانحراف المغناطيسي عن النموذج الحالي بأقل من 0.2 درجة، وهو أقل من هامش عدم اليقين في النموذج نفسه."),
-    # This said "never uses the internet — it has no internet permission", which stopped being
-    # true the moment map downloads landed. A false reassurance about network use is worse than
-    # no reassurance, so it now states exactly what does and does not use the connection.
+    # Corrected twice now, both times because something was added to the app that this sentence
+    # had promised did not exist.
+    #
+    # First it said "never uses the internet — it has no internet permission", which stopped
+    # being true the moment map downloads landed. Then it said downloading an area was the ONLY
+    # thing that used the connection, and shared points made that false as well: opening the map
+    # refreshes the feed, and a point the user opted into sharing is transmitted.
+    #
+    # The rule the comment on permission_body_initial states applies here in full, and this is
+    # the second time it has had to be applied: ANY new network use must be added to BOTH
+    # strings, or neither of them is true. An enumeration is only a reassurance while it is
+    # complete, and a stale one is worse than none, because the user has no way to check it.
     ("about_offline",
-     "Navigating never uses the internet. The only thing that does is downloading an offline area, and only when you ask for it.",
-     "La navigation n’utilise jamais Internet. Seul le téléchargement d’une zone hors ligne l’utilise, et uniquement à votre demande.",
-     "لا يستخدم التوجّه الإنترنت إطلاقاً. الشيء الوحيد الذي يستخدمه هو تنزيل منطقة للاستخدام دون اتصال، وذلك فقط عندما تطلب ذلك."),
+     "Navigating never uses the internet. Downloading an offline area, and publishing a point you chose to share, happen only when you ask. Opening the map also refreshes the points other people have shared.",
+     "La navigation n’utilise jamais Internet. Le téléchargement d’une zone hors ligne et la publication d’un point que vous avez choisi de partager n’ont lieu qu’à votre demande. Ouvrir la carte actualise aussi les points partagés par d’autres.",
+     "لا يستخدم التوجّه الإنترنت إطلاقاً. تنزيل منطقة للاستخدام دون اتصال ونشر نقطة اخترت مشاركتها لا يحدثان إلا عندما تطلب ذلك. كما أنّ فتح الخريطة يحدّث النقاط التي شاركها آخرون."),
     # ODbL requires attribution wherever the map is shown, not buried in a licences page.
     ("about_map_attribution", "Map data: © OpenStreetMap contributors, ODbL.",
      "Données cartographiques : © les contributeurs d’OpenStreetMap, ODbL.",
@@ -481,6 +540,15 @@ STRINGS = [
     ("diag_arrow_angle", "arrow angle", "angle de la flèche", "زاوية السهم"),
     ("diag_arbiter_mode", "heading source", "source du cap", "مصدر الاتجاه"),
     ("diag_heading_smoothed", "heading (smoothed)", "cap (lissé)", "الاتجاه (بعد التنعيم)"),
+    ("diag_course_chip", "course from receiver", "cap du récepteur",
+     "الاتجاه من المستقبِل"),
+    ("diag_course_derived", "course from movement", "cap calculé par le déplacement",
+     "الاتجاه من الحركة"),
+    ("diag_course_trust", "receiver course trust", "confiance dans le cap du récepteur",
+     "الثقة باتجاه المستقبِل"),
+    ("diag_course_trusted", "trusted", "fiable", "موثوق"),
+    ("diag_course_distrusted", "stale — using movement", "obsolète — cap calculé utilisé",
+     "قديم — يُستخدم الاتجاه من الحركة"),
     ("diag_compass_raw", "compass raw", "boussole brute", "البوصلة (خام)"),
     ("diag_compass_smoothed", "compass smoothed", "boussole lissée", "البوصلة (بعد التنعيم)"),
     ("diag_raw_minus_smoothed", "raw − smoothed", "brut − lissé", "الخام − المنعَّم"),
@@ -527,4 +595,64 @@ COMPASS_POINTS = {
            "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"],
     "ar": ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
            "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"],
+}
+
+# Strings whose meaning is safety-carrying.
+#
+# The criterion, stated in full because it has just been widened: **a mistranslation could leave
+# the user confidently believing something false that harms them.**
+#
+# It used to read "position and fix quality" — how good the position is, that it is old, that a
+# subsystem has failed, that the app does not know something. Everything that qualified under
+# that reading still qualifies; it was simply too narrow a description of what it was already
+# doing, and it stopped being adequate when this app gained something to publish.
+#
+# A user who believes their camp is private while it is still on every other user's map is in
+# the same shape of danger as a user who believes a stale position is current: confident, wrong,
+# and acting on it. It is arguably worse, because a stale position corrects itself the moment the
+# next fix lands and a wrong belief about publication does not correct itself at all.
+#
+# What follows from the mark is unchanged: these are translated literally at the cost of
+# elegance, and read together in TRANSLATIONS.md. A smooth translation that softens "this is
+# where you were, not where you are" is the dangerous kind, and so is one that renders
+# "withdrawal not confirmed" as anything a reader could mistake for "withdrawn".
+#
+# No script can infer this: it is a reading of what each string claims. A new string is NOT
+# marked until it is added here deliberately, and `emit_translations.py` says so in the document
+# rather than implying the marking is automatic. It does check that every key below still exists
+# in the table, so a rename cannot silently drop a mark.
+SAFETY_KEYS = {
+    # Saving a point when the fix cannot support it.
+    "save_my_location_no_fix", "save_my_location_stale",
+    "save_failed_fix_changed", "save_blocked_no_fix", "save_blocked_stale",
+    # What the needle is doing and why.
+    "arrived_explanation", "magnetic_north_notice", "compass_unreliable", "no_compass_body",
+    "heading_compass_magnetic", "heading_compass_uncalibrated",
+    # Fix quality and age.
+    "chip_accuracy_weak", "chip_stale_fix", "chip_no_fix",
+    "position_out_of_date", "position_stale", "position_none",
+    "distance_under", "distances_stale_warning",
+    # The app not knowing something, said out loud.
+    "value_unknown", "area_position_unknown",
+    # Location unavailable, and the wait before it is available.
+    "location_off_title", "location_off_body", "acquiring_title", "acquiring_body",
+    # Degraded subsystems and a permission that silently halves the app.
+    "degraded_declination", "degraded_no_compass", "permission_body_approximate",
+    # A map the user may believe is installed and usable when it is not.
+    "areas_file_bad", "download_corrupt",
+    # The one diagnostics row that reports a source being distrusted rather than labelling one.
+    "diag_course_distrusted",
+    # Whether a saved point is on the internet, and what the user was promised before it went.
+    # Marked under the widened criterion above. The consent caption and the switch label are
+    # here because a mistranslation of either causes a publication nobody intended; the four
+    # status strings because a mistranslation of any of them tells the user a point is private
+    # when it is not, or public when it never was. The two unconfirmed states are the ones to
+    # watch: neither may be rendered as anything a reader could take for a completed act.
+    "field_share_public", "field_share_public_caption", "menu_unshare_point",
+    "shared_badge", "shared_publish_unconfirmed", "shared_still_public",
+    "shared_withdrawal_unconfirmed",
+    # What uses the connection, and whether the position leaves the device. Both are flat
+    # promises about network behaviour that the user has no way to verify, and both have now
+    # been made false once by a feature landing — see the comments on each.
+    "about_offline", "permission_body_initial",
 }

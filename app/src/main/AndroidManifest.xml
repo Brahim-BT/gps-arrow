@@ -61,7 +61,7 @@
 
             <!--
               geo: is how every other offline mapping app hands a point across. Accepting it
-              is most of "share a destination to GPS Arrow" for free.
+              is most of "share a destination to GPS Baibbat" for free.
             -->
             <intent-filter android:label="@string/navigate_here">
                 <action android:name="android.intent.action.VIEW" />

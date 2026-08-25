@@ -105,6 +105,15 @@ Do this one. Five minutes, and it tests the product rather than the code.
    until you slow below 1.5 m/s.
 8. Wave the phone near something ferrous, or in a car. Expect the chip to change to
    *Compass needs calibration* and the arrow to turn red.
+9. **The driving test — this one needs a passenger.** With "Car" as the destination, drive past
+   9 km/h and hold that speed through at least two turns. The chip reads *GPS course*; the arrow
+   must keep tracking the turns. On some receivers (a Samsung was caught doing this) the chip's
+   own course-over-ground stalls while position keeps updating, which used to freeze the needle
+   until you slowed under ~5 km/h. The app now cross-checks that bearing against movement
+   computed from consecutive fixes and ignores it when it stalls. **Fail signature:** the arrow
+   holds one direction for more than a few seconds mid-turn. Open diagnostics (long-press the
+   needle) and check *receiver course trust*: if it says *stale — using movement* on a straight
+   road, report it with the device model.
 
 Also worth a minute: paste each of these into **Add destination** and check the live preview.
 

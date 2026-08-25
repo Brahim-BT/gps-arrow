@@ -16,10 +16,14 @@ data class CoordinateDraft(
     /** Which format a paste was recognised as, for the confirmation line. */
     val readAs: String? = null,
     /**
-     * Opt-in to publishing this point, carried in the draft like every other field so a
+     * Whether the share switch is on, carried in the draft like every other field so a
      * half-decided share survives the tab switch that took the user to check something.
+     *
+     * The switch position and nothing more: what it *means* — publish, withdraw, or leave a
+     * never-shared point alone — is decided by [dev.gpsarrow.core.SharedPoints.intentAfterSwitch]
+     * against the point's existing intent, not here.
      */
-    val isPublic: Boolean = false,
+    val sharePublicly: Boolean = false,
 ) {
     val isEmpty: Boolean
         get() = name.isBlank() && latText.isBlank() && lonText.isBlank()

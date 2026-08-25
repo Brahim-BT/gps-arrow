@@ -193,6 +193,11 @@ data class NavigationState(
  * unaffected by the steel around you in a car, by a magnetic phone mount, or by the phone
  * being held at an angle. Below [HANDBACK_MPS] it is noise. The gap between the two is
  * hysteresis so the arrow does not flicker between sources at walking pace.
+ *
+ * The chip's course is only ever taken on the word of [CourseEstimator]'s watchdog
+ * ([chipCourseTrusted]); when it is distrusted, [derivedCourseDeg] — computed from consecutive
+ * positions — speaks for GPS instead, which is what keeps the arrow tracking through turns on
+ * devices whose reported bearing stalls at speed.
  */
 object HeadingArbiter {
 
@@ -214,11 +219,24 @@ object HeadingArbiter {
         compassDeg: Double?,
         magnetometerReliable: Boolean,
         previousSource: HeadingSource,
+        derivedCourseDeg: Double? = null,
+        chipCourseTrusted: Boolean = true,
     ): Pair<Double?, HeadingSource> {
         // A fix with no speed counts as stationary: something that cannot say how fast you are
         // moving cannot say which way you are facing either.
         val speed = fix?.speedMps ?: 0f
-        val course: Double? = fix?.bearingDeg?.toDouble()?.takeIf { speed >= STATIONARY_MPS }
+        val chip: Double? = fix?.bearingDeg?.toDouble()?.takeIf { speed >= STATIONARY_MPS }
+
+        // The chip's word is taken at face value only while [CourseEstimator] has not caught it
+        // repeating against contradicting geometry. A distrusted bearing never reaches the
+        // needle — not even as a last resort, because "the frozen number we know is wrong" is
+        // exactly the failure this exists to remove. While geometry has no fresh answer (the
+        // window refilling) the arbiter simply falls through to whatever is next.
+        val course: Double? = when {
+            chip != null && chipCourseTrusted -> chip
+            derivedCourseDeg != null && speed >= STATIONARY_MPS -> derivedCourseDeg
+            else -> null
+        }
 
         if (course != null) {
             val threshold =
@@ -260,11 +278,18 @@ data class Destination(
      */
     val accuracyMeters: Float? = null,
     /**
-     * Opted in to public sharing: its name and position are published for every user's map.
+     * What the user has asked for regarding public sharing. **An instruction, not a status.**
      *
-     * A local flag about a REMOTE fact — it can be true while the publish request is still in
-     * flight or has failed, and false while a removal is still queued. The sync path reconciles
-     * both directions; nothing here may assume the flag matches the server.
+     * This used to be `isPublic: Boolean`, whose own comment admitted it was "a local flag about
+     * a REMOTE fact" that "nothing here may assume matches the server" — and the list then
+     * rendered "Publicly shared" straight off it. A Boolean cannot carry a remote fact, so this
+     * field no longer tries to: it records only the local, certain half.
+     *
+     * The other half — whether the point is actually in the feed — is derived at read time from
+     * the cached feed by [SharedPoints.observationOf], and the two are combined by
+     * [SharedPoints.statusOf] into the only thing the UI is allowed to say. That derivation is
+     * why nothing about the remote side is persisted here: it self-corrects on the next sync,
+     * and a stored copy of it would not.
      */
-    val isPublic: Boolean = false,
+    val shareIntent: ShareIntent = ShareIntent.PRIVATE,
 )
