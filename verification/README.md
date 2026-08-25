@@ -19,7 +19,7 @@ build — once you have Android Studio open, `./gradlew :core:test` is the real 
 | `strings_table.py` | The single aligned table of every user-facing string in English, French and Arabic, plus `SAFETY_KEYS` — the reviewed list of which of them carry safety meaning. |
 | `emit_strings.py` | Emits `values/`, `values-fr/` and `values-ar/` from it, then checks the three key sets and all format specifiers match. Run after editing the table; never hand-edit one language's file. |
 | `emit_translations.py` | Emits `TRANSLATIONS.md` from the same table. Run after `emit_strings.py` — it refuses to run before, so the document cannot describe strings the app does not ship. |
-| `workflow_drain_test.py` | Runs the cleanup workflow's `run:` blocks verbatim against a fake Realtime Database, over five cases: an edit that removes a note actually removes it, a wrong token changes nothing on either the edit or the withdrawal path, an edit cannot resurrect a moderated-away point, and an honest withdrawal clears all four nodes. **Shell logic only** — it proves nothing about the live drain, the security rules or the service account; the real check is the curl smoke test in `SETUP_SHARED_POINTS.md`. Runnable alone. |
+| `workflow_drain_test.py` | Runs the cleanup workflow's `run:` blocks verbatim against a fake Realtime Database, over six cases: an unconfigured run exits 0 and touches nothing, an edit that removes a note actually removes it, a wrong token changes nothing on either the edit or the withdrawal path, an edit cannot resurrect a moderated-away point, and an honest withdrawal clears all four nodes. **Shell logic only** — it proves nothing about the live drain, the security rules or the service account; the real check is the curl smoke test in `SETUP_SHARED_POINTS.md`. Runnable alone. |
 | `TRANSLATIONS.md` | Generated. The three languages side by side for review, with the safety-carrying rows marked. |
 
 Run them with `python3 <script>` from anywhere; they locate the repo root from their own path
@@ -194,12 +194,45 @@ Per the rule this file has had to learn twice, it was trusted only after being m
 | withdrawal-path token check removed | fail | a wrong token deleted the point |
 | queue entry left behind on refusal | fail | slot still occupied (permanent denial of edit) |
 | the step it needs renamed | fail | `refusing to report success: no run: block named …` |
+| the unconfigured skip made to exit 1 | fail | `the step exited 1` |
+| the gate draining while unconfigured | fail | tree afterwards was emptied |
+| the workflow file missing entirely | fail | `no workflow to read at …` |
+
+The last three came with the configuration gate. The middle one is the important direction: it
+checks that the skip **does nothing**, not merely that it exits 0, because a gate that fell
+through to draining would also exit 0.
+
+The third was added after a near-miss worth recording. While breaking the gate deliberately, one
+of the fixtures failed to be written — a bad anchor — so the harness ran against a path that did
+not exist, tracebacked, exited non-zero, and was **counted as the break being caught**. It was
+not; nothing had been tested at all. That is this file's oldest lesson wearing yet another
+costume: a check that fails for the wrong reason is a check that passed. A missing workflow is
+now named explicitly, so the two cannot look alike.
 
 The last row is the empty-scan guard in this checker's own shape: extracting shell by step name
 means a rename would otherwise skip the case silently and still print a pass. The third row also
 prompted a fix here rather than in the workflow — a wrong workflow can delete the node the check
 then looks for, so a check that *raises* is reported as a failing case rather than escaping as a
 traceback that would send the reader to debug the harness instead of the thing that is wrong.
+
+### The half of the gate this cannot test
+
+The workflow is green when nothing is configured and red when only *some* of it is. Only the
+first half is covered above, because the second depends on the `FIREBASE_SERVICE_ACCOUNT` secret
+and on `SharedPointsConfig.BASE_URL`, and both are absent by construction wherever this harness
+runs. It was checked by hand instead, by running the gate's shell over its inputs:
+
+| credentials | DB URL | app `BASE_URL` | expected | result |
+|---|---|---|---|---|
+| absent | placeholder | blank | green skip | exit 0, "not configured … did nothing" |
+| present | set | set | proceed | exit 0, `configured=true` |
+| present | placeholder | blank | red | exit 1, names the missing DB URL |
+| absent | set | blank | red | exit 1, names the missing secret |
+| absent | placeholder | **set** | red | exit 1, "users can publish … those requests are ignored" |
+| present | set | blank | proceed | exit 0, `configured=true` |
+
+The fifth row is the one the gate exists for. Skipping there would be a green check over a live
+feature whose withdrawals go nowhere, which is worse than the permanently-red run this replaced.
 
 **Read its second paragraph before quoting a green run at anyone.** It runs against a fake API,
 so it says nothing about the security rules, the service account, Firebase's real PATCH and

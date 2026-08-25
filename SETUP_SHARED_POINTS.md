@@ -187,11 +187,33 @@ refuses it otherwise.
 1. Project settings → **Service accounts → Generate new private key** → download the JSON.
 2. Repo → Settings → Secrets and variables → Actions → **New repository secret**,
    name `FIREBASE_SERVICE_ACCOUNT`, paste the whole JSON file as the value.
-3. Commit `.github/workflows/shared-points-cleanup.yml` (already in this repo), then edit **both**
-   `DB:` lines inside it to your database URL from step 1.
+3. In `.github/workflows/shared-points-cleanup.yml` (already in this repo), set the `DB:` line
+   under the top-level `env:` to your database URL from step 1. There is one such line.
 
 Run it once from the Actions tab (**Run workflow**) to check it works; it also runs every 15
 minutes and is safe to re-run.
+
+### Before you do any of that, it has been running and skipping
+
+The workflow is scheduled from the moment the repo exists, and until the setup is finished it
+takes one look, says so, and exits successfully:
+
+```
+Shared points are not configured, so there is nothing to drain and this run did nothing.
+Missing: the FIREBASE_SERVICE_ACCOUNT secret, the DB: URL in this file, and
+SharedPointsConfig.BASE_URL. See SETUP_SHARED_POINTS.md.
+```
+
+That is deliberate on both counts. It stays **scheduled** so the first real drain happens by
+itself once you finish, rather than waiting for somebody to remember this file exists. And it
+exits **green**, because a check that is permanently red teaches everyone to ignore red, and the
+rest of this repo's verification depends on red meaning something.
+
+The skip is narrow. It needs the secret absent **and** the `DB:` URL still a placeholder **and**
+the app's `BASE_URL` still blank. Any other combination is a real fault and the run goes red
+naming what is missing — in particular, if `BASE_URL` is set while the drain is not configured,
+people are publishing points and asking for them to be withdrawn and nothing is honouring those
+requests. That case must shout.
 
 **Do not turn "every 15 minutes" into a promise to the user.** GitHub's scheduled minimum is 5
 minutes and schedules are best-effort — 5-to-30-minute delays are normal at peak, and a run can

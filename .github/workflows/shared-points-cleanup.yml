@@ -39,32 +39,129 @@ name: Shared-points cleanup
 #     more than it can through the publish path.
 #
 # Safe to re-run at any time; it only ever acts on what it can prove.
+#
+# ## Being unconfigured is not a failure, and being half-configured is
+#
+# Until somebody does the setup there is no database, no secret and nothing to drain. This used
+# to authenticate anyway, fail, and go red every fifteen minutes. A check that is permanently red
+# is worse than no check: it trains everyone to scroll past red, and this repo's whole
+# verification discipline rests on red meaning something. It is the same argument as the checkers
+# that could not fail, turned over.
+#
+# So there is a gate below, and the shape of it matters more than the fact of it:
+#
+#  - **Nothing configured at all** — no secret, placeholder URL, and the app's own BASE_URL still
+#    blank — is a green skip with a line saying so. Nothing has been published, so nothing is
+#    owed.
+#  - **Anything else short of fully configured is RED.** Half a setup never works, and the
+#    dangerous half is real: if the app's BASE_URL is set, users are publishing points and
+#    tapping "stop sharing", and a drain that is quietly skipping means those withdrawals never
+#    happen. That must shout, not shrug.
+#  - **Fully configured cannot reach the skip.** The skip requires every input to be absent, so
+#    the moment one is present the gate either proceeds or fails. A workflow that stays green by
+#    doing nothing is the failure mode this gate exists to avoid, not one it may fall into.
+#
+# The gate is a step, not a job-level `if:`, because the `secrets` context is not available in
+# `jobs.<id>.if`. It never puts the secret in a shell variable — only the boolean of whether it
+# is empty.
 on:
   schedule:
     # Every 15 minutes. GitHub's scheduled minimum is 5 and schedules are best-effort — delays
     # of 5-30 minutes are normal at peak — so this buys "usually minutes" rather than a guarantee.
     # Deliberately off the hour, which is the busiest slot. Nothing in the app quotes a number
     # to the user; it reports what it has observed and nothing else.
+    #
+    # Kept running while unconfigured on purpose. It costs a no-op run and nothing else, and it
+    # means the first drain after somebody finishes the setup happens by itself rather than
+    # waiting for someone to remember this file exists.
     - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+env:
+  # Paste your Realtime Database URL here (see SETUP_SHARED_POINTS.md step 1). One place, read by
+  # the gate and both drain steps — it used to be duplicated per step, which is one edit to
+  # forget and a half-configured run to debug.
+  DB: https://YOUR-PROJECT-default-rtdb.YOUR-REGION.firebasedatabase.app
+
 jobs:
   drain:
     runs-on: ubuntu-latest
     steps:
-      # Needs no checkout: everything it touches lives in Firebase.
-      - uses: google-github-actions/auth@v2
+      # One file, shallow. The rest of what this job touches lives in Firebase, but the app's own
+      # switch is what distinguishes "nobody has set this up" from "users are publishing and
+      # their withdrawals are going nowhere", and those must not both be green.
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: app/src/main/java/dev/gpsarrow/data/SharedPointsConfig.kt
+          sparse-checkout-cone-mode: false
+
+      - name: Check configuration
+        id: config
+        env:
+          # The boolean, never the secret itself.
+          HAVE_CREDENTIALS: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+        run: |
+          set -euo pipefail
+          CONFIG=app/src/main/java/dev/gpsarrow/data/SharedPointsConfig.kt
+
+          have_db=true
+          case "$DB" in *YOUR-PROJECT*|*YOUR-REGION*|"") have_db=false ;; esac
+
+          # The app publishes only when BASE_URL is a non-empty string literal.
+          app_publishes=true
+          if [ ! -f "$CONFIG" ] || grep -qE '^\s*const val BASE_URL = ""\s*$' "$CONFIG"; then
+            app_publishes=false
+          fi
+
+          echo "credentials secret present: $HAVE_CREDENTIALS"
+          echo "database URL set:           $have_db"
+          echo "app BASE_URL set:           $app_publishes"
+
+          if [ "$HAVE_CREDENTIALS" = "true" ] && [ "$have_db" = "true" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "configured=false" >> "$GITHUB_OUTPUT"
+
+          # The skip is only for a system nobody has touched. Everything else is a real fault.
+          if [ "$HAVE_CREDENTIALS" = "false" ] && [ "$have_db" = "false" ] \
+             && [ "$app_publishes" = "false" ]; then
+            echo "Shared points are not configured, so there is nothing to drain and this run"
+            echo "did nothing. Missing: the FIREBASE_SERVICE_ACCOUNT secret, the DB: URL in this"
+            echo "file, and SharedPointsConfig.BASE_URL. See SETUP_SHARED_POINTS.md."
+            exit 0
+          fi
+
+          echo "::error::Shared points are only PARTLY configured, so queued withdrawals and" \
+               "edits are not being applied. Missing:"
+          [ "$HAVE_CREDENTIALS" = "true" ] || echo "::error::  - the FIREBASE_SERVICE_ACCOUNT repository secret (SETUP_SHARED_POINTS.md step 4)"
+          [ "$have_db" = "true" ]          || echo "::error::  - the DB: URL at the top of this workflow (SETUP_SHARED_POINTS.md step 1)"
+          if [ "$app_publishes" = "true" ]; then
+            echo "::error::The app's BASE_URL IS set, so users can publish points and ask for them"
+            echo "::error::to be withdrawn. Until the above is fixed, those requests are ignored."
+          fi
+          exit 1
+
+      - uses: google-github-actions/auth@v3
         id: auth
+        if: steps.config.outputs.configured == 'true'
         with:
           credentials_json: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
+          # Without token_format the action only writes a credentials file and this output is
+          # empty, so every curl below would send "Authorization: Bearer " and get a 401. The
+          # scopes are the two the Realtime Database REST API requires of a service account.
+          token_format: 'access_token'
+          access_token_scopes: >-
+            https://www.googleapis.com/auth/firebase.database,
+            https://www.googleapis.com/auth/userinfo.email
 
       - name: Apply pending edits
+        if: steps.config.outputs.configured == 'true'
         env:
-          # Paste your Realtime Database URL here (see SETUP_SHARED_POINTS.md step 1).
-          DB: https://YOUR-PROJECT-default-rtdb.YOUR-REGION.firebasedatabase.app
           TOKEN: ${{ steps.auth.outputs.access_token }}
         run: |
           set -euo pipefail
@@ -114,9 +211,8 @@ jobs:
           done
 
       - name: Drain tombstones
+        if: steps.config.outputs.configured == 'true'
         env:
-          # Same URL as above.
-          DB: https://YOUR-PROJECT-default-rtdb.YOUR-REGION.firebasedatabase.app
           TOKEN: ${{ steps.auth.outputs.access_token }}
         run: |
           set -euo pipefail
