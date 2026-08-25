@@ -183,7 +183,7 @@ then press back and tap **Install** again.
 *"Send app for scanning?"*. Choose **Install anyway** / **Don't send**. Play Protect flags
 anything unsigned by a known developer, which includes every debug build in existence.
 
-After that it installs as **GPS Arrow**. On first launch it asks for location — grant
+After that it installs as **GPS Baibbat**. On first launch it asks for location — grant
 **Precise**, not Approximate, or the arrow can't work. See `TESTING.md` §5 for the field test.
 
 *(For the curious: the APK is signed with Android's standard debug key, which every machine

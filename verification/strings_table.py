@@ -530,3 +530,36 @@ COMPASS_POINTS = {
     "ar": ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
            "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"],
 }
+
+# Strings whose meaning is safety-carrying: they tell the user how good the position is, that it
+# is old, that a subsystem has failed, or that the app does not know something. They are marked
+# in TRANSLATIONS.md so a reviewer reads them together, and they are translated literally at the
+# cost of elegance — a smooth translation that softens "this is where you were, not where you
+# are" is the dangerous kind.
+#
+# No script can infer this: it is a reading of what each string claims. A new string is NOT
+# marked until it is added here deliberately, and `emit_translations.py` says so in the document
+# rather than implying the marking is automatic. It does check that every key below still exists
+# in the table, so a rename cannot silently drop a mark.
+SAFETY_KEYS = {
+    # Saving a point when the fix cannot support it.
+    "save_my_location_no_fix", "save_my_location_stale",
+    "save_failed_fix_changed", "save_blocked_no_fix", "save_blocked_stale",
+    # What the needle is doing and why.
+    "arrived_explanation", "magnetic_north_notice", "compass_unreliable", "no_compass_body",
+    "heading_compass_magnetic", "heading_compass_uncalibrated",
+    # Fix quality and age.
+    "chip_accuracy_weak", "chip_stale_fix", "chip_no_fix",
+    "position_out_of_date", "position_stale", "position_none",
+    "distance_under", "distances_stale_warning",
+    # The app not knowing something, said out loud.
+    "value_unknown", "area_position_unknown",
+    # Location unavailable, and the wait before it is available.
+    "location_off_title", "location_off_body", "acquiring_title", "acquiring_body",
+    # Degraded subsystems and a permission that silently halves the app.
+    "degraded_declination", "degraded_no_compass", "permission_body_approximate",
+    # A map the user may believe is installed and usable when it is not.
+    "areas_file_bad", "download_corrupt",
+    # The one diagnostics row that reports a source being distrusted rather than labelling one.
+    "diag_course_distrusted",
+}
