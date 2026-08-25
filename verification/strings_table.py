@@ -281,10 +281,20 @@ STRINGS = [
      "You granted approximate location. An arrow pointing at a destination needs precise GPS — approximate is accurate to about a kilometre, which would point you the wrong way.",
      "Vous avez accordé la localisation approximative. Une flèche qui pointe vers une destination a besoin du GPS précis : l’approximatif est précis à environ un kilomètre, ce qui vous enverrait dans la mauvaise direction.",
      "لقد منحت إذن الموقع التقريبي. السهم الذي يشير إلى وجهة يحتاج إلى GPS دقيق — الموقع التقريبي دقته نحو كيلومتر واحد، وهو ما سيوجّهك في الاتجاه الخطأ."),
+    # This claimed "Nothing is sent anywhere — this build has no internet permission at all".
+    # Both halves stopped being true when map downloads landed: the manifest has declared
+    # INTERNET since then, and the app does make requests. It now says the thing that is both
+    # true and what the user is actually asking at a location prompt — that their POSITION never
+    # leaves the device — and names the one thing that does use the connection, in the same words
+    # as about_offline, so the two cannot drift apart again.
+    #
+    # The general rule, learned twice now: a reassurance phrased as "this app cannot do X" dates
+    # the moment X is added, while one phrased as "X is the only thing that does" survives. Any
+    # new network use must be added to BOTH strings or neither is true.
     ("permission_body_initial",
-     "GPS Baibbat reads your position from the GPS satellites directly. Nothing is sent anywhere — this build has no internet permission at all.",
-     "GPS Baibbat lit votre position directement depuis les satellites GPS. Rien n’est envoyé nulle part : cette version n’a aucune autorisation d’accès à Internet.",
-     "يقرأ GPS Baibbat موقعك مباشرة من الأقمار الصناعية. لا يُرسل أي شيء إلى أي جهة — هذه النسخة لا تملك إذن الوصول إلى الإنترنت إطلاقاً."),
+     "GPS Baibbat reads your position from the GPS satellites directly. Your position is never sent anywhere. The only thing that uses the internet is downloading an offline area, and only when you ask for it.",
+     "GPS Baibbat lit votre position directement depuis les satellites GPS. Votre position n’est jamais envoyée nulle part. Seul le téléchargement d’une zone hors ligne utilise Internet, et uniquement à votre demande.",
+     "يقرأ GPS Baibbat موقعك مباشرة من الأقمار الصناعية. لا يُرسل موقعك إلى أي جهة إطلاقاً. الشيء الوحيد الذي يستخدم الإنترنت هو تنزيل منطقة للاستخدام دون اتصال، وذلك فقط عندما تطلب ذلك."),
     ("permission_grant_precise", "Grant precise location", "Accorder la position précise",
      "منح إذن الموقع الدقيق"),
     ("permission_continue", "Continue", "Continuer", "متابعة"),

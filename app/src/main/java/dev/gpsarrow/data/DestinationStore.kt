@@ -3,6 +3,7 @@ package dev.gpsarrow.data
 import android.content.Context
 import android.util.Log
 import dev.gpsarrow.core.Destination
+import dev.gpsarrow.core.DestinationEdit
 import dev.gpsarrow.core.LatLon
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -65,28 +66,27 @@ class DestinationStore(context: Context) {
         write(_destinations.value)
     }
 
-    /** Full edit: name, position and note in one write. Keeps id and createdAt. */
+    /**
+     * Apply the editor's name and position. Keeps id, createdAt, the note, the star and
+     * everything else the editor does not present — see [DestinationEdit.applied], which holds
+     * the rules and the test that pins them.
+     *
+     * There is deliberately **no `note` parameter**. It used to take one, defaulted to null, and
+     * assign it unconditionally; since nothing in the app edits notes, every edit erased the
+     * note it was not editing. Adding note editing means adding a way to say "unchanged" that is
+     * distinct from "cleared", not restoring a defaulted parameter.
+     */
     suspend fun update(
         id: String,
         name: String,
         position: LatLon,
-        note: String? = null,
     ): Destination? = withContext(Dispatchers.IO) {
         var updated: Destination? = null
         _destinations.value = _destinations.value.map {
             if (it.id != id) {
                 it
             } else {
-                it.copy(
-                    name = name.ifBlank { it.name },
-                    position = position,
-                    note = note,
-                    // A hand-typed coordinate is no longer the fix it came from, so the fix's
-                    // accuracy has stopped describing it. Keep the badge only if the position
-                    // is byte-identical; otherwise drop it rather than let it vouch for a
-                    // number the receiver never produced.
-                    accuracyMeters = if (position == it.position) it.accuracyMeters else null,
-                ).also { edited -> updated = edited }
+                DestinationEdit.applied(it, name, position).also { edited -> updated = edited }
             }
         }
         write(_destinations.value)

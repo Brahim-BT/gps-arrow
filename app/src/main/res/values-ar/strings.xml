@@ -187,7 +187,7 @@
     <string name="permission_title_precise">مطلوب تحديد دقيق للموقع</string>
     <string name="permission_title_location">إذن الوصول إلى الموقع</string>
     <string name="permission_body_approximate">لقد منحت إذن الموقع التقريبي. السهم الذي يشير إلى وجهة يحتاج إلى GPS دقيق — الموقع التقريبي دقته نحو كيلومتر واحد، وهو ما سيوجّهك في الاتجاه الخطأ.</string>
-    <string name="permission_body_initial">يقرأ GPS Baibbat موقعك مباشرة من الأقمار الصناعية. لا يُرسل أي شيء إلى أي جهة — هذه النسخة لا تملك إذن الوصول إلى الإنترنت إطلاقاً.</string>
+    <string name="permission_body_initial">يقرأ GPS Baibbat موقعك مباشرة من الأقمار الصناعية. لا يُرسل موقعك إلى أي جهة إطلاقاً. الشيء الوحيد الذي يستخدم الإنترنت هو تنزيل منطقة للاستخدام دون اتصال، وذلك فقط عندما تطلب ذلك.</string>
     <string name="permission_grant_precise">منح إذن الموقع الدقيق</string>
     <string name="permission_continue">متابعة</string>
     <string name="permission_open_settings">فتح إعدادات التطبيق</string>

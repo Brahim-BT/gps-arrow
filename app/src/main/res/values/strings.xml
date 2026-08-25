@@ -187,7 +187,7 @@
     <string name="permission_title_precise">Precise location needed</string>
     <string name="permission_title_location">Location permission</string>
     <string name="permission_body_approximate">You granted approximate location. An arrow pointing at a destination needs precise GPS — approximate is accurate to about a kilometre, which would point you the wrong way.</string>
-    <string name="permission_body_initial">GPS Baibbat reads your position from the GPS satellites directly. Nothing is sent anywhere — this build has no internet permission at all.</string>
+    <string name="permission_body_initial">GPS Baibbat reads your position from the GPS satellites directly. Your position is never sent anywhere. The only thing that uses the internet is downloading an offline area, and only when you ask for it.</string>
     <string name="permission_grant_precise">Grant precise location</string>
     <string name="permission_continue">Continue</string>
     <string name="permission_open_settings">Open app settings</string>
