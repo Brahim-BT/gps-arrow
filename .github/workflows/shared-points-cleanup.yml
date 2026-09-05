@@ -84,7 +84,7 @@ env:
   # Paste your Realtime Database URL here (see SETUP_SHARED_POINTS.md step 1). One place, read by
   # the gate and both drain steps — it used to be duplicated per step, which is one edit to
   # forget and a half-configured run to debug.
-  DB: https://YOUR-PROJECT-default-rtdb.YOUR-REGION.firebasedatabase.app
+  DB: https://gps-arrow-baibbat-default-rtdb.europe-west1.firebasedatabase.app
 
 jobs:
   drain:

@@ -11,7 +11,7 @@ package dev.gpsarrow.data
 object SharedPointsConfig {
 
     /** e.g. "https://gps-arrow-xxxxx-default-rtdb.europe-west1.firebasedatabase.app" */
-    const val BASE_URL = ""
+    const val BASE_URL = "https://gps-arrow-baibbat-default-rtdb.europe-west1.firebasedatabase.app"
 
     val isConfigured: Boolean get() = BASE_URL.isNotBlank()
 
