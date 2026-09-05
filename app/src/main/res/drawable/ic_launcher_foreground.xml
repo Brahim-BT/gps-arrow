@@ -1,15 +1,68 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Adaptive-icon foreground: 108dp canvas, with the safe zone being the middle 72dp.
-  A simple navigation arrow, centred.
+    "Needle", chosen from a set of launcher-icon candidates that is no longer in the tree.
+
+    Three fills, in order, and the order is the drawing:
+
+      1. the dart, carrying Theme.kt's own arrowBrush — AccentBright at the tip through Accent
+         to AccentDeep at the tail. Theme.kt argues against gradients on screen because a
+         gradient is darker at one end and this app is read in the Sahara; it carves out the
+         arrow itself as the exception, where the shading is structure rather than gloss. A
+         launcher icon is neither read in sunlight nor drawn every frame, so it takes that
+         exception at face value.
+      2. the left half, washed with warm white fading to nothing — the facet facing the light.
+      3. the right half, washed with black — the facet facing away.
+
+    Layers 2 and 3 are the two halves the dart already has, so the depth costs no new geometry.
+    The light source is upper-left, and it is the same one in every other drawable here.
+
+    Blur, shadow and filters do not exist in a VectorDrawable. Everything above is stacked fills
+    and alpha stops, which is the whole reason it survives being an icon.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-
+        xmlns:aapt="http://schemas.android.com/aapt"
+        android:width="108dp"
+        android:height="108dp"
+        android:viewportWidth="108"
+        android:viewportHeight="108">
     <path
-        android:fillColor="#FF9800"
-        android:pathData="M54,29 L72,74 L54,64 L36,74 Z" />
+        android:pathData="M 54,26.17 L 74.54,79.83 L 54,62.61 L 33.46,79.83 Z"
+        android:fillType="evenOdd">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="54" android:startY="26.17"
+                android:endX="54" android:endY="79.83">
+                <item android:offset="0" android:color="#FFB300"/>
+                <item android:offset="0.55" android:color="#FF9800"/>
+                <item android:offset="1" android:color="#F4511E"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M 54,26.17 L 33.46,79.83 L 54,62.61 Z"
+        android:fillType="evenOdd">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="33.46" android:startY="44.95"
+                android:endX="54" android:endY="61.05">
+                <item android:offset="0" android:color="#4DFFF3E0"/>
+                <item android:offset="1" android:color="#00FFF3E0"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M 54,26.17 L 74.54,79.83 L 54,62.61 Z"
+        android:fillType="evenOdd">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="54" android:startY="53"
+                android:endX="74.54" android:endY="53">
+                <item android:offset="0" android:color="#00000000"/>
+                <item android:offset="1" android:color="#3D000000"/>
+            </gradient>
+        </aapt:attr>
+    </path>
 </vector>

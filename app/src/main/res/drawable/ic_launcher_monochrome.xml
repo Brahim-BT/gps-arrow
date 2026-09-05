@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The Android 13+ themed layer, and its own drawable rather than a second use of the foreground.
+
+    The system tints this by ALPHA, throwing the colours away. Point <monochrome> at the
+    foreground and every gradient above collapses: the facets are opaque, so a themed Needle
+    would come back as a featureless blob. One flat opaque silhouette is the only thing that
+    survives, so that is what this is — and having it separate is what lets the colour icon keep
+    its gradient at all.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+        android:width="108dp"
+        android:height="108dp"
+        android:viewportWidth="108"
+        android:viewportHeight="108">
+    <path
+        android:pathData="M 54,26.17 L 74.54,79.83 L 54,62.61 L 33.46,79.83 Z"
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"/>
+</vector>

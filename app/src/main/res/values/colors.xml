@@ -2,6 +2,4 @@
 <resources>
     <!-- Must equal the Compose background exactly, or launch shows a step. -->
     <color name="launch_background">#000000</color>
-    <!-- Slightly off black so the launcher icon keeps an edge on a dark wallpaper. -->
-    <color name="icon_background">#1A1A1A</color>
 </resources>

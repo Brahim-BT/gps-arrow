@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The icon's ground: a lit surface rather than a flat swatch, which is what <background> being
+    a drawable rather than an @color buys. Charcoal falling off to true black, with the light
+    high and to the left — the same light the foreground's facets are cut for.
+
+    This replaces the flat @color/icon_background the adaptive icon used to point at.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:aapt="http://schemas.android.com/aapt"
+        android:width="108dp"
+        android:height="108dp"
+        android:viewportWidth="108"
+        android:viewportHeight="108">
+    <path
+        android:pathData="M0,0 L108,0 L108,108 L0,108 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="43.2" android:centerY="36.72"
+                android:gradientRadius="84.24">
+                <item android:offset="0" android:color="#242424"/>
+                <item android:offset="0.62" android:color="#141414"/>
+                <item android:offset="1" android:color="#000000"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
