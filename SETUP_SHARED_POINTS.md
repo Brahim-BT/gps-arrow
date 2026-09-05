@@ -186,9 +186,31 @@ refuses it otherwise.
 
 1. Project settings → **Service accounts → Generate new private key** → download the JSON.
 2. Repo → Settings → Secrets and variables → Actions → **New repository secret**,
-   name `FIREBASE_SERVICE_ACCOUNT`, paste the whole JSON file as the value.
-3. In `.github/workflows/shared-points-cleanup.yml` (already in this repo), set the `DB:` line
+   name `FIREBASE_SERVICE_ACCOUNT`, paste the **contents** of the JSON file as the value. The
+   form has no file upload; open the file, select all, paste. Then delete the download — it is a
+   live credential.
+3. Enable the **IAM Service Account Credentials API** on the project:
+   `console.cloud.google.com/apis/library/iamcredentials.googleapis.com`. It is free, and it is
+   off by default on a new project.
+4. In `.github/workflows/shared-points-cleanup.yml` (already in this repo), set the `DB:` line
    under the top-level `env:` to your database URL from step 1. There is one such line.
+
+Step 3 is not optional and its absence does not look like a missing API. The workflow asks the
+auth action for `token_format: 'access_token'`, and minting that token from a service-account key
+is precisely what `iamcredentials.googleapis.com` does. Skip it and the run dies at the auth step,
+before any of this file's logic executes, with:
+
+```
+google-github-actions/auth failed with: failed to generate Google Cloud OAuth 2.0 Access Token
+"code": 403, "status": "PERMISSION_DENIED", "reason": "SERVICE_DISABLED"
+"IAM Service Account Credentials API has not been used in project NNNNNNNNN before or it is
+disabled."
+```
+
+The message names the fix, but it arrives attributed to the service account and reads like a
+permissions problem with the key you just generated — so the instinct is to regenerate the key or
+re-paste the secret, neither of which changes anything. The key is fine; the project just cannot
+mint tokens yet.
 
 Run it once from the Actions tab (**Run workflow**) to check it works; it also runs every 15
 minutes and is safe to re-run.
