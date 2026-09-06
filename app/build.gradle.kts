@@ -16,6 +16,31 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        getByName("debug") {
+            // A debug APK is installed over the previous one by hand every round, and Android
+            // refuses that when the signing certificate changes. AGP's default signs with
+            // ~/.android/debug.keystore, which does not exist on a fresh CI runner — so it
+            // generated a NEW random key every build, and every download had to be installed
+            // as a fresh app with the previous one's saved destinations thrown away.
+            //
+            // CI writes this file from the DEBUG_KEYSTORE_BASE64 secret before building. It is
+            // absent on an ordinary local build, where AGP's own keystore is the right answer,
+            // so the default is left alone rather than replaced with something that would need
+            // a secret to compile at all.
+            val stable = rootProject.file("ci-debug.keystore")
+            if (stable.exists()) {
+                storeFile = stable
+                // The conventional debug values, in plain sight on purpose: what keeps this key
+                // private is the keystore bytes living in an encrypted secret, not the password.
+                // It signs dev.gpsarrow.debug and can never sign a Play release.
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true

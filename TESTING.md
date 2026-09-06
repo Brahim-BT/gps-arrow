@@ -68,6 +68,32 @@ Use an emulator for the first "does it build and launch" pass. Use a phone for e
 7. On the phone: tap **Continue** ▸ grant **Precise** location. Allow notifications when asked.
 8. **Go outside**, or at least to a window with sky. Watch the satellite counter climb.
 
+## 3a. The signing key, and why updates used to fail
+
+Installing a new debug APK over the old one keeps your saved destinations. That only works while
+the signing certificate stays the same, and Android's refusal when it changes reads as a plain
+"update failed" with no explanation — which is what it did here for a long time, because CI had no
+key of its own and Android Gradle Plugin generated a fresh random one on every run.
+
+The key now lives in the repository secret **`DEBUG_KEYSTORE_BASE64`** (base64 of a PKCS12
+keystore, alias `androiddebugkey`, password `android`). The build workflow decodes it to
+`ci-debug.keystore` before `assembleDebug`, and `app/build.gradle.kts` uses that file when it is
+present.
+
+Three things worth knowing:
+
+- **CI fails loudly if the secret is missing.** It would otherwise fall back to a throwaway key and
+  produce an APK that looks fine and cannot be installed over anything — a failure that surfaces
+  days later, on a phone, as an error message that names none of this.
+- **Every run summary prints the signer's SHA-256 digest.** Two builds showing different digests
+  is the whole bug, visible before you download anything.
+- **If the keystore is lost, the chain breaks once.** A new key means one more uninstall, and the
+  saved destinations on the device go with it. Keep a copy somewhere other than this repository —
+  `*.keystore` is gitignored precisely so it never lands here.
+
+Local builds need none of this: with no `ci-debug.keystore` present the default debug keystore is
+used, exactly as before.
+
 ## 4. The gradle-wrapper.jar step
 
 `gradle/wrapper/gradle-wrapper.jar` is a binary and is not in the zip. **Android Studio does not

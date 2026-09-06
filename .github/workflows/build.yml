@@ -61,6 +61,24 @@ jobs:
           set -o pipefail
           gradle :core:test --console=plain --stacktrace --continue 2>&1 | tee -a build.log
 
+      # Without this the APK is signed with a key AGP invents on the spot, which differs on
+      # every run, and Android refuses to install it over an existing app — so each download
+      # meant uninstalling and losing the saved destinations. Restored before assembleDebug so
+      # the signing config in app/build.gradle.kts can see the file.
+      - name: Restore debug signing key
+        env:
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DEBUG_KEYSTORE_BASE64" ]; then
+            echo "::error::DEBUG_KEYSTORE_BASE64 is not set, so this build would be signed with a"
+            echo "::error::throwaway key and could not install over an existing app. See TESTING.md."
+            exit 1
+          fi
+          printf '%s' "$DEBUG_KEYSTORE_BASE64" | base64 -d > ci-debug.keystore
+          keytool -list -keystore ci-debug.keystore -storepass android > /dev/null
+          echo "signing key restored"
+
       - name: Build debug APK
         id: apk
         continue-on-error: true
@@ -89,6 +107,29 @@ jobs:
             echo "| :core:test | ${{ steps.tests.outcome }} |"
             echo "| assembleDebug | ${{ steps.apk.outcome }} |"
             echo ""
+
+            # The whole point of the signing key being stable is that this line never changes.
+            # Printed on every run so drift is visible here rather than discovered as a failed
+            # install on the phone.
+            #
+            # apksigner, not `keytool -printcert -jarfile`: minSdk is 26, so AGP signs with the
+            # v2/v3 APK schemes and may omit the v1 JAR signature entirely — and keytool can only
+            # read v1. It would have printed nothing at all, which looks like "no signature"
+            # rather than "wrong tool".
+            if [ -f "$APK" ]; then
+              APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort | tail -1)
+              echo "**Signer** — identical on every build, or the APK will not install over the"
+              echo "previous one:"
+              echo ""
+              echo '```'
+              if [ -n "$APKSIGNER" ]; then
+                "$APKSIGNER" verify --print-certs "$APK" | grep -i "SHA-256 digest" | head -1
+              else
+                echo "apksigner not found; cannot report the signer"
+              fi
+              echo '```'
+              echo ""
+            fi
 
             if grep -q '^e: ' build.log 2>/dev/null; then
               COUNT=$(grep -c '^e: ' build.log)
