@@ -1,5 +1,6 @@
 package dev.gpsarrow.ui
 
+import android.graphics.RectF
 import android.util.Log
 import android.view.View
 import androidx.compose.runtime.Composable
@@ -24,6 +25,7 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.sources.GeoJsonSource
+import org.maplibre.geojson.Point
 
 /**
  * A MapLibre `MapView` in Compose.
@@ -193,19 +195,49 @@ fun MapLibreView(
                 // Tap-to-inspect on the shared layer. queryRenderedFeatures is cheap at tap
                 // rate, and an empty hit list is the dismiss path — one listener covers select
                 // and deselect. Registered once, like every other listener in this file.
+                //
+                // The query is a BOX, not the tapped pixel. A finger is not a pixel, and a 5.5px
+                // dot hit-tested at a single point is a target a quarter the size Android asks
+                // for — see MapMarkers.SHARED_TAP_RADIUS_DP for the arithmetic.
                 map.addOnMapClickListener { latLng ->
                     if (map.style == null) return@addOnMapClickListener false
                     val screen = map.projection.toScreenLocation(latLng)
-                    val hit = runCatching {
-                        map.queryRenderedFeatures(screen, *MapMarkers.SHARED_LAYERS.toTypedArray())
-                    }.getOrNull()?.firstOrNull()
+                    val slop =
+                        MapMarkers.SHARED_TAP_RADIUS_DP * context.resources.displayMetrics.density
+                    val box = RectF(
+                        screen.x - slop,
+                        screen.y - slop,
+                        screen.x + slop,
+                        screen.y + slop,
+                    )
+                    val hits = runCatching {
+                        map.queryRenderedFeatures(box, *MapMarkers.SHARED_LAYERS.toTypedArray())
+                    }.getOrNull().orEmpty()
+                    // Nearest wins. A box wide enough to be reachable is wide enough to hold
+                    // several points, and taking the first would hand the user whichever one the
+                    // renderer happened to return — sometimes the one further from their finger.
+                    // The dot and the label of the same point both answer; they share a geometry,
+                    // so they tie and resolve to the same pid either way.
+                    val hit = hits.minByOrNull { feature ->
+                        val point = feature.geometry() as? Point
+                            ?: return@minByOrNull Double.MAX_VALUE
+                        val at = map.projection.toScreenLocation(
+                            LatLng(point.latitude(), point.longitude()),
+                        )
+                        val dx = (at.x - screen.x).toDouble()
+                        val dy = (at.y - screen.y).toDouble()
+                        dx * dx + dy * dy
+                    }
                     // Feature properties are a Gson object here, not org.json — the pid was
                     // written by MapMarkers.shared as a plain string property.
                     val pid = hit?.properties()?.get("pid")
                         ?.takeIf { it.isJsonPrimitive }?.asString
                         ?.takeIf { it.isNotEmpty() }
                     onSharedPointTapped(pid)
-                    true
+                    // A miss is not ours to swallow. Nothing else registers a click listener
+                    // today, so this changes no behaviour — it stops being a trap for whatever
+                    // registers one next.
+                    pid != null
                 }
 
                 map.setStyle(Style.Builder().fromJson(styleJson)) { style ->

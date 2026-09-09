@@ -203,6 +203,8 @@
     <string name="map_ready">الخريطة جاهزة: %1$s</string>
     <string name="cd_face_north">التوجه نحو الشمال ومتابعة اتجاهي</string>
     <string name="map_centre_on_me">التوسيط على موقعي</string>
+    <string name="map_shared_hide">إخفاء النقاط المشتركة من الآخرين</string>
+    <string name="map_shared_show">إظهار النقاط المشتركة من الآخرين</string>
     <string name="map_back_to_arrow">العودة إلى السهم</string>
     <string name="shared_card_label">منشور من مستخدم آخر</string>
     <string name="shared_card_save">إضافة إلى نقاطي</string>

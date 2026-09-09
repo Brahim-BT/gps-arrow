@@ -15,7 +15,7 @@ literally, at the cost of elegance, on the principle that a smooth translation w
 **The marks are a reviewed judgement, not something the emitter can infer.** They come from
 `SAFETY_KEYS` in the table. A newly added string is unmarked until someone reads it and adds it
 there, so an unmarked row means "not yet judged" as well as "not safety-carrying". 41 of
-268 rows are marked.
+270 rows are marked.
 
 
 ## Product name and tabs
@@ -264,6 +264,8 @@ there, so an unmarked row means "not yet judged" as well as "not safety-carrying
 |  | `map_ready` | Map ready: %1$s | Carte prête : %1$s | الخريطة جاهزة: %1$s |
 |  | `cd_face_north` | Face north and follow my heading | Orienter vers le nord et suivre mon cap | التوجه نحو الشمال ومتابعة اتجاهي |
 |  | `map_centre_on_me` | Centre on me | Centrer sur moi | التوسيط على موقعي |
+|  | `map_shared_hide` | Hide points shared by others | Masquer les points partagés par d’autres | إخفاء النقاط المشتركة من الآخرين |
+|  | `map_shared_show` | Show points shared by others | Afficher les points partagés par d’autres | إظهار النقاط المشتركة من الآخرين |
 |  | `map_back_to_arrow` | Back to the arrow | Retour à la flèche | العودة إلى السهم |
 |  | `shared_card_label` | Shared by another user | Partagé par un autre utilisateur | منشور من مستخدم آخر |
 |  | `shared_card_save` | Save as mine | Ajouter à mes points | إضافة إلى نقاطي |

@@ -111,6 +111,13 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                // The map's own attribution used to be drawn over the map, where it covered the
+                // centre-on-me button. It reads here instead, next to the other provenance.
+                Text(
+                    text = stringResource(R.string.about_map_attribution),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

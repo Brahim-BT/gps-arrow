@@ -203,6 +203,8 @@
     <string name="map_ready">Map ready: %1$s</string>
     <string name="cd_face_north">Face north and follow my heading</string>
     <string name="map_centre_on_me">Centre on me</string>
+    <string name="map_shared_hide">Hide points shared by others</string>
+    <string name="map_shared_show">Show points shared by others</string>
     <string name="map_back_to_arrow">Back to the arrow</string>
     <string name="shared_card_label">Shared by another user</string>
     <string name="shared_card_save">Save as mine</string>
