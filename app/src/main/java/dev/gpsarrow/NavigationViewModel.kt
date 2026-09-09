@@ -636,6 +636,25 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Whether the map draws the points other people have published. Defaults to on.
+     *
+     * **This hides dots; it does not stop the feed.** [sharedPoints] is also what the
+     * destinations list reads to say whether the user's *own* points are public, so filtering at
+     * the source would silently break their share badges as a side effect of clearing the map.
+     * The single reader of this flag is the map's GeoJSON.
+     *
+     * In preferences rather than saveable UI state because "I do not want other people's points
+     * on my map" is a decision, not a scroll position: it has to survive the app being closed.
+     */
+    private val _showSharedPoints = MutableStateFlow(prefs.getBoolean(KEY_SHOW_SHARED, true))
+    val showSharedPoints: StateFlow<Boolean> = _showSharedPoints.asStateFlow()
+
+    fun setShowSharedPoints(value: Boolean) {
+        _showSharedPoints.value = value
+        prefs.edit().putBoolean(KEY_SHOW_SHARED, value).apply()
+    }
+
+    /**
      * Origin for distance sorting and the per-row distances.
      *
      * Deliberately still returns a stale fix rather than null: a distance from ten minutes ago
@@ -854,6 +873,7 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         const val TAG = "NavigationViewModel"
         const val KEY_SORT = "destinations.sort"
+        const val KEY_SHOW_SHARED = "map.showSharedPoints"
 
         /** Locale-neutral by design; see [quickSaveHere]. */
         const val QUICK_SAVE_NAME_PATTERN = "yyyy-MM-dd HH:mm"

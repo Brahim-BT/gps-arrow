@@ -272,6 +272,11 @@ private fun AppRoot(
         if (tab == AppTab.MAP) viewModel.syncSharedPointsIfDue()
     }
 
+    // Whether the map draws them. Deliberately does NOT gate the sync above: the same feed backs
+    // the share badges below, and a user hiding other people's dots is not asking to be told
+    // their own points have stopped being public.
+    val showShared by viewModel.showSharedPoints.collectAsStateWithLifecycle()
+
     // What the app may claim about the user's own points being public.
     //
     // Derived, never stored: the local intent is certain, the feed observation is not, and
@@ -301,7 +306,12 @@ private fun AppRoot(
     // Which shared dot is tapped. The selection holds only the ID: the feed can refresh under
     // it, so holding the point itself could keep showing a copy that no longer exists.
     var selectedSharedId by rememberSaveable { mutableStateOf<String?>(null) }
-    val selectedShared = selectedSharedId?.let { id -> sharedPoints.firstOrNull { it.id == id } }
+    // Gated on visibility as well as the id, so hiding the layer takes any open card with it.
+    // Derived rather than cleared in the toggle's callback: this way there is no path that can
+    // leave a card floating over dots that are no longer drawn.
+    val selectedShared = selectedSharedId
+        ?.takeIf { showShared }
+        ?.let { id -> sharedPoints.firstOrNull { it.id == id } }
 
     // The areas list presents over the Map tab, the way the editor presents over Destinations.
     // Saveable so a rotation mid-download does not drop the user back to the map.
@@ -852,18 +862,31 @@ private fun AppRoot(
                                 // Saved-from-shared points keep their original id, so
                                 // visibleFrom is what stops a dot and a local copy of the same
                                 // place from drawing on top of each other.
-                                sharedGeoJson = remember(sharedPoints, destinations) {
+                                sharedGeoJson = remember(
+                                    sharedPoints,
+                                    destinations,
+                                    showShared,
+                                ) {
+                                    // Hidden is an empty feature collection, which is also what
+                                    // stops taps finding anything: no rendered features, no hits.
                                     MapMarkers.shared(
-                                        SharedPoints.visibleFrom(
-                                            sharedPoints,
-                                            destinations.map { it.id }.toSet(),
-                                        ),
+                                        if (!showShared) {
+                                            emptyList()
+                                        } else {
+                                            SharedPoints.visibleFrom(
+                                                sharedPoints,
+                                                destinations.map { it.id }.toSet(),
+                                            )
+                                        },
                                     )
                                 },
+                                sharedVisible = showShared,
+                                sharedAvailable = SharedPointsConfig.isConfigured,
                                 selectedShared = selectedShared,
                                 selectedDistanceText = selectedDistanceText,
                                 selectedAlreadySaved = selectedAlreadySaved,
                                 onSharedTap = { id -> selectedSharedId = id },
+                                onToggleShared = { viewModel.setShowSharedPoints(!showShared) },
                                 // Navigate WITHOUT saving: the arrow aims at a transient
                                 // Destination carrying the shared point's own id, so the user's
                                 // list stays untouched until they separately choose "save as

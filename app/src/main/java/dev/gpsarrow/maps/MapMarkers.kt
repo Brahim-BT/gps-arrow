@@ -26,8 +26,27 @@ object MapMarkers {
     const val DESTINATION_SOURCE = "destination"
     const val SHARED_SOURCE = "shared"
 
-    /** Layer ids the map-click handler queries when looking for a shared dot. */
-    val SHARED_LAYERS = listOf("shared-dot")
+    /**
+     * Layer ids the map-click handler queries when looking for a shared dot.
+     *
+     * The label is in here as well as the dot. It is the larger and more obvious of the two
+     * targets, and a tap on a point's own name used to select nothing — which the handler read
+     * as a miss and used to dismiss the card, so aiming at the name actively closed the thing
+     * the user was trying to open.
+     */
+    val SHARED_LAYERS = listOf("shared-dot", "shared-label")
+
+    /**
+     * Half the width of the box the click handler queries, in dp.
+     *
+     * A shared dot draws at `circle-radius: 5.5` with a 1.5px stroke, so hit-testing the tapped
+     * pixel alone gives a target about 14px across — roughly a quarter of the 48dp minimum touch
+     * target Android asks for, and small enough that selecting a point took several attempts.
+     * 24dp in each direction makes the reachable area exactly that 48dp without changing a
+     * single thing about what is drawn: the dots stay 5.5px, because making them big enough to
+     * hit reliably would turn a cluster of shared points into one blob.
+     */
+    const val SHARED_TAP_RADIUS_DP = 24f
 
     private val EMPTY = JSONObject()
         .put("type", "FeatureCollection")

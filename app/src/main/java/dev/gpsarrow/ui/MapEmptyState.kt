@@ -1,6 +1,5 @@
 package dev.gpsarrow.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -9,8 +8,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.PublicOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -61,6 +65,10 @@ fun MapScreen(
     destinationGeoJson: String,
     /** GeoJSON for the public shared-points dots. */
     sharedGeoJson: String,
+    /** Whether the shared layer is switched on; false draws no dots and opens no card. */
+    sharedVisible: Boolean,
+    /** Whether the sharing feature is configured at all; false renders no toggle. */
+    sharedAvailable: Boolean,
     /** The shared dot the user tapped, or null for no selection. */
     selectedShared: SharedPoint?,
     /** Formatted distance from the user, when a fix exists; shown on the selection card. */
@@ -80,6 +88,8 @@ fun MapScreen(
     onUserGesture: () -> Unit,
     /** Tapped a shared dot (its id), or tapped empty map (null) to dismiss the card. */
     onSharedTap: (String?) -> Unit,
+    /** Show or hide the whole shared layer. */
+    onToggleShared: () -> Unit,
     onNavigateShared: (SharedPoint) -> Unit,
     onSaveShared: (SharedPoint) -> Unit,
     onFaceNorth: () -> Unit,
@@ -101,6 +111,8 @@ fun MapScreen(
             positionGeoJson = positionGeoJson,
             destinationGeoJson = destinationGeoJson,
             sharedGeoJson = sharedGeoJson,
+            sharedVisible = sharedVisible,
+            sharedAvailable = sharedAvailable,
             selectedShared = selectedShared,
             selectedDistanceText = selectedDistanceText,
             selectedAlreadySaved = selectedAlreadySaved,
@@ -111,6 +123,7 @@ fun MapScreen(
             onCameraMoved = onCameraMoved,
             onUserGesture = onUserGesture,
             onSharedTap = onSharedTap,
+            onToggleShared = onToggleShared,
             onNavigateShared = onNavigateShared,
             onSaveShared = onSaveShared,
             onFaceNorth = onFaceNorth,
@@ -159,7 +172,7 @@ private fun EmptyStateColumn(
 }
 
 /**
- * The map itself, with the attribution the licence requires.
+ * The map itself, and the controls that float over it.
  *
  * If the renderer will not start — missing native library for this ABI, unreadable style asset,
  * GL context refused — this falls back to the same card the user sees when nothing is installed.
@@ -174,6 +187,10 @@ private fun InstalledMap(
     destinationGeoJson: String,
     /** GeoJSON for the public shared-points dots. */
     sharedGeoJson: String,
+    /** Whether the shared layer is switched on; false draws no dots and opens no card. */
+    sharedVisible: Boolean,
+    /** Whether the sharing feature is configured at all; false renders no toggle. */
+    sharedAvailable: Boolean,
     /** The shared dot the user tapped, or null for no selection. */
     selectedShared: SharedPoint?,
     /** Formatted distance from the user, when a fix exists; shown on the selection card. */
@@ -193,6 +210,8 @@ private fun InstalledMap(
     onUserGesture: () -> Unit,
     /** Tapped a shared dot (its id), or tapped empty map (null) to dismiss the card. */
     onSharedTap: (String?) -> Unit,
+    /** Show or hide the whole shared layer. */
+    onToggleShared: () -> Unit,
     onNavigateShared: (SharedPoint) -> Unit,
     onSaveShared: (SharedPoint) -> Unit,
     onFaceNorth: () -> Unit,
@@ -251,6 +270,29 @@ private fun InstalledMap(
             onUserGesture = onUserGesture,
         )
 
+        // Top-start: the shared layer's own switch. The corner is free — north is top-end,
+        // centre-on-me is bottom-end — so this can never sit on top of another control, which
+        // is the failure the attribution used to have against the button below.
+        //
+        // It stays visible when the layer is off, because a control that disappears once used
+        // leaves no way back. Gated only on the feature being configured, never on the feed
+        // being non-empty: hiding an empty feed still has to be undoable.
+        if (sharedAvailable) {
+            FilledTonalIconButton(
+                onClick = onToggleShared,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(12.dp),
+            ) {
+                Icon(
+                    imageVector = if (sharedVisible) Icons.Filled.Public else Icons.Filled.PublicOff,
+                    contentDescription = stringResource(
+                        if (sharedVisible) R.string.map_shared_hide else R.string.map_shared_show,
+                    ),
+                )
+            }
+        }
+
         // Top-end: where north is, and one tap back to north-up and following.
         if (MapOrientation.showNorthIndicator(orientation)) {
             NorthIndicator(
@@ -274,9 +316,9 @@ private fun InstalledMap(
         }
 
         // Tap-inspect card for a shared public point. It floats above the controls — the
-        // centre-on-me button and the attribution line both live in the bottom corners, so a
-        // 64dp bottom inset clears whichever of them is showing. Dismissal is tapping the map
-        // somewhere else, which arrives here as onSharedTap(null).
+        // centre-on-me button lives in the bottom-end corner, so a 64dp bottom inset clears it
+        // when it is showing. Dismissal is tapping the map somewhere else, which arrives here
+        // as onSharedTap(null).
         if (selectedShared != null) {
             SharedSelectionCard(
                 point = selectedShared,
@@ -289,18 +331,6 @@ private fun InstalledMap(
                     .padding(start = 12.dp, end = 12.dp, bottom = 64.dp),
             )
         }
-
-        // ODbL condition: attribution must be visible wherever the map is shown, not buried in
-        // an About page. It sits over the map rather than beside it for exactly that reason.
-        Text(
-            stringResource(R.string.about_map_attribution),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.7f))
-                .padding(horizontal = 6.dp, vertical = 2.dp),
-        )
     }
 }
 

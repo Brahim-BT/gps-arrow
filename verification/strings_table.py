@@ -370,6 +370,15 @@ STRINGS = [
      "Orienter vers le nord et suivre mon cap",
      "التوجه نحو الشمال ومتابعة اتجاهي"),
     ("map_centre_on_me", "Centre on me", "Centrer sur moi", "التوسيط على موقعي"),
+    # The shared layer's switch, described by what tapping it does rather than by its state:
+    # a content description that named the state would read as a label, and a screen reader
+    # user would hear "shared points on" and have no idea the control turns them off.
+    ("map_shared_hide", "Hide points shared by others",
+     "Masquer les points partagés par d’autres",
+     "إخفاء النقاط المشتركة من الآخرين"),
+    ("map_shared_show", "Show points shared by others",
+     "Afficher les points partagés par d’autres",
+     "إظهار النقاط المشتركة من الآخرين"),
     ("map_back_to_arrow", "Back to the arrow", "Retour à la flèche", "العودة إلى السهم"),
     # The tap-inspect card for a shared dot, and the confirmation for saving one. The card's
     # primary action reuses navigate_here; only the shared-specific strings live here.
