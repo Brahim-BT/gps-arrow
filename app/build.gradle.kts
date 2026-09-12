@@ -52,22 +52,6 @@ android {
         }
         debug {
             applicationIdSuffix = ".debug"
-
-            // Debug APKs are downloaded by hand from a GitHub Actions artifact every round, so
-            // three quarters of a universal APK is native code for architectures that will never
-            // run it — including x86 builds that exist only for emulators. Restricting the debug
-            // variant to the target device's ABI cuts roughly 37 MB off each download.
-            //
-            // This affects the debug variant ONLY. Release ships as an App Bundle, where Play
-            // splits per device anyway, so the release path is untouched and there is nothing to
-            // keep in sync.
-            //
-            // Testing on an emulator or a 32-bit device means adding its ABI here:
-            //   arm64-v8a (most phones since ~2017), armeabi-v7a (older 32-bit),
-            //   x86_64 (most emulators), x86 (very old emulators).
-            ndk {
-                abiFilters += "arm64-v8a"
-            }
         }
     }
 
@@ -84,6 +68,35 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    // Debug APKs are downloaded by hand from a GitHub Actions artifact every round, and three
+    // quarters of a universal APK is native code the device will never execute. This used to be
+    // `ndk { abiFilters += "arm64-v8a" }` on the debug build type, which made the download small
+    // by making it install on exactly one machine — and an arm64-only APK cannot install on a
+    // 32-bit device at all. The installer's entire explanation for that is "App not installed",
+    // which is how it cost three weeks on an Android car head unit.
+    //
+    // Splitting gets the size back without the trap: one small APK per architecture for the
+    // routine phone download, plus a universal one to reach for when the device is unfamiliar
+    // and you would otherwise have to identify its CPU before you could install anything.
+    //
+    // This is an `android { }` block rather than a build-type one, so it applies to every
+    // variant — but the release path ships as an App Bundle, where `splits.abi` is ignored and
+    // Play generates a per-device APK anyway. Nothing there changes, and there is nothing to
+    // keep in sync.
+    //
+    //   app-arm64-v8a-debug.apk     ~33 MB   phones since ~2017
+    //   app-armeabi-v7a-debug.apk   ~33 MB   32-bit devices, which most car radios are
+    //   app-x86_64-debug.apk        ~33 MB   emulators
+    //   app-universal-debug.apk     ~68 MB   anything; install this one when in doubt
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
+        }
     }
 
     packaging {

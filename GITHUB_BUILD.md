@@ -83,28 +83,57 @@ It stops on the first error rather than pressing on. If the push is rejected bec
 
 Running it with nothing to commit is fine: it says so and exits without an error.
 
-## 2b. Why the debug APK is large, and why the release will not be
+## 2b. Why there are four APKs, and which one to install
 
 Adding MapLibre took the debug APK from 18 MB to 68 MB. That is expected and it is **not** what
 users will download.
 
-`assembleDebug` with no `splits` or `abiFilters` produces a **universal APK**: one file carrying
-the native `.so` libraries for every architecture MapLibre ships — `arm64-v8a`, `armeabi-v7a`,
-`x86` and `x86_64`. Only one of those ever executes on a given device. The other three are dead
-weight, and two of them (`x86`, `x86_64`) exist essentially for emulators.
+`assembleDebug` with no `splits` produces a **universal APK**: one file carrying the native `.so`
+libraries for every architecture MapLibre ships — `arm64-v8a`, `armeabi-v7a`, `x86` and `x86_64`.
+Only one of those ever executes on a given device. The other three are dead weight, and two of
+them (`x86`, `x86_64`) exist essentially for emulators.
 
-The debug variant is now restricted to `arm64-v8a`, which is what the target device uses. That is
-a one-line `ndk { abiFilters += "arm64-v8a" }` inside `buildTypes.debug` and it touches nothing
-else. To test on an emulator or a 32-bit device, add that ABI there.
+The obvious saving is to build only the one architecture your phone uses, and for three weeks
+that is what this repo did — `ndk { abiFilters += "arm64-v8a" }` inside `buildTypes.debug`. It
+worked, right up until the APK met a device that was not the phone. **An APK with no native
+library for the device's CPU cannot be installed, and Android's entire explanation for that is
+"App not installed."** An Android 12 car head unit is very often 32-bit `armeabi-v7a` — Allwinner
+T3/T7 are Cortex-A7, and plenty of otherwise-64-bit units ship a 32-bit Android on top. That is a
+failure with no error message, no log, and nothing on the build that hints at it.
 
-**The release path is unaffected and needs no equivalent.** Ship an **App Bundle** (`bundleRelease`,
-producing `.aab`) and Play generates a per-device APK containing exactly one ABI. A user installing
-from Play gets roughly a quarter of the native payload. So:
+So the build now **splits by ABI and also emits a universal APK**:
+
+```kotlin
+splits {
+    abi {
+        isEnable = true
+        reset()
+        include("arm64-v8a", "armeabi-v7a", "x86_64")
+        isUniversalApk = true
+    }
+}
+```
+
+| file | size | install it on |
+|---|---|---|
+| `app-arm64-v8a-debug.apk` | ~33 MB | your phone, and anything else since ~2017 |
+| `app-armeabi-v7a-debug.apk` | ~33 MB | 32-bit devices, which many car head units are |
+| `app-x86_64-debug.apk` | ~33 MB | emulators |
+| `app-universal-debug.apk` | ~68 MB | **anything at all** — the one to reach for when you do not know the device |
+
+The routine phone download stays small; the universal file exists so that installing on an
+unfamiliar device never requires identifying its CPU first. **Every run now prints the ABIs inside
+each file on its summary page**, next to the signer digest, for the same reason: both are ways an
+APK silently refuses to install, and both should be visible on the build rather than in a car park.
+
+**The release path is unaffected and needs no equivalent.** `splits.abi` is ignored when building
+an **App Bundle** (`bundleRelease`, producing `.aab`); Play generates a per-device APK containing
+exactly one ABI, so a user installing from Play gets roughly a quarter of the native payload.
 
 | | size | status |
 |---|---|---|
 | Universal debug APK, all four ABIs | 68 MB | measured |
-| Debug APK, `arm64-v8a` only | **33 MB** | measured |
+| Single-ABI debug APK | **33 MB** | measured |
 | What Play delivers per device from an App Bundle | ~33 MB or less | release path |
 
 The 35 MB removed for three ABIs works out at roughly **12 MB of native library per ABI**, which
@@ -115,10 +144,10 @@ about MapLibre's footprint.
 Write this down rather than remembering it: "the app is 68 MB" is exactly the sort of figure that
 gets repeated later as though it were the shipping size.
 
-**To see the real per-ABI split** on any built APK:
+**To see the real per-ABI split** inside a built APK — name one file, the glob now matches four:
 
 ```bash
-unzip -l app/build/outputs/apk/debug/*.apk | awk '/lib\// {
+unzip -l app/build/outputs/apk/debug/app-universal-debug.apk | awk '/lib\// {
     split($4, p, "/"); size[p[2]] += $1
 } END { for (a in size) printf "  %-14s %8.1f MB\n", a, size[a]/1048576 }'
 ```
@@ -150,8 +179,16 @@ bottom — there's an **Artifacts** section with two entries:
 Click **gpsarrow-debug-apk** to download it.
 
 > **It downloads as `gpsarrow-debug-apk.zip`, not as an `.apk`.** That's GitHub, not a mistake —
-> it wraps every artifact in a zip. Unzip it and you get `app-debug.apk` inside. On a Mac,
-> double-clicking the zip is enough.
+> it wraps every artifact in a zip. On a Mac, double-clicking the zip is enough.
+
+Inside the zip are **four `.apk` files**, one per architecture plus a universal one — see §2b for
+why. Take:
+
+- **`app-arm64-v8a-debug.apk`** for your phone. This is the routine one.
+- **`app-universal-debug.apk`** for anything else. See §5a.
+
+The run's summary page lists each file with the architectures inside it, so you never have to
+open the zip to check.
 
 The artifacts only appear once the run has finished, and they expire after 30 days.
 
@@ -168,6 +205,38 @@ Any of these work — pick whichever is least annoying:
   it — Files by Google can, via *Extract*.
 
 Then tap the `.apk` file.
+
+## 5a. Installing on something that isn't your phone
+
+A car head unit, a tablet, a friend's device. **Use `app-universal-debug.apk`.** It carries every
+architecture, so it cannot fail for want of the right one — which is the single most common
+reason a sideload dies with a bare *"App not installed"* and nothing else.
+
+Two other things produce that same unhelpful message:
+
+- **An older copy is already installed and was signed with a different key.** Debug builds before
+  the `DEBUG_KEYSTORE_BASE64` secret existed were each signed with a throwaway key (see
+  `TESTING.md` §3a). Uninstall the old copy first — its saved destinations go with it.
+- **Not enough free space.** These units often have very little, and the universal APK is 68 MB.
+
+**If it still refuses, stop guessing and read the real error.** The installer UI hides it; `adb`
+prints it. Most aftermarket radios expose ADB over the network — `Settings ▸ Developer options ▸
+ADB debugging` — and report their IP on the same screen or in `Settings ▸ About`:
+
+```bash
+adb connect 192.168.1.42:5555 && adb shell getprop ro.product.cpu.abilist
+```
+
+That lists the architectures the device actually accepts, which tells you which APK it wanted.
+Then:
+
+```bash
+adb install -r app-universal-debug.apk
+```
+
+This replaces *"App not installed"* with the actual reason — `INSTALL_FAILED_NO_MATCHING_ABIS`,
+`INSTALL_FAILED_UPDATE_INCOMPATIBLE` (the signing key), `INSTALL_FAILED_INSUFFICIENT_STORAGE`, and
+so on. Five minutes here beats a release cycle of guessing.
 
 ## 6. The two prompts that will stop you
 

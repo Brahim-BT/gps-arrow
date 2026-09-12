@@ -109,8 +109,8 @@ Or, if you have Gradle on your PATH (`brew install gradle`, or SDKMAN):
 cd GpsArrow
 gradle wrapper --gradle-version 8.14.3
 ./gradlew :core:test            # pure JVM, no device
-./gradlew :app:assembleDebug    # APK at app/build/outputs/apk/debug/
-./gradlew :app:installDebug     # push to the connected phone
+./gradlew :app:assembleDebug    # four APKs in app/build/outputs/apk/debug/ — see GITHUB_BUILD.md §2b
+./gradlew :app:installDebug     # push to the connected phone, picking the right one for it
 ```
 
 ## 5. The field test that actually proves it
@@ -187,6 +187,7 @@ nothing, that's a bug.
 
 | Symptom | Cause |
 |---|---|
+| **"App not installed", with no other text** | Almost always the wrong architecture: the APK carries no native library for that device's CPU, and that is the whole of what Android says about it. Install **`app-universal-debug.apk`**, which carries all of them — see `GITHUB_BUILD.md` §5a, which also covers the two other causes (a previous copy signed with a different key, and no free space) and how to get `adb` to print the real error. |
 | Sync fails: "Failed to find Platform SDK with path 36" | Install API 36 in the SDK Manager (§1). |
 | `./gradlew: gradle-wrapper.jar is missing` | Expected. See §4. |
 | App installs but the arrow never appears | No destination selected. Tap **Destinations**. |

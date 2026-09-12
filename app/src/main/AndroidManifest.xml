@@ -30,9 +30,19 @@
       location review and buys nothing: the service is always started from a visible activity.
     -->
 
+    <!--
+      required="false", though the arrow is useless without a fix. A hard requirement is a
+      distribution filter, not a runtime guarantee: it removes the app from the Play Store and
+      from the app-market front-ends fitted to car head units for every device that does not
+      declare this feature flag — and units whose GNSS arrives over a vendor HAL or a serial
+      receiver frequently do not declare it, while still having a perfectly good GPS_PROVIDER.
+      LocationEngine already treats the provider as something to look for rather than assume
+      (`lm.allProviders.contains(GPS_PROVIDER)`, falling through to FUSED_PROVIDER), so this
+      states what the code actually does.
+    -->
     <uses-feature
         android:name="android.hardware.location.gps"
-        android:required="true" />
+        android:required="false" />
     <uses-feature
         android:name="android.hardware.sensor.compass"
         android:required="false" />
